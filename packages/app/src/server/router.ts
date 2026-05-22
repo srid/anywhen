@@ -1,47 +1,40 @@
-// Wire the surface's procedures to the SQLite-backed taskStore. PR 1 has
-// no cells/collections/streams/events — only the three imperative tasks
-// procedures. PR 2 adds a `tasks` collection that broadcasts deltas; until
-// then the client refetches via `tasks.list` after each mutation.
+// Wire surface procedures to the SQLite-backed taskStore.
 //
-// `channel` is required by ImplementSurfaceDeps but is only consulted when
-// a cell / collection / stream / event is declared. PR 1 has none, so the
-// stub throws on use — a real implementation arrives with PR 2's
-// Collection delta push.
+// Why the rewrap on line 30: `implementSurface` returns
+// `{ surface: t.router(namespaces) }`. The inner `t.router(...)` carries
+// the full surface contract as a hidden "router contract" — oRPC's
+// matcher walks the OUTER `{ surface: ... }` normally, then when it
+// descends into the inner router it switches to walking the hidden
+// contract from its root, duplicating the `surface` path segment
+// (procedures end up registered at `/surface/surface/tasks/list` —
+// observed directly in the matcher's `tree` keys before this rewrap).
+// Wrapping the fragment in a fresh host-level `t.router({...fragment})`
+// makes the host router own the hidden contract once, so the matcher
+// walks the contract from root and the path segments line up.
 //
-// `implementSurface` returns `{ surface: t.router(namespaces) }` where the
-// inner `t.router(...)` carries the full surface contract as a hidden
-// "router contract". oRPC's matcher walks the OUTER `{ surface: ... }`
-// normally — and when it descends into the inner `t.router(...)`, the
-// hidden contract starts the walk again from the root, duplicating the
-// `surface` path segment (procedures end up registered at
-// `/surface/surface/tasks/list` instead of `/surface/tasks/list`). Rewrap
-// with `t.router({...fragment})` so the host-level router itself owns the
-// hidden contract and the matcher walks it once from the contract root.
-// (Kolu's appRouter naturally avoids this because it always spreads the
+// Kolu's appRouter naturally avoids this because it always spreads the
 // surface fragment alongside hand-written namespaces; a procedures-only
-// app needs the explicit rewrap.)
+// app needs the explicit rewrap.
 
 import { implement } from "@orpc/server";
 import { type Channel, implementSurface } from "@kolu/surface/server";
 import { surface } from "../shared/surface";
 import type { TaskStore } from "../storage/tasks";
 
-const unusedChannel = <T>(name: string): Channel<T> => {
-  const fail = () => {
-    throw new Error(
-      `Channel(${name}): no reactive primitives declared on this surface (PR 1 has procedures only).`,
-    );
-  };
-  return {
-    publish: fail,
-    subscribe: fail as never,
-    consume: fail as never,
-  };
-};
-
 export function buildRouter(store: TaskStore) {
   const { router: surfaceFragment } = implementSurface(surface, {
-    channel: unusedChannel,
+    // `channel` is required by ImplementSurfaceDeps but only invoked when a
+    // cell / collection / stream / event is declared. PR 1 has none, so any
+    // call here is a wiring bug — throw with implementation-neutral language
+    // (PR 2 will add real channels for the tasks collection).
+    channel: <T>(name: string): Channel<T> => {
+      const fail = () => {
+        throw new Error(
+          `Channel(${name}): not wired — add this channel to implementSurface deps when declaring reactive primitives.`,
+        );
+      };
+      return { publish: fail, subscribe: fail as never, consume: fail as never };
+    },
     procedures: {
       tasks: {
         list: async () => store.list(),
