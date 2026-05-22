@@ -15,7 +15,7 @@ let
     name = "anywhen";
     runtimeInputs = [ pkgs.python3 ];
     text = ''
-      : "''${PORT:=7700}"
+      : "''${PORT:?PORT must be set}"
       : "''${ANYWHEN_STATE_DIR:?ANYWHEN_STATE_DIR must be set}"
       mkdir -p "$ANYWHEN_STATE_DIR"
       : > "$ANYWHEN_STATE_DIR/anywhen.db"
