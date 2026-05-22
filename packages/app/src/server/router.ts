@@ -21,20 +21,24 @@ import { type Channel, implementSurface } from "@kolu/surface/server";
 import { surface } from "../shared/surface";
 import type { TaskStore } from "../storage/tasks";
 
+// Channel transport is the volatile axis on the surface deps — PR 1 has
+// no reactive primitives, PR 2 swaps to a real `publisherChannel` over
+// WebSocket. Naming the receptacle (vs. an anonymous arrow inline) makes
+// that swap a one-line substitution at the use site instead of an interior
+// closure rewrite, and keeps the channel slot symmetrical with the named
+// procedure handlers below.
+const stubChannel = <T>(name: string): Channel<T> => {
+  const fail = () => {
+    throw new Error(
+      `Channel(${name}): not wired — add this channel to implementSurface deps when declaring reactive primitives.`,
+    );
+  };
+  return { publish: fail, subscribe: fail as never, consume: fail as never };
+};
+
 export function buildRouter(store: TaskStore) {
   const { router: surfaceFragment } = implementSurface(surface, {
-    // `channel` is required by ImplementSurfaceDeps but only invoked when a
-    // cell / collection / stream / event is declared. PR 1 has none, so any
-    // call here is a wiring bug — throw with implementation-neutral language
-    // (PR 2 will add real channels for the tasks collection).
-    channel: <T>(name: string): Channel<T> => {
-      const fail = () => {
-        throw new Error(
-          `Channel(${name}): not wired — add this channel to implementSurface deps when declaring reactive primitives.`,
-        );
-      };
-      return { publish: fail, subscribe: fail as never, consume: fail as never };
-    },
+    channel: stubChannel,
     procedures: {
       tasks: {
         list: async () => store.list(),
