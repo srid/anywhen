@@ -47,23 +47,31 @@ pkgs.testers.nixosTest {
     };
   };
 
-  testScript = ''
-    machine.wait_for_unit("anywhen.service")
+  # Pull the port from the evaluated module config so the curl URL
+  # tracks `services.anywhen.port` automatically — changing the option's
+  # default (or wiring a different port in a future test variant)
+  # propagates without two values getting out of sync.
+  testScript = { nodes, ... }:
+    let
+      port = toString nodes.machine.services.anywhen.port;
+    in
+    ''
+      machine.wait_for_unit("anywhen.service")
 
-    # systemd reports "active" before the listener binds. Poll until
-    # the port answers — 60s headroom for qemu TCG fallback on hosts
-    # without KVM (Python stdlib http.server is fast, but VM cold
-    # start dominates).
-    machine.wait_until_succeeds(
-        "curl --fail --silent http://127.0.0.1:7700/api/health",
-        timeout=60,
-    )
+      # systemd reports "active" before the listener binds. Poll until
+      # the port answers — 60s headroom for qemu TCG fallback on hosts
+      # without KVM (Python stdlib http.server is fast, but VM cold
+      # start dominates).
+      machine.wait_until_succeeds(
+          "curl --fail --silent http://127.0.0.1:${port}/api/health",
+          timeout=60,
+      )
 
-    # StateDirectory= must have created /var/lib/anywhen with mode 0700
-    # owned by the anywhen user. Verify both — a regression that drops
-    # the dedicated user would chown to root.
-    machine.succeed("test -d /var/lib/anywhen")
-    machine.succeed("[ \"$(stat -c %U /var/lib/anywhen)\" = anywhen ]")
-    machine.succeed("[ \"$(stat -c %a /var/lib/anywhen)\" = 700 ]")
-  '';
+      # StateDirectory= must have created /var/lib/anywhen with mode 0700
+      # owned by the anywhen user. Verify both — a regression that drops
+      # the dedicated user would chown to root.
+      machine.succeed("test -d /var/lib/anywhen")
+      machine.succeed("[ \"$(stat -c %U /var/lib/anywhen)\" = anywhen ]")
+      machine.succeed("[ \"$(stat -c %a /var/lib/anywhen)\" = 700 ]")
+    '';
 }
