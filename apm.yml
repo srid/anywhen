@@ -1,0 +1,10 @@
+name: anywhen
+version: 1.0.0
+type: hybrid
+
+target: claude
+
+dependencies:
+  apm:
+    - srid/agency#master
+    - juspay/justci#main
