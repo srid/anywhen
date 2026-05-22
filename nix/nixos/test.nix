@@ -38,12 +38,37 @@ in
 pkgs.testers.nixosTest {
   name = "anywhen";
 
-  nodes.machine = { ... }: {
-    imports = [ ../../nix/nixos/module.nix ];
+  nodes = {
+    # Default machine — exercises the managed branch: systemd creates
+    # /var/lib/anywhen via StateDirectory=, the module declares the
+    # `anywhen` user/group, default port 7700.
+    machine = { ... }: {
+      imports = [ ../../nix/nixos/module.nix ];
 
-    services.anywhen = {
-      enable = true;
-      package = stubPackage;
+      services.anywhen = {
+        enable = true;
+        package = stubPackage;
+      };
+    };
+
+    # Unmanaged machine — exercises `manageStateDir = false`. The
+    # operator (here, a tmpfiles rule) provisions the state directory
+    # at a non-canonical path; the module must NOT emit StateDirectory=
+    # and must NOT create /var/lib/anywhen.
+    unmanaged = { ... }: {
+      imports = [ ../../nix/nixos/module.nix ];
+
+      services.anywhen = {
+        enable = true;
+        package = stubPackage;
+        port = 7711;
+        stateDir = "/srv/anywhen-state";
+        manageStateDir = false;
+      };
+
+      systemd.tmpfiles.rules = [
+        "d /srv/anywhen-state 0700 anywhen anywhen -"
+      ];
     };
   };
 
@@ -54,9 +79,11 @@ pkgs.testers.nixosTest {
   testScript = { nodes, ... }:
     let
       port = toString nodes.machine.services.anywhen.port;
+      unmanagedPort = toString nodes.unmanaged.services.anywhen.port;
     in
     ''
       machine.wait_for_unit("anywhen.service")
+      unmanaged.wait_for_unit("anywhen.service")
 
       # systemd reports "active" before the listener binds. Poll until
       # the port answers — 60s headroom for qemu TCG fallback on hosts
@@ -66,12 +93,22 @@ pkgs.testers.nixosTest {
           "curl --fail --silent http://127.0.0.1:${port}/api/health",
           timeout=60,
       )
+      unmanaged.wait_until_succeeds(
+          "curl --fail --silent http://127.0.0.1:${unmanagedPort}/api/health",
+          timeout=60,
+      )
 
-      # StateDirectory= must have created /var/lib/anywhen with mode 0700
-      # owned by the anywhen user. Verify both — a regression that drops
-      # the dedicated user would chown to root.
+      # Managed branch: StateDirectory= must have created
+      # /var/lib/anywhen with mode 0700 owned by the anywhen user.
       machine.succeed("test -d /var/lib/anywhen")
       machine.succeed("[ \"$(stat -c %U /var/lib/anywhen)\" = anywhen ]")
       machine.succeed("[ \"$(stat -c %a /var/lib/anywhen)\" = 700 ]")
+
+      # Unmanaged branch: systemd must NOT have created
+      # /var/lib/anywhen; the operator-provisioned /srv/anywhen-state is
+      # what the service writes into.
+      unmanaged.fail("test -d /var/lib/anywhen")
+      unmanaged.succeed("test -d /srv/anywhen-state")
+      unmanaged.succeed("test -f /srv/anywhen-state/anywhen.db")
     '';
 }
