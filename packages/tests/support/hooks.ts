@@ -85,6 +85,7 @@ After(async function (this: AnywhenWorld, scenario: ITestCaseHookParameter) {
     const dir = join(REPO_ROOT, "packages/tests/reports/screenshots");
     mkdirSync(dir, { recursive: true });
     const slug = scenario.pickle.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+    // Best-effort: don't let a screenshot failure obscure the real test failure.
     await this.page.screenshot({ path: join(dir, `${slug}.png`) }).catch(() => {});
   }
   await this.context?.close();

@@ -1,4 +1,4 @@
-import { setWorldConstructor, World, type IWorldOptions } from "@cucumber/cucumber";
+import { setWorldConstructor, World } from "@cucumber/cucumber";
 import type { Browser, BrowserContext, Page } from "playwright";
 
 export class AnywhenWorld extends World {
@@ -6,10 +6,6 @@ export class AnywhenWorld extends World {
   context!: BrowserContext;
   page!: Page;
   serverUrl!: string;
-
-  constructor(options: IWorldOptions) {
-    super(options);
-  }
 }
 
 setWorldConstructor(AnywhenWorld);
