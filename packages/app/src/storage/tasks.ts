@@ -32,11 +32,11 @@ export const taskStore = (db: Database) => {
   const maxPositionStmt = db.query<{ max_pos: number | null }, [TaskId | null]>(
     "SELECT MAX(position) AS max_pos FROM tasks WHERE parent_id IS ?",
   );
-  const insertStmt = db.prepare(
+  const insertStmt = db.query(
     "INSERT INTO tasks (id, parent_id, title, status, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
   );
-  const setStatusStmt = db.prepare("UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?");
-  const removeStmt = db.prepare("DELETE FROM tasks WHERE id = ?");
+  const setStatusStmt = db.query("UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?");
+  const removeStmt = db.query("DELETE FROM tasks WHERE id = ?");
 
   return {
     list(): Task[] {
