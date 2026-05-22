@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
-import type { Task, TaskId } from "../shared/schemas";
+import type { MoveTaskInput, Task, TaskId } from "../shared/schemas";
 
 // Row type stays internal to storage/. Domain `Task` (camelCase ISO strings)
 // is what crosses the module boundary; SQLite snake_case never leaks.
@@ -37,6 +37,22 @@ export const taskStore = (db: Database) => {
   );
   const setStatusStmt = db.query("UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?");
   const removeStmt = db.query("DELETE FROM tasks WHERE id = ?");
+  const movePositionStmt = db.query(
+    "UPDATE tasks SET parent_id = ?, position = ?, updated_at = ? WHERE id = ?",
+  );
+
+  // Sibling immediately before/after `position` within `parentId`, excluding
+  // `excludeId` (the task being moved — otherwise reordering within the same
+  // parent picks itself as its own neighbor).
+  const prevSiblingStmt = db.query<{ position: number }, [TaskId | null, number, TaskId]>(
+    "SELECT position FROM tasks WHERE parent_id IS ? AND position < ? AND id != ? ORDER BY position DESC LIMIT 1",
+  );
+  const nextSiblingStmt = db.query<{ position: number }, [TaskId | null, number, TaskId]>(
+    "SELECT position FROM tasks WHERE parent_id IS ? AND position > ? AND id != ? ORDER BY position ASC LIMIT 1",
+  );
+  const maxChildPositionStmt = db.query<{ max_pos: number | null }, [TaskId, TaskId]>(
+    "SELECT MAX(position) AS max_pos FROM tasks WHERE parent_id IS ? AND id != ?",
+  );
 
   return {
     list(): Task[] {
@@ -52,6 +68,49 @@ export const taskStore = (db: Database) => {
       const row = getStmt.get(id);
       if (!row) throw new Error(`Failed to read back inserted task ${id}`);
       return rowToTask(row);
+    },
+
+    // Reorder by semantic drop target. `before`/`after` make the task a
+    // sibling of refId; `inside` makes it the last child. Server resolves
+    // the (parentId, position) so clients never compute float midpoints.
+    // Rejects: moving into self, dropping a task adjacent to itself
+    // (degenerate no-op), or any move that would make an ancestor become
+    // its own descendant.
+    move(input: MoveTaskInput): Task {
+      const { id, target } = input;
+      const task = getStmt.get(id);
+      if (!task) throw new Error(`Task ${id} not found`);
+      const ref = getStmt.get(target.refId);
+      if (!ref) throw new Error(`Task ${target.refId} not found`);
+      if (id === target.refId) throw new Error("Cannot move a task relative to itself");
+
+      const newParentId: TaskId | null = target.kind === "inside" ? ref.id : ref.parent_id;
+
+      // Cycle check: walk up from the prospective new parent; if we hit the
+      // moving task, the move would orphan its current subtree under itself.
+      let cursor: string | null = newParentId;
+      while (cursor) {
+        if (cursor === id) throw new Error(`Cannot move task ${id} into its own subtree`);
+        const parent = getStmt.get(cursor);
+        cursor = parent ? parent.parent_id : null;
+      }
+
+      let newPosition: number;
+      if (target.kind === "inside") {
+        const { max_pos } = maxChildPositionStmt.get(ref.id, id) ?? { max_pos: null };
+        newPosition = (max_pos ?? 0) + POSITION_GAP;
+      } else if (target.kind === "before") {
+        const prev = prevSiblingStmt.get(ref.parent_id, ref.position, id);
+        newPosition = prev ? (prev.position + ref.position) / 2 : ref.position - POSITION_GAP;
+      } else {
+        const next = nextSiblingStmt.get(ref.parent_id, ref.position, id);
+        newPosition = next ? (ref.position + next.position) / 2 : ref.position + POSITION_GAP;
+      }
+
+      movePositionStmt.run(newParentId, newPosition, new Date().toISOString(), id);
+      const updated = getStmt.get(id);
+      if (!updated) throw new Error(`Task ${id} disappeared after move`);
+      return rowToTask(updated);
     },
 
     toggle(id: TaskId): Task {

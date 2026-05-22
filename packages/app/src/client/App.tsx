@@ -13,7 +13,7 @@ import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
 import { createMemo, createResource, createSignal, For, Show } from "solid-js";
 import { parseInput } from "../shared/input";
-import type { Task, TaskId } from "../shared/schemas";
+import type { MoveTarget, Task, TaskId } from "../shared/schemas";
 import type { surface } from "../shared/surface";
 
 type Client = ContractRouterClient<typeof surface.contract>;
@@ -42,6 +42,37 @@ const buildRows = (tasks: Task[]): Row[] => {
     }
   };
   walk(null, 0);
+  return out;
+};
+
+type DropZone = "before" | "after" | "inside";
+
+// Map a pointer's Y inside a row to a drop zone. Top quarter → before, bottom
+// quarter → after, middle half → inside (re-parent). Symmetric so the user
+// can always nudge a task one step up, one step down, or one level deeper.
+const zoneAt = (offsetY: number, height: number): DropZone => {
+  if (height <= 0) return "inside";
+  const ratio = offsetY / height;
+  if (ratio < 0.25) return "before";
+  if (ratio > 0.75) return "after";
+  return "inside";
+};
+
+const descendantsOf = (tasks: Task[], rootId: TaskId): Set<TaskId> => {
+  const byParent = new Map<TaskId | null, Task[]>();
+  for (const t of tasks) {
+    const arr = byParent.get(t.parentId) ?? [];
+    arr.push(t);
+    byParent.set(t.parentId, arr);
+  }
+  const out = new Set<TaskId>();
+  const walk = (id: TaskId) => {
+    for (const c of byParent.get(id) ?? []) {
+      out.add(c.id);
+      walk(c.id);
+    }
+  };
+  walk(rootId);
   return out;
 };
 
@@ -99,6 +130,66 @@ export function App() {
     void callMutation(() => api.remove(id));
   };
 
+  // ── Drag-and-drop reordering ────────────────────────────────────────
+  // The dragged task plus a memoised set of its descendants — both used to
+  // veto invalid drops (onto self or into own subtree) before the server
+  // sees them. The server also rejects, but blocking here keeps the
+  // visual indicator off illegal targets so the UX matches the outcome.
+  const [draggedId, setDraggedId] = createSignal<TaskId | null>(null);
+  const [dropTarget, setDropTarget] = createSignal<{ id: TaskId; zone: DropZone } | null>(null);
+  const draggedDescendants = createMemo<Set<TaskId>>(() => {
+    const id = draggedId();
+    if (!id) return new Set();
+    return descendantsOf(tasks() ?? [], id);
+  });
+
+  const canDropOn = (rowId: TaskId): boolean => {
+    const src = draggedId();
+    if (!src || src === rowId) return false;
+    return !draggedDescendants().has(rowId);
+  };
+
+  const handleDragStart = (e: DragEvent, id: TaskId) => {
+    setDraggedId(id);
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+      // Some browsers ignore the drag if no data is attached.
+      e.dataTransfer.setData("text/plain", id);
+    }
+  };
+
+  const handleDragOver = (e: DragEvent, rowId: TaskId) => {
+    if (!canDropOn(rowId)) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const zone = zoneAt(e.clientY - rect.top, rect.height);
+    const current = dropTarget();
+    if (!current || current.id !== rowId || current.zone !== zone) {
+      setDropTarget({ id: rowId, zone });
+    }
+  };
+
+  const clearDragState = () => {
+    setDraggedId(null);
+    setDropTarget(null);
+  };
+
+  const handleDrop = (e: DragEvent, rowId: TaskId) => {
+    if (!canDropOn(rowId)) {
+      clearDragState();
+      return;
+    }
+    e.preventDefault();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const zone = zoneAt(e.clientY - rect.top, rect.height);
+    const src = draggedId();
+    clearDragState();
+    if (!src) return;
+    const target: MoveTarget = { kind: zone, refId: rowId };
+    void callMutation(() => api.move({ id: src, target }));
+  };
+
   return (
     <main>
       <h1>
@@ -137,17 +228,30 @@ export function App() {
                 classList={{
                   "is-done": row.task.status === "done",
                   selected: selected() === row.task.id,
+                  dragging: draggedId() === row.task.id,
+                  "drop-before":
+                    dropTarget()?.id === row.task.id && dropTarget()?.zone === "before",
+                  "drop-after": dropTarget()?.id === row.task.id && dropTarget()?.zone === "after",
+                  "drop-inside":
+                    dropTarget()?.id === row.task.id && dropTarget()?.zone === "inside",
                 }}
                 data-testid="task-row"
                 data-task-title={row.task.title}
                 data-task-status={row.task.status}
                 data-task-id={row.task.id}
+                data-task-depth={row.depth}
+                data-task-parent-id={row.task.parentId ?? ""}
                 role="treeitem"
                 aria-selected={selected() === row.task.id}
                 tabIndex={0}
+                draggable={true}
                 onClick={() => setSelected(row.task.id)}
                 onFocus={() => setSelected(row.task.id)}
                 onKeyDown={(e) => handleRowKeyDown(e, row.task.id)}
+                onDragStart={(e) => handleDragStart(e, row.task.id)}
+                onDragOver={(e) => handleDragOver(e, row.task.id)}
+                onDrop={(e) => handleDrop(e, row.task.id)}
+                onDragEnd={clearDragState}
               >
                 <For each={Array.from({ length: row.depth })}>{() => <span class="indent" />}</For>
                 <button

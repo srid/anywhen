@@ -6,7 +6,7 @@
 
 import { defineSurface } from "@kolu/surface/define";
 import { z } from "zod";
-import { AddTaskInputSchema, TaskIdSchema, TaskSchema } from "./schemas";
+import { AddTaskInputSchema, MoveTaskInputSchema, TaskIdSchema, TaskSchema } from "./schemas";
 
 export const surface = defineSurface({
   procedures: {
@@ -21,6 +21,14 @@ export const surface = defineSurface({
       },
       toggle: {
         input: TaskIdSchema,
+        output: TaskSchema,
+      },
+      // Drag-and-drop reordering. Input carries a semantic drop target
+      // (before/after/inside refId); the server resolves it to a concrete
+      // (parentId, position) and rejects cycles. Position math stays
+      // server-side so the gap-allocation strategy never leaks.
+      move: {
+        input: MoveTaskInputSchema,
         output: TaskSchema,
       },
       // remove cascades to descendants via the parent_id FK's

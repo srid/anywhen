@@ -25,7 +25,24 @@ export const AddTaskInputSchema = z.object({
   parentId: TaskIdSchema.nullable(),
 });
 
+// Drop semantics for tasks.move. The client speaks intent — drop X before /
+// after / inside Y — and the server owns position allocation, so the
+// gap-allocation strategy (REAL midpoints today; could become a doubly-
+// linked list later) never leaks across the wire.
+export const MoveTargetSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("before"), refId: TaskIdSchema }),
+  z.object({ kind: z.literal("after"), refId: TaskIdSchema }),
+  z.object({ kind: z.literal("inside"), refId: TaskIdSchema }),
+]);
+
+export const MoveTaskInputSchema = z.object({
+  id: TaskIdSchema,
+  target: MoveTargetSchema,
+});
+
 export type TaskId = z.infer<typeof TaskIdSchema>;
 export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 export type Task = z.infer<typeof TaskSchema>;
 export type AddTaskInput = z.infer<typeof AddTaskInputSchema>;
+export type MoveTarget = z.infer<typeof MoveTargetSchema>;
+export type MoveTaskInput = z.infer<typeof MoveTaskInputSchema>;
