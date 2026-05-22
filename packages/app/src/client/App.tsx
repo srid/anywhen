@@ -12,6 +12,7 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
 import { createMemo, createResource, createSignal, For, Show } from "solid-js";
+import { parseInput } from "../shared/input";
 import type { Task, TaskId } from "../shared/schemas";
 import { surface } from "../shared/surface";
 
@@ -42,25 +43,6 @@ const buildRows = (tasks: Task[]): Row[] => {
   };
   walk(null, 0);
   return out;
-};
-
-// Search box ADT. PR 1 wires only the `create` arm (the `+ title` prefix);
-// `query` is the placeholder for free-text search that PR 2 fills in. The
-// distinction matters today because `null` means "nothing to do" (empty
-// input) and would otherwise have to ALSO mean "this is a search" — that
-// dual meaning would shift in PR 2 and force every caller of parseInput
-// to be updated in lockstep. Declaring the `query` variant now keeps the
-// PR 2 change a mechanical extension instead of a semantic change.
-type Input = { kind: "create"; title: string } | { kind: "query"; q: string } | null;
-
-const parseInput = (raw: string): Input => {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  if (trimmed.startsWith("+")) {
-    const title = trimmed.slice(1).trim();
-    return title ? { kind: "create", title } : null;
-  }
-  return { kind: "query", q: trimmed };
 };
 
 export function App() {
