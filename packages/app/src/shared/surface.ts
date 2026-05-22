@@ -23,6 +23,22 @@ export const surface = defineSurface({
         input: TaskIdSchema,
         output: TaskSchema,
       },
+      // remove cascades to descendants via the parent_id FK's
+      // `ON DELETE CASCADE` clause in schema.sql — deleting a parent
+      // removes its entire subtree atomically.
+      remove: {
+        input: TaskIdSchema,
+        output: z.void(),
+      },
+      // Test-only: wipe all tasks. Lets cucumber scenarios share one
+      // server process without bleeding state between them. Convention
+      // mirrors kolu surface's `test__set` verbs. In a multi-tenant app
+      // this would be gated by an env flag; anywhen is single-user
+      // local, so the procedure ships unconditionally.
+      __test__reset: {
+        input: z.void(),
+        output: z.void(),
+      },
     },
   },
 });

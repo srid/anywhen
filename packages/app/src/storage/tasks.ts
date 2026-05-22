@@ -36,6 +36,7 @@ export const taskStore = (db: Database) => {
     "INSERT INTO tasks (id, parent_id, title, status, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
   );
   const setStatusStmt = db.prepare("UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?");
+  const removeStmt = db.prepare("DELETE FROM tasks WHERE id = ?");
 
   return {
     list(): Task[] {
@@ -61,6 +62,20 @@ export const taskStore = (db: Database) => {
       const updated = getStmt.get(id);
       if (!updated) throw new Error(`Task ${id} disappeared after update`);
       return rowToTask(updated);
+    },
+
+    // Descendants cascade via the parent_id FK ON DELETE CASCADE
+    // (schema.sql). Missing ids are a no-op — the UI may double-fire on
+    // optimistic delete + refetch and the second call should not throw.
+    remove(id: TaskId): void {
+      removeStmt.run(id);
+    },
+
+    // Test-only: drop every row. Called by cucumber's "Given the app is
+    // running with a fresh database" so multiple scenarios can share one
+    // server process without state bleed.
+    reset(): void {
+      db.exec("DELETE FROM tasks");
     },
   };
 };

@@ -111,6 +111,11 @@ export function App() {
     void callMutation(() => api.toggle(id));
   };
 
+  const remove = (id: TaskId) => {
+    if (selected() === id) setSelected(null);
+    void callMutation(() => api.remove(id));
+  };
+
   return (
     <main>
       <h1>
@@ -169,6 +174,19 @@ export function App() {
                   }}
                 />
                 <span class="title">{row.task.title}</span>
+                <button
+                  type="button"
+                  class="delete"
+                  data-testid="task-delete"
+                  aria-label={`Delete ${row.task.title}`}
+                  title="Delete (also removes any sub-tasks)"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    remove(row.task.id);
+                  }}
+                >
+                  ×
+                </button>
               </div>
             )}
           </For>
