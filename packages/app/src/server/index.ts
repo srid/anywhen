@@ -45,7 +45,8 @@ const solidJsxPlugin: BunPlugin = {
           [babelTypeScript, {}],
         ],
       });
-      return { contents: result?.code ?? code, loader: "js" };
+      if (!result?.code) throw new Error(`Babel transform produced no output for ${args.path}`);
+      return { contents: result.code, loader: "js" };
     });
   },
 };

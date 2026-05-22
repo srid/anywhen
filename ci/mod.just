@@ -28,13 +28,16 @@ install:
 nix:
     nix build github:srid/devour-flake -L --no-link --print-out-paths --override-input flake .
 
+# TypeScript type checking across the workspace
 typecheck: install
     {{ nix_shell }} bun --cwd packages/app typecheck
     {{ nix_shell }} bun --cwd packages/tests typecheck
 
+# Biome lint check
 biome: install
     {{ nix_shell }} biome lint .
 
+# Check formatting without modifying (Biome + nixpkgs-fmt)
 fmt-check: install
     {{ nix_shell }} sh -c 'biome format . && nixpkgs-fmt --check ../*.nix ../nix/**/*.nix'
 

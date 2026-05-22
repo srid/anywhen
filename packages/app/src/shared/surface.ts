@@ -4,7 +4,7 @@
 // hatch (server assigns the id, so it doesn't fit the collection's
 // upsert-with-key shape — same pattern as kolu's example notes.create).
 
-import { defineSurface, type SurfaceTypes } from "@kolu/surface/define";
+import { defineSurface } from "@kolu/surface/define";
 import { z } from "zod";
 import { AddTaskInputSchema, TaskIdSchema, TaskSchema } from "./schemas";
 
@@ -42,5 +42,3 @@ export const surface = defineSurface({
     },
   },
 });
-
-export type SF = SurfaceTypes<typeof surface.spec>;

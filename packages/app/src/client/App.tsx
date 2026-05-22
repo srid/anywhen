@@ -14,7 +14,7 @@ import type { ContractRouterClient } from "@orpc/contract";
 import { createMemo, createResource, createSignal, For, Show } from "solid-js";
 import { parseInput } from "../shared/input";
 import type { Task, TaskId } from "../shared/schemas";
-import { surface } from "../shared/surface";
+import type { surface } from "../shared/surface";
 
 type Client = ContractRouterClient<typeof surface.contract>;
 
@@ -61,6 +61,7 @@ export function App() {
   const callMutation = async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
     try {
       const result = await fn();
+      setError(null);
       await refetch();
       return result;
     } catch (err) {
@@ -83,14 +84,14 @@ export function App() {
     setSelected(created.id);
   };
 
-  const handleRowKeyDown = (e: KeyboardEvent, id: TaskId) => {
-    if (e.key !== " ") return;
-    e.preventDefault();
+  const toggle = (id: TaskId) => {
     void callMutation(() => api.toggle(id));
   };
 
-  const toggle = (id: TaskId) => {
-    void callMutation(() => api.toggle(id));
+  const handleRowKeyDown = (e: KeyboardEvent, id: TaskId) => {
+    if (e.key !== " ") return;
+    e.preventDefault();
+    toggle(id);
   };
 
   const remove = (id: TaskId) => {
@@ -132,9 +133,11 @@ export function App() {
           <For each={rows()}>
             {(row) => (
               <div
-                class={`row ${row.task.status === "done" ? "is-done" : ""} ${
-                  selected() === row.task.id ? "selected" : ""
-                }`}
+                class="row"
+                classList={{
+                  "is-done": row.task.status === "done",
+                  selected: selected() === row.task.id,
+                }}
                 data-testid="task-row"
                 data-task-title={row.task.title}
                 data-task-status={row.task.status}
@@ -146,7 +149,8 @@ export function App() {
               >
                 <For each={Array.from({ length: row.depth })}>{() => <span class="indent" />}</For>
                 <span
-                  class={`check ${row.task.status === "done" ? "done" : ""}`}
+                  class="check"
+                  classList={{ done: row.task.status === "done" }}
                   data-testid="task-check"
                   role="checkbox"
                   aria-checked={row.task.status === "done"}
