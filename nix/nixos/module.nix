@@ -129,7 +129,8 @@ in
         # leaves directory ownership and permissions to the operator;
         # the assertion above enforces that stateDir is the canonical
         # path whenever this branch is active.
-        StateDirectory = lib.mkIf cfg.manageStateDir "anywhen";
+      } // lib.optionalAttrs cfg.manageStateDir {
+        StateDirectory = "anywhen";
         StateDirectoryMode = "0700";
       };
     };
