@@ -44,12 +44,23 @@ const buildRows = (tasks: Task[]): Row[] => {
   return out;
 };
 
-const parseInput = (raw: string): { kind: "create"; title: string } | null => {
+// Search box ADT. PR 1 wires only the `create` arm (the `+ title` prefix);
+// `query` is the placeholder for free-text search that PR 2 fills in. The
+// distinction matters today because `null` means "nothing to do" (empty
+// input) and would otherwise have to ALSO mean "this is a search" — that
+// dual meaning would shift in PR 2 and force every caller of parseInput
+// to be updated in lockstep. Declaring the `query` variant now keeps the
+// PR 2 change a mechanical extension instead of a semantic change.
+type Input = { kind: "create"; title: string } | { kind: "query"; q: string } | null;
+
+const parseInput = (raw: string): Input => {
   const trimmed = raw.trim();
-  if (!trimmed.startsWith("+")) return null;
-  const title = trimmed.slice(1).trim();
-  if (!title) return null;
-  return { kind: "create", title };
+  if (!trimmed) return null;
+  if (trimmed.startsWith("+")) {
+    const title = trimmed.slice(1).trim();
+    return title ? { kind: "create", title } : null;
+  }
+  return { kind: "query", q: trimmed };
 };
 
 export function App() {
@@ -80,6 +91,9 @@ export function App() {
     if (e.key !== "Enter") return;
     const parsed = parseInput(query());
     if (!parsed) return;
+    // PR 2 fills in the query arm (filter the tree); for now we no-op so
+    // the search box still accepts free text without firing a mutation.
+    if (parsed.kind === "query") return;
     e.preventDefault();
     const created = await callMutation(() => api.add({ title: parsed.title, parentId: null }));
     if (!created) return;
