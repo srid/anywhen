@@ -40,9 +40,22 @@ in
       type = lib.types.str;
       default = "/var/lib/anywhen";
       description = ''
-        Directory holding anywhen.db (the SQLite store). Created on
-        first start by systemd's StateDirectory= with mode 0700 owned
-        by the service user.
+        Directory holding anywhen.db (the SQLite store). When
+        `manageStateDir` is true (default), this must be
+        `/var/lib/anywhen` because systemd's StateDirectory= forces
+        that path. Set `manageStateDir = false` to point this at any
+        absolute path the operator pre-creates and chowns.
+      '';
+    };
+
+    manageStateDir = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Whether this module asks systemd to create and chown the state
+        directory via StateDirectory=. With this enabled, `stateDir`
+        is constrained to `/var/lib/anywhen`. Disable to manage the
+        directory out-of-band (custom mount, ZFS dataset, etc.).
       '';
     };
 
@@ -60,6 +73,17 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    assertions = [
+      {
+        # Systemd's StateDirectory= takes a name relative to /var/lib/,
+        # not an absolute path. Catching this at eval time keeps the
+        # failure visible at nixos-rebuild rather than at first start
+        # with an opaque systemd error.
+        assertion = !cfg.manageStateDir || cfg.stateDir == "/var/lib/anywhen";
+        message = "services.anywhen.stateDir must be \"/var/lib/anywhen\" when manageStateDir is true; set manageStateDir = false to point stateDir elsewhere.";
+      }
+    ];
+
     users.users = lib.mkIf (cfg.user == "anywhen") {
       anywhen = {
         isSystemUser = true;
@@ -88,11 +112,12 @@ in
         RestartSec = 2;
         User = cfg.user;
         Group = cfg.group;
-        # When stateDir is the default /var/lib/anywhen, systemd creates
-        # and chowns it automatically. For a custom absolute path, the
-        # operator is responsible for the directory's existence and
-        # permissions — StateDirectory= can't take an absolute path.
-        StateDirectory = lib.mkIf (cfg.stateDir == "/var/lib/anywhen") "anywhen";
+        # `manageStateDir = true` (the default) asks systemd to create
+        # and chown /var/lib/anywhen with mode 0700. Disabling the flag
+        # leaves directory ownership and permissions to the operator;
+        # the assertion above enforces that stateDir is the canonical
+        # path whenever this branch is active.
+        StateDirectory = lib.mkIf cfg.manageStateDir "anywhen";
         StateDirectoryMode = "0700";
       };
     };
