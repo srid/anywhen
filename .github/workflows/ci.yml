@@ -1,0 +1,48 @@
+# anywhen CI — delegates to github:juspay/justci.
+#
+# justci discovers the [metadata("ci")] recipe in ci/mod.just and fans every
+# (recipe × platform) pair across configured runners. For a single-platform
+# project the local Linux lane runs against the GitHub Actions worktree.
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: nixbuild/nix-quick-install-action@v31
+        with:
+          nix_conf: |
+            accept-flake-config = true
+
+      # NOTE: ideally this whole job is `nix run github:juspay/justci`,
+      # which expands the [metadata("ci")] DAG in ci/mod.just and fans
+      # the recipes across platforms. As of `just` 1.46 (the version in
+      # the pinned nixpkgs), justci's dump-parser errors with
+      # `parsing Text failed, expected String, but encountered Array`
+      # because the `just dump` JSON format added interpolation in 1.36
+      # and justci hasn't caught up. The same failure shows up in kolu;
+      # tracked as an upstream justci issue. Until that lands, run the
+      # ci/mod.just recipes directly so CI still gates the PR. Swap back
+      # to `nix run github:juspay/justci` once justci can parse 1.46+.
+      - name: typecheck
+        run: nix develop --command just typecheck
+      - name: lint
+        run: nix develop --command just lint
+      - name: e2e
+        run: nix develop .#e2e --command just test

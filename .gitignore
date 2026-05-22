@@ -1,6 +1,22 @@
 /.do-results.json
 /apm_modules/
+/.ci/
 
+# Bun / Node
+node_modules/
+dist/
 
-# APM dependencies
-apm_modules/
+# Nix
+result
+result-*
+
+# Editor / OS
+.DS_Store
+.direnv/
+
+# Test output
+/packages/tests/reports/
+/packages/tests/screenshots/
+
+# Local app state
+/state/

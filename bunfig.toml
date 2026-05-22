@@ -1,0 +1,7 @@
+# Hoist workspace dependencies to root node_modules. @kolu/surface's source
+# (cp'd from the nix store into node_modules/@kolu/surface by shellHook) needs
+# @orpc/*, solid-js, and zod resolvable from one node_modules. Isolated linker
+# leaves each workspace package's deps in its own node_modules — surface
+# would resolve nothing from root.
+[install]
+linker = "hoisted"

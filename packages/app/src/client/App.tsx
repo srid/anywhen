@@ -1,0 +1,213 @@
+// PR 1 client. Three surface procedures over plain oRPC HTTP — no
+// WebSocket, no Cell/Collection/Stream/Event reactivity. After each
+// mutation the client refetches `tasks.list`; PR 2 swaps that for a
+// `Collection<Id, Task>` with push deltas (and keyboard navigation /
+// search filtering).
+//
+// The contract namespaces every procedure under `surface.<ns>` — see
+// kolu-master/packages/surface/src/define.ts:640-647 — so the path is
+// `client.surface.tasks.{list,add,toggle}`.
+
+import { createORPCClient } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
+import type { ContractRouterClient } from "@orpc/contract";
+import { createMemo, createResource, createSignal, For, Show } from "solid-js";
+import { parseInput } from "../shared/input";
+import type { Task, TaskId } from "../shared/schemas";
+import type { surface } from "../shared/surface";
+
+type Client = ContractRouterClient<typeof surface.contract>;
+
+const link = new RPCLink({ url: `${location.origin}/rpc` });
+const client = createORPCClient<Client>(link);
+const api = client.surface.tasks;
+
+// ── Tree derivation: flat Task[] → ordered, indented rows ─────────────
+type Row = { task: Task; depth: number };
+
+const buildRows = (tasks: Task[]): Row[] => {
+  const byParent = new Map<TaskId | null, Task[]>();
+  for (const t of tasks) {
+    const k = t.parentId;
+    const arr = byParent.get(k) ?? [];
+    arr.push(t);
+    byParent.set(k, arr);
+  }
+  for (const arr of byParent.values()) arr.sort((a, b) => a.position - b.position);
+  const out: Row[] = [];
+  const walk = (parentId: TaskId | null, depth: number) => {
+    for (const t of byParent.get(parentId) ?? []) {
+      out.push({ task: t, depth });
+      walk(t.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+  return out;
+};
+
+export function App() {
+  const [tasks, { refetch }] = createResource<Task[]>(() => api.list());
+  const [query, setQuery] = createSignal("");
+  const [selected, setSelected] = createSignal<TaskId | null>(null);
+  const [error, setError] = createSignal<string | null>(null);
+
+  const rows = createMemo<Row[]>(() => buildRows(tasks() ?? []));
+
+  // Every mutation has the same shape: await the RPC, refetch the list,
+  // surface any error. Inlining this at three call sites would force PR 2
+  // (which adds keyboard-nav mutations and search-submit) to update each
+  // copy in lockstep — and Solid's signal updates would still be missed
+  // on whichever copy diverged. One helper, one error path.
+  const callMutation = async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
+    try {
+      const result = await fn();
+      setError(null);
+      await refetch();
+      return result;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      return undefined;
+    }
+  };
+
+  const handleKeyDown = async (e: KeyboardEvent) => {
+    if (e.key !== "Enter") return;
+    const parsed = parseInput(query());
+    if (!parsed) return;
+    // PR 2 fills in the query arm (filter the tree); for now we no-op so
+    // the search box still accepts free text without firing a mutation.
+    if (parsed.kind === "query") return;
+    e.preventDefault();
+    const created = await callMutation(() => api.add({ title: parsed.title, parentId: null }));
+    if (!created) return;
+    setQuery("");
+    setSelected(created.id);
+  };
+
+  const toggle = (id: TaskId) => {
+    void callMutation(() => api.toggle(id));
+  };
+
+  const handleRowKeyDown = (e: KeyboardEvent, id: TaskId) => {
+    if (e.key !== " ") return;
+    e.preventDefault();
+    toggle(id);
+  };
+
+  const remove = (id: TaskId) => {
+    if (selected() === id) setSelected(null);
+    void callMutation(() => api.remove(id));
+  };
+
+  return (
+    <main>
+      <h1>
+        anywhen<span class="dot">.</span>
+      </h1>
+      <p class="tagline">A personal task manager. One search box: filter the tree, or add to it.</p>
+
+      <Show when={error()}>
+        {(msg) => (
+          <div class="err" data-testid="error">
+            {msg()}
+          </div>
+        )}
+      </Show>
+
+      <div class="search">
+        <input
+          data-testid="search-input"
+          aria-label="Search or add a task"
+          placeholder="Search or type + to add a task"
+          value={query()}
+          onInput={(e) => setQuery(e.currentTarget.value)}
+          onKeyDown={handleKeyDown}
+        />
+      </div>
+
+      <div class="tree" data-testid="task-tree" role="tree" aria-label="Tasks">
+        <Show
+          when={rows().length > 0}
+          fallback={<div class="empty">No tasks yet. Type "+ buy milk" and press Enter.</div>}
+        >
+          <For each={rows()}>
+            {(row) => (
+              <div
+                class="row"
+                classList={{
+                  "is-done": row.task.status === "done",
+                  selected: selected() === row.task.id,
+                }}
+                data-testid="task-row"
+                data-task-title={row.task.title}
+                data-task-status={row.task.status}
+                data-task-id={row.task.id}
+                role="treeitem"
+                aria-selected={selected() === row.task.id}
+                tabIndex={0}
+                onClick={() => setSelected(row.task.id)}
+                onFocus={() => setSelected(row.task.id)}
+                onKeyDown={(e) => handleRowKeyDown(e, row.task.id)}
+              >
+                <For each={Array.from({ length: row.depth })}>{() => <span class="indent" />}</For>
+                <button
+                  type="button"
+                  class="check"
+                  classList={{ done: row.task.status === "done" }}
+                  data-testid="task-check"
+                  aria-pressed={row.task.status === "done"}
+                  aria-label={`Mark ${row.task.title} ${
+                    row.task.status === "done" ? "not done" : "done"
+                  }`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void toggle(row.task.id);
+                  }}
+                />
+                <span class="title">{row.task.title}</span>
+                <button
+                  type="button"
+                  class="delete"
+                  data-testid="task-delete"
+                  aria-label={`Delete ${row.task.title}`}
+                  title="Delete (also removes any sub-tasks)"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    remove(row.task.id);
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            )}
+          </For>
+        </Show>
+      </div>
+
+      <div class="hint">
+        <span>
+          <kbd>+ title</kbd> then <kbd>↵</kbd> to add
+        </span>
+        <span>
+          <kbd>Space</kbd> on a focused row to toggle done
+        </span>
+      </div>
+
+      <footer class="credit">
+        Wired with{" "}
+        <a
+          href="https://github.com/juspay/kolu/tree/master/packages/surface"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          @kolu/surface
+        </a>{" "}
+        from{" "}
+        <a href="https://github.com/juspay/kolu" target="_blank" rel="noopener noreferrer">
+          juspay/kolu
+        </a>
+        .
+      </footer>
+    </main>
+  );
+}

@@ -1,0 +1,17 @@
+{
+  "name": "anywhen-workspaces",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "bun --cwd packages/app typecheck && bun --cwd packages/tests typecheck",
+    "dev": "bun --cwd packages/app dev",
+    "test": "bun --cwd packages/tests test"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.0",
+    "typescript": "^5.8.0"
+  }
+}
