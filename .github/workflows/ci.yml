@@ -31,4 +31,8 @@ jobs:
             accept-flake-config = true
 
       - name: Run pipeline
+        env:
+          # justci shells out to `gh repo view` for repo metadata; without
+          # a token the GH CLI errors in Actions.
+          GH_TOKEN: ${{ github.token }}
         run: nix run github:juspay/justci
