@@ -60,41 +60,41 @@ export function App() {
 
   const rows = createMemo<Row[]>(() => buildRows(tasks() ?? []));
 
-  const handleKeyDown = async (e: KeyboardEvent) => {
-    if (e.key === "Enter") {
-      const parsed = parseInput(query());
-      if (!parsed) return;
-      e.preventDefault();
-      try {
-        const created = await api.add({ title: parsed.title, parentId: null });
-        setQuery("");
-        setSelected(created.id);
-        await refetch();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      }
-    }
-  };
-
-  const handleRowKeyDown = async (e: KeyboardEvent, id: TaskId) => {
-    if (e.key === " ") {
-      e.preventDefault();
-      try {
-        await api.toggle(id);
-        await refetch();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      }
-    }
-  };
-
-  const toggle = async (id: TaskId) => {
+  // Every mutation has the same shape: await the RPC, refetch the list,
+  // surface any error. Inlining this at three call sites would force PR 2
+  // (which adds keyboard-nav mutations and search-submit) to update each
+  // copy in lockstep — and Solid's signal updates would still be missed
+  // on whichever copy diverged. One helper, one error path.
+  const callMutation = async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
     try {
-      await api.toggle(id);
+      const result = await fn();
       await refetch();
+      return result;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      return undefined;
     }
+  };
+
+  const handleKeyDown = async (e: KeyboardEvent) => {
+    if (e.key !== "Enter") return;
+    const parsed = parseInput(query());
+    if (!parsed) return;
+    e.preventDefault();
+    const created = await callMutation(() => api.add({ title: parsed.title, parentId: null }));
+    if (!created) return;
+    setQuery("");
+    setSelected(created.id);
+  };
+
+  const handleRowKeyDown = (e: KeyboardEvent, id: TaskId) => {
+    if (e.key !== " ") return;
+    e.preventDefault();
+    void callMutation(() => api.toggle(id));
+  };
+
+  const toggle = (id: TaskId) => {
+    void callMutation(() => api.toggle(id));
   };
 
   return (
