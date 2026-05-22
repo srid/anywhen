@@ -12,7 +12,7 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
 import { createMemo, createResource, createSignal, For, Show } from "solid-js";
-import type { Task, TaskId } from "../shared/types";
+import type { Task, TaskId } from "../shared/schemas";
 import { surface } from "../shared/surface";
 
 type Client = ContractRouterClient<typeof surface.contract>;

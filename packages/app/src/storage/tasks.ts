@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
-import type { Task, TaskId } from "../shared/types";
+import type { Task, TaskId } from "../shared/schemas";
 
 // Row type stays internal to storage/. Domain `Task` (camelCase ISO strings)
 // is what crosses the module boundary; SQLite snake_case never leaks.
