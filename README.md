@@ -2,9 +2,10 @@
 
 A personal task manager. One search box: filter the tree, or add to it.
 
-> **PR 1 status**: scaffold + add a task + view the tree + toggle done. Search,
-> filter atoms, tags, due dates, body, blocked-by, and the detail panel land in
-> later PRs.
+> **PR 1 status**: scaffold + add a task (`+ title` in the search box) + view
+> the tree + toggle done + delete (with cascade to descendants). Search,
+> filter atoms, tags, due dates, body, blocked-by, and the detail panel land
+> in later PRs.
 
 ## Stack
 
