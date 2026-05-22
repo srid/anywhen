@@ -70,6 +70,18 @@ in
       default = "anywhen";
       description = "Group the service runs as.";
     };
+
+    createUser = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Whether this module declares `users.users.''${cfg.user}` and
+        `users.groups.''${cfg.group}`. Disable when pointing `user`
+        and `group` at identities provisioned by another module (a
+        shared "services" account, an LDAP-backed user, etc.) to keep
+        this module from racing with that declaration.
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -84,16 +96,16 @@ in
       }
     ];
 
-    users.users = lib.mkIf (cfg.user == "anywhen") {
-      anywhen = {
+    users.users = lib.mkIf cfg.createUser {
+      ${cfg.user} = {
         isSystemUser = true;
         group = cfg.group;
         description = "anywhen service user";
       };
     };
 
-    users.groups = lib.mkIf (cfg.group == "anywhen") {
-      anywhen = { };
+    users.groups = lib.mkIf cfg.createUser {
+      ${cfg.group} = { };
     };
 
     systemd.services.anywhen = {
