@@ -7,7 +7,14 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!**/node_modules", "!**/dist", "!**/reports", "!apm_modules", "!talk-*.html"]
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/reports",
+      "!apm_modules",
+      "!talk-*.html"
+    ]
   },
   "formatter": {
     "enabled": true,

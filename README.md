@@ -65,6 +65,8 @@ nix/
   overlay.nix                           # adds anywhen-kolu-surface to pkgs
   env.nix                               # ANYWHEN_* shared env vars
   packages/surface/default.nix          # extracts packages/surface from kolu
+  nixos/module.nix                      # services.anywhen NixOS module
+  nixos/test.nix                        # VM test (flake.checks.<linux>.vm-test)
 npins/sources.json                      # nixpkgs + kolu (juspay/kolu master)
 bunfig.toml                             # bun workspace install config (hoisted)
 biome.json · tsconfig.base.json
@@ -86,6 +88,33 @@ The SolidJS JSX transform (`babel-preset-solid`) runs as an in-tree
 plugins as of Bun 1.3.10, so the server builds the client at startup
 into `packages/app/dist/` and serves that as static files (plus the
 `/rpc/*` oRPC endpoints).
+
+## NixOS module
+
+`flake.nixosModules.default` exposes `services.anywhen` — a system-level
+systemd unit that runs the server under a dedicated `anywhen` user with
+state at `/var/lib/anywhen`. Shape mirrors
+[kolu's home-manager module](https://github.com/juspay/kolu/blob/master/nix/home/module.nix);
+home-manager is intentionally not used (anywhen is a one-daemon-per-box
+deployment, not a per-user agent).
+
+```nix
+{
+  imports = [ inputs.anywhen.nixosModules.default ];
+  services.anywhen = {
+    enable = true;
+    package = pkgs.anywhen;   # added in a follow-up PR
+    port = 7700;              # default
+  };
+}
+```
+
+A NixOS VM test at `nix/nixos/test.nix` boots the module under qemu and
+verifies the systemd unit, port binding, and `StateDirectory` wiring. It
+runs as `flake.checks.x86_64-linux.vm-test` and is exercised by
+`devour-flake` inside the `nix:` CI recipe. The test currently wires a
+stub package; the production bun-bundle derivation lands alongside the
+module's `services.anywhen.package` default in the follow-up package PR.
 
 ## CI
 

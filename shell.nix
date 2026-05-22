@@ -39,9 +39,9 @@ pkgs.mkShell {
     just
     jq
     bun
-    nodejs           # used by cucumber-js (via `node --import tsx ...`)
+    nodejs # used by cucumber-js (via `node --import tsx ...`)
     biome
     nixpkgs-fmt
-    sqlite           # CLI handy for inspecting the local DB
+    sqlite # CLI handy for inspecting the local DB
   ];
 }
