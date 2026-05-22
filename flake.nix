@@ -7,18 +7,14 @@
     let
       systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
       linuxSystems = [ "x86_64-linux" "aarch64-linux" ];
-      eachSystem = f: builtins.listToAttrs (map
+      forSystems = systems': f: builtins.listToAttrs (map
         (system: {
           name = system;
           value = f (import ./nix/nixpkgs.nix { inherit system; });
         })
-        systems);
-      eachLinuxSystem = f: builtins.listToAttrs (map
-        (system: {
-          name = system;
-          value = f (import ./nix/nixpkgs.nix { inherit system; });
-        })
-        linuxSystems);
+        systems');
+      eachSystem = forSystems systems;
+      eachLinuxSystem = forSystems linuxSystems;
     in
     {
       packages = eachSystem (pkgs: {
