@@ -125,7 +125,7 @@ export function App() {
         />
       </div>
 
-      <div class="tree" data-testid="task-tree">
+      <div class="tree" data-testid="task-tree" role="tree" aria-label="Tasks">
         <Show
           when={rows().length > 0}
           fallback={<div class="empty">No tasks yet. Type "+ buy milk" and press Enter.</div>}
@@ -142,18 +142,23 @@ export function App() {
                 data-task-title={row.task.title}
                 data-task-status={row.task.status}
                 data-task-id={row.task.id}
-                tabindex="0"
+                role="treeitem"
+                aria-selected={selected() === row.task.id}
+                tabIndex={0}
                 onClick={() => setSelected(row.task.id)}
                 onFocus={() => setSelected(row.task.id)}
                 onKeyDown={(e) => handleRowKeyDown(e, row.task.id)}
               >
                 <For each={Array.from({ length: row.depth })}>{() => <span class="indent" />}</For>
-                <span
+                <button
+                  type="button"
                   class="check"
                   classList={{ done: row.task.status === "done" }}
                   data-testid="task-check"
-                  role="checkbox"
-                  aria-checked={row.task.status === "done"}
+                  aria-pressed={row.task.status === "done"}
+                  aria-label={`Mark ${row.task.title} ${
+                    row.task.status === "done" ? "not done" : "done"
+                  }`}
                   onClick={(e) => {
                     e.stopPropagation();
                     void toggle(row.task.id);
