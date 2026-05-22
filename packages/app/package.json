@@ -1,0 +1,25 @@
+{
+  "name": "anywhen-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/server/index.ts",
+    "start": "bun src/server/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@babel/core": "^7.25.0",
+    "@babel/preset-typescript": "^7.25.0",
+    "@orpc/client": "^1.13.13",
+    "@orpc/contract": "^1.13.13",
+    "@orpc/server": "^1.13.13",
+    "babel-preset-solid": "^1.9.0",
+    "solid-js": "^1.9.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/babel__core": "^7.20.5",
+    "@types/bun": "^1.2.0",
+    "typescript": "^5.8.0"
+  }
+}

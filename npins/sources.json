@@ -1,0 +1,31 @@
+{
+  "pins": {
+    "nixpkgs": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "nixos",
+        "repo": "nixpkgs"
+      },
+      "branch": "nixpkgs-unstable",
+      "submodules": false,
+      "revision": "f8573b9c935cfaa162dd62cc9e75ae2db86f85df",
+      "url": "https://github.com/nixos/nixpkgs/archive/f8573b9c935cfaa162dd62cc9e75ae2db86f85df.tar.gz",
+      "hash": "sha256-hpXH0z3K9xv0fHaje136KY872VT2T5uwxtezlAskQgY="
+    },
+    "kolu": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "juspay",
+        "repo": "kolu"
+      },
+      "branch": "master",
+      "submodules": false,
+      "revision": "b05277207dcba4f2e4a8fc6b133836bbfc3c621c",
+      "url": "https://github.com/juspay/kolu/archive/b05277207dcba4f2e4a8fc6b133836bbfc3c621c.tar.gz",
+      "hash": "sha256-7E8GBS7kHltucp62C03p3c/O/aIzgC1rCmZd9+9db9Y="
+    }
+  },
+  "version": 7
+}

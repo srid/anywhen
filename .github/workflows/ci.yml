@@ -1,0 +1,34 @@
+# anywhen CI — delegates to github:juspay/justci.
+#
+# justci discovers the [metadata("ci")] recipe in ci/mod.just and fans every
+# (recipe × platform) pair across configured runners. For a single-platform
+# project the local Linux lane runs against the GitHub Actions worktree.
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: nixbuild/nix-quick-install-action@v31
+        with:
+          nix_conf: |
+            accept-flake-config = true
+
+      - name: Run pipeline
+        run: nix run github:juspay/justci
