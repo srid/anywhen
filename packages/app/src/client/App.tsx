@@ -9,8 +9,9 @@
 // same function.
 
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { highlightSegments, matchesQuery } from "../shared/filter";
+import { matchesQuery } from "../shared/filter";
 import { parseInput } from "../shared/input";
+import { highlightSegments } from "./highlight";
 import {
   type DropZone,
   type MoveTarget,
