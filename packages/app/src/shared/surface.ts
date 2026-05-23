@@ -1,20 +1,32 @@
-// PR 1 declares tasks as imperative procedures only — `list` returns a
-// snapshot, `add` and `toggle` mutate. PR 2 swaps `list` for a Collection
-// with push-based deltas; the procedures stay as the imperative escape
-// hatch (server assigns the id, so it doesn't fit the collection's
-// upsert-with-key shape — same pattern as kolu's example notes.create).
+// Tasks live on the surface as a Collection — declared up-front so future
+// server-side delta evaluation (Phase 5: filter atoms) is a channel-
+// implementation swap rather than a contract migration. The procedures stay
+// as the imperative escape hatch: `add` assigns the id, `move`/`toggle`/
+// `remove` carry verb-shaped intent the upsert primitive can't model
+// (same pattern as kolu's notes.create in example/src/common/surface.ts).
+//
+// Live filter (Phase 1) runs over the client's local Collection cache —
+// the matcher in shared/filter.ts is what consumes it.
 
 import { defineSurface } from "@kolu/surface/define";
 import { z } from "zod";
 import { AddTaskInputSchema, MoveTaskInputSchema, TaskIdSchema, TaskSchema } from "./schemas";
 
 export const surface = defineSurface({
+  collections: {
+    // Wire-level mutation goes through the imperative procedures below
+    // (server-allocated id, position resolution, cascade) — not through
+    // the Collection's `upsert`/`delete` verbs. Restricting verbs to
+    // read-only narrows the wire and forces clients to route writes
+    // through the procedures' validation paths.
+    tasks: {
+      keySchema: TaskIdSchema,
+      schema: TaskSchema,
+      verbs: ["keys", "get"],
+    },
+  },
   procedures: {
     tasks: {
-      list: {
-        input: z.void(),
-        output: z.array(TaskSchema),
-      },
       add: {
         input: AddTaskInputSchema,
         output: TaskSchema,
@@ -27,14 +39,16 @@ export const surface = defineSurface({
       // (before/after/inside refId); the server resolves it to a concrete
       // (parentId, position) and rejects cycles. Output is void because
       // a single moved row doesn't describe the post-move ordering — the
-      // client refetches the list, which is the canonical ordered view.
+      // Collection delta tells the client the new state.
       move: {
         input: MoveTaskInputSchema,
         output: z.void(),
       },
       // remove cascades to descendants via the parent_id FK's
       // `ON DELETE CASCADE` clause in schema.sql — deleting a parent
-      // removes its entire subtree atomically.
+      // removes its entire subtree atomically. The server fans `remove`
+      // through `ctx.collections.tasks.remove` for each affected id so the
+      // keys bus publishes once per descendant.
       remove: {
         input: TaskIdSchema,
         output: z.void(),

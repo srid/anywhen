@@ -47,6 +47,9 @@ export const taskStore = (db: Database) => {
   const movePositionStmt = db.query(
     "UPDATE tasks SET parent_id = ?, position = ?, updated_at = ? WHERE id = ?",
   );
+  const upsertStmt = db.query(
+    "INSERT OR REPLACE INTO tasks (id, parent_id, title, status, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  );
 
   // Sibling immediately before/after `position` within `parentId`, excluding
   // `excludeId` (the task being moved — otherwise reordering within the same
@@ -66,6 +69,33 @@ export const taskStore = (db: Database) => {
       return listStmt.all().map(rowToTask);
     },
 
+    // Keyed view consumed by the Collection's `readAll` — the framework
+    // wraps it in the snapshot-then-deltas iterator for `tasks.keys` and
+    // `tasks.get(id)`. Sharing the iteration order with `list()` keeps the
+    // Collection's first-snapshot stable across deploys.
+    listMap(): Map<TaskId, Task> {
+      const out = new Map<TaskId, Task>();
+      for (const row of listStmt.all()) out.set(row.id, rowToTask(row));
+      return out;
+    },
+
+    // INSERT OR REPLACE writer for the Collection's `upsert` deps. Procedures
+    // (add / toggle / move) already wrote their own rows via verb-specific
+    // statements — this exists for the rare wire-level upsert path and so
+    // the Collection's deps callback type-checks. Idempotent against the
+    // values the procedures wrote, so no double-write side effects.
+    upsert(task: Task): void {
+      upsertStmt.run(
+        task.id,
+        task.parentId,
+        task.title,
+        task.status,
+        task.position,
+        task.createdAt,
+        task.updatedAt,
+      );
+    },
+
     add(input: { title: string; parentId: TaskId | null }): Task {
       const id = randomUUID();
       const now = new Date().toISOString();
@@ -83,7 +113,9 @@ export const taskStore = (db: Database) => {
     // Rejects: moving into self, or any move that would make an ancestor
     // become its own descendant. Dropping a task adjacent to itself is
     // permitted and resolves to an idempotent position update.
-    move(input: MoveTaskInput): void {
+    // Returns the moved task so the router can publish an upsert delta
+    // without a second `listMap()` round-trip.
+    move(input: MoveTaskInput): Task {
       const { id, target } = input;
       const task = getStmt.get(id);
       if (!task) throw new Error(`Task ${id} not found`);
@@ -115,6 +147,9 @@ export const taskStore = (db: Database) => {
       }
 
       movePositionStmt.run(newParentId, newPosition, new Date().toISOString(), id);
+      const updated = getStmt.get(id);
+      if (!updated) throw new Error(`Task ${id} disappeared after move`);
+      return rowToTask(updated);
     },
 
     toggle(id: TaskId): Task {
