@@ -4,30 +4,25 @@
 // FileMigrationProvider config drift) that the e2e suite would only
 // surface as an unrelated boot failure.
 
-import { afterEach, expect, test } from "bun:test";
+import { expect, onTestFinished, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sql } from "kysely";
 import { openDb } from "./db";
 
-const tempDirs: string[] = [];
-afterEach(() => {
-  for (const d of tempDirs.splice(0)) rmSync(d, { recursive: true, force: true });
-});
-
 const freshStateDir = () => {
   const d = mkdtempSync(join(tmpdir(), "anywhen-db-test-"));
-  tempDirs.push(d);
+  onTestFinished(() => rmSync(d, { recursive: true, force: true }));
   return d;
 };
 
 test("openDb creates the tasks table on a fresh state dir", async () => {
   const db = await openDb(freshStateDir());
+  onTestFinished(() => db.destroy());
   // Selecting from the table proves it exists and has the expected shape.
   const rows = await db.selectFrom("tasks").selectAll().execute();
   expect(rows).toEqual([]);
-  await db.destroy();
 });
 
 test("openDb is idempotent — re-opening the same DB applies no migrations", async () => {
@@ -50,13 +45,14 @@ test("openDb is idempotent — re-opening the same DB applies no migrations", as
   // Reopen and confirm the row survived (i.e., migration didn't recreate
   // the table) and the second migrateToLatest() didn't error.
   const second = await openDb(dir);
+  onTestFinished(() => second.destroy());
   const rows = await second.selectFrom("tasks").selectAll().execute();
   expect(rows.map((r) => r.title)).toEqual(["carry-over"]);
-  await second.destroy();
 });
 
 test("init migration applied via Kysely's tracking table", async () => {
   const db = await openDb(freshStateDir());
+  onTestFinished(() => db.destroy());
   // Kysely's Migrator tracks state in `kysely_migration`; verifying the
   // one expected entry confirms the FileMigrationProvider discovered the
   // file and the migrator persisted the apply.
@@ -66,5 +62,4 @@ test("init migration applied via Kysely's tracking table", async () => {
   expect(applied.rows.map((r) => r.name)).toEqual(
     expect.arrayContaining([expect.stringMatching(/_init$/)]),
   );
-  await db.destroy();
 });
