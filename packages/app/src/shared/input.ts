@@ -1,17 +1,22 @@
-// Search-box input parser. Shared between client (drives the UI) and —
-// when PR 2/3 lands — the server (evaluates filter atoms server-side
-// for Collection deltas). Living in shared/ avoids the multi-file
-// breaking refactor that would happen if PR 2 had to lift it out of
-// client/.
+// Search-box input grammar + the canonical query-normalization function.
+// Shared between client (drives the UI) and — when filter atoms (Phase 5)
+// evaluate server-side — the server, so the wire-shape evolution doesn't
+// have to lift this out of client/.
 //
-// PR 1: only the `create` arm is consumed by handleKeyDown (Enter on
-// `+ title` adds a task). The `query` arm is wired but inert until
-// PR 2 fills in the matcher.
+// `parseInput` returns `q` already passed through `normalizeQuery`; the
+// matcher in shared/filter.ts re-applies the same function on its own
+// inputs so a caller that bypasses `parseInput` (e.g. future server-side
+// filter-atom evaluation) still hits the same normalization rules.
+
+// Whitespace-trim is the only normalization today. Centralized here so
+// when the rules grow (Unicode NFC, fold case, strip diacritics), both
+// the parser and the matcher pick up the change atomically.
+export const normalizeQuery = (raw: string): string => raw.trim();
 
 export type Input = { kind: "create"; title: string } | { kind: "query"; q: string } | null;
 
 export const parseInput = (raw: string): Input => {
-  const trimmed = raw.trim();
+  const trimmed = normalizeQuery(raw);
   if (!trimmed) return null;
   if (trimmed.startsWith("+")) {
     const title = trimmed.slice(1).trim();

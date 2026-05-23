@@ -1,13 +1,16 @@
-// Task-title matcher. Shared between client (drives the live filter UI) and —
-// when filter atoms (Phase 5) evaluate server-side — the server. Living in
-// shared/ avoids the breaking re-import that would happen if Phase 5 had to
-// lift it out of client/. Same rationale as parseInput at shared/input.ts:1-6.
+// Task-title matcher + highlight segmenter. Shared between client (drives
+// the live filter UI) and — when filter atoms (Phase 5) evaluate
+// server-side — the server. Living in shared/ avoids the breaking
+// re-import that would happen if Phase 5 had to lift `matchesQuery` out
+// of client/. Same rationale as parseInput at shared/input.ts:1-6.
 //
-// Case-insensitive substring match. The query is trimmed before comparison;
-// an empty query never matches anything (caller short-circuits before calling).
+// Normalization routes through `normalizeQuery` in shared/input.ts so the
+// parser and the matcher can never drift on what counts as the same query.
+
+import { normalizeQuery } from "./input";
 
 export const matchesQuery = (title: string, query: string): boolean => {
-  const needle = query.trim().toLowerCase();
+  const needle = normalizeQuery(query).toLowerCase();
   if (!needle) return false;
   return title.toLowerCase().includes(needle);
 };
@@ -20,7 +23,7 @@ export const matchesQuery = (title: string, query: string): boolean => {
 export type MatchSegment = { text: string; match: boolean };
 
 export const highlightSegments = (title: string, query: string): MatchSegment[] => {
-  const needle = query.trim();
+  const needle = normalizeQuery(query);
   if (!needle) return [{ text: title, match: false }];
   const lowerTitle = title.toLowerCase();
   const lowerNeedle = needle.toLowerCase();
