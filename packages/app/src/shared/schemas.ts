@@ -59,10 +59,16 @@ export const MoveTaskInputSchema = z.object({
   target: MoveTargetSchema,
 });
 
+export const EditTaskInputSchema = z.object({
+  id: TaskIdSchema,
+  title: z.string().min(1),
+});
+
 export type TaskId = z.infer<typeof TaskIdSchema>;
 export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 export type Task = z.infer<typeof TaskSchema>;
 export type AddTaskInput = z.infer<typeof AddTaskInputSchema>;
 export type MoveTarget = z.infer<typeof MoveTargetSchema>;
 export type MoveTaskInput = z.infer<typeof MoveTaskInputSchema>;
+export type EditTaskInput = z.infer<typeof EditTaskInputSchema>;
 export type DropZone = MoveTarget["kind"];

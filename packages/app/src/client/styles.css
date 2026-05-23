@@ -451,6 +451,30 @@ h1 .dot {
   cursor: default;
 }
 
+/* Inline title editor. Sized and aligned to read like the title text it
+   replaces — no border, no background, inherits the row's font so the
+   visual jump on entering edit mode is just a caret appearing. */
+.title-edit {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-variation-settings:
+    "opsz" 16,
+    "wght" 400;
+  padding: 0;
+  margin: 0;
+}
+
+/* Row-trailing action buttons — edit (rename) and delete (cascade). They
+   share the affordance: hidden on fine pointers until the row is hovered /
+   focused, always visible on coarse pointers (mobile rule below). The
+   hover-state colors specialize per button: edit → brass accent, delete
+   → danger red. */
+.edit,
 .delete {
   background: transparent;
   border: 0;
@@ -469,9 +493,25 @@ h1 .dot {
   min-height: 28px;
 }
 
+/* Pencil glyph renders chunkier than the × at the same size — bring it
+   down a touch so the two trailing buttons read as siblings, not stacked
+   weights. */
+.edit {
+  font-size: 15px;
+}
+
+.row:hover .edit,
+.row:focus-within .edit,
 .row:hover .delete,
 .row:focus-within .delete {
   opacity: 1;
+}
+
+.edit:hover,
+.edit:focus {
+  color: var(--accent);
+  background: var(--accent-soft);
+  outline: none;
 }
 
 .delete:hover,
@@ -619,6 +659,7 @@ h1 .dot {
 /* ── Touch / coarse-pointer devices ───────────────────────────────── */
 
 @media (pointer: coarse) {
+  .edit,
   .delete {
     opacity: 1;
     min-width: 36px;
@@ -662,6 +703,11 @@ h1 .dot {
     font-size: 16px;
   }
   .search input {
+    font-size: 16px;
+  }
+  /* Same 16px threshold as the search box — prevents iOS from auto-zooming
+     when the user taps the inline title editor. */
+  .title-edit {
     font-size: 16px;
   }
   .search-mark {

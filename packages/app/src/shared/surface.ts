@@ -10,7 +10,13 @@
 
 import { defineSurface } from "@kolu/surface/define";
 import { z } from "zod";
-import { AddTaskInputSchema, MoveTaskInputSchema, TaskIdSchema, TaskSchema } from "./schemas";
+import {
+  AddTaskInputSchema,
+  EditTaskInputSchema,
+  MoveTaskInputSchema,
+  TaskIdSchema,
+  TaskSchema,
+} from "./schemas";
 
 export const surface = defineSurface({
   collections: {
@@ -33,6 +39,14 @@ export const surface = defineSurface({
       },
       toggle: {
         input: TaskIdSchema,
+        output: TaskSchema,
+      },
+      // Rename a task. Title is the only user-editable free-text field
+      // today; status / parentId / position have their own verbs (toggle,
+      // move). The server returns the updated row so the Collection's
+      // upsert fan-out can publish without a follow-up snapshot.
+      edit: {
+        input: EditTaskInputSchema,
         output: TaskSchema,
       },
       // Drag-and-drop reordering. Input carries a semantic drop target

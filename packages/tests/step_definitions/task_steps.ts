@@ -155,6 +155,55 @@ When(
   },
 );
 
+When(
+  "I click the edit button on the task titled {string}",
+  async function (this: AnywhenWorld, title: string) {
+    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    // Same force-click rationale as delete: the button is opacity:0 on fine
+    // pointers and revealed by @media (pointer: coarse) on touch; the
+    // visibility-without-hover assertion is a separate step.
+    await row.locator('[data-testid="task-edit"]').click({ force: true });
+  },
+);
+
+Then(
+  "the edit input on the task titled {string} should be visible",
+  async function (this: AnywhenWorld, title: string) {
+    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    await expect(row.locator('[data-testid="task-edit-input"]')).toBeVisible();
+  },
+);
+
+Then(
+  "the edit button on the task titled {string} should be revealed without hover",
+  async function (this: AnywhenWorld, title: string) {
+    const btn = this.page
+      .locator(`[data-testid="task-row"][data-task-title="${title}"]`)
+      .locator('[data-testid="task-edit"]');
+    const opacity = await btn.evaluate((el) => Number(getComputedStyle(el).opacity));
+    if (opacity < 1) {
+      throw new Error(
+        `edit button opacity was ${opacity}; the @media (pointer: coarse) rule did not apply`,
+      );
+    }
+  },
+);
+
+When("I fill the edit input with {string}", async function (this: AnywhenWorld, text: string) {
+  // The inline editor is row-scoped, but only one row may be in edit mode at
+  // a time — match by data-testid alone so the scenario doesn't need to
+  // re-state which row.
+  await this.page.locator('[data-testid="task-edit-input"]').fill(text);
+});
+
+When("I press Enter in the edit input", async function (this: AnywhenWorld) {
+  await this.page.locator('[data-testid="task-edit-input"]').press("Enter");
+});
+
+When("I press Escape in the edit input", async function (this: AnywhenWorld) {
+  await this.page.locator('[data-testid="task-edit-input"]').press("Escape");
+});
+
 // Mobile scenarios assert the CSS @media (pointer: coarse) rule actually
 // reveals the delete button. Playwright's toBeVisible() doesn't check opacity,
 // so we read the computed value directly — opacity 1 means the coarse-pointer
