@@ -43,8 +43,9 @@ const CLIENT_DIR = resolve(import.meta.dirname, "..", "client");
 // runtime build so we don't try to write into the read-only Nix store.
 // Unset (the dev shell path) keeps the existing behavior: build into
 // packages/app/dist at startup.
-const DIST_DIR = process.env.ANYWHEN_DIST_DIR ?? resolve(import.meta.dirname, "..", "..", "dist");
-if (!process.env.ANYWHEN_DIST_DIR) {
+const preBuiltDistDir = process.env.ANYWHEN_DIST_DIR;
+const DIST_DIR = preBuiltDistDir ?? resolve(import.meta.dirname, "..", "..", "dist");
+if (!preBuiltDistDir) {
   await buildClient({ clientDir: CLIENT_DIR, outDir: DIST_DIR });
 }
 
