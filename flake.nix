@@ -11,6 +11,19 @@
 # npins-pinned pkgs (no transitive nixpkgs eval in our flake). The input
 # is only realized when the `packages.*` attrset is evaluated — `nix
 # develop` cold eval stays unchanged.
+#
+# Operator note (flake.lock vs npins/sources.json):
+# - `npins/sources.json` is the SINGLE source of truth for the
+#   application's nixpkgs. Every derivation in this repo (anywhen, the
+#   dev shell, @kolu/surface) builds against the npins pin.
+# - `flake.lock` carries a SECOND nixpkgs revision: bun2nix's own input
+#   used to build bun2nix's Rust CLI binary. That nixpkgs never enters
+#   anywhen's build graph — `mkBun2nix { pkgs }` consumes ours.
+# - Consequence: `nix flake update bun2nix` and `npins update nixpkgs`
+#   are independent operations on independent pins. The divergence is
+#   acceptable because the two nixpkgs serve disjoint purposes (build a
+#   CLI tool vs. build the app); the partition is what keeps the dev
+#   shell off the bun2nix eval path.
 {
   inputs.bun2nix.url = "github:juspay/bun2nix/rawflake";
 
