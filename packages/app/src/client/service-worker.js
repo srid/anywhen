@@ -14,7 +14,10 @@ const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()),
+    caches
+      .open(CACHE)
+      .then((cache) => cache.addAll(APP_SHELL))
+      .then(() => self.skipWaiting()),
   );
 });
 
@@ -40,6 +43,16 @@ self.addEventListener("message", (event) => {
 // server requires extending this predicate.
 const isRpcPath = (url) => url.pathname.startsWith("/rpc/") || url.pathname.startsWith("/api/");
 
+// Write res into the cache under key, fire-and-forget. Errors are logged but
+// not propagated — a failed cache write is non-fatal; the response still
+// reaches the client.
+const cacheWrite = (key, res) => {
+  caches
+    .open(CACHE)
+    .then((cache) => cache.put(key, res))
+    .catch((err) => console.warn("[sw] cache write failed", err));
+};
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
@@ -49,30 +62,32 @@ self.addEventListener("fetch", (event) => {
   if (isRpcPath(url)) return;
 
   if (req.mode === "navigate") {
+    // Network-first for navigations: serve fresh HTML, cache it for offline,
+    // fall back to the cached shell when the network is unavailable.
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((cache) => cache.put("/index.html", copy)).catch(() => {});
+          cacheWrite("/index.html", res.clone());
           return res;
         })
-        .catch(() => caches.match("/index.html").then((r) => r ?? Response.error())),
+        .catch(async () => (await caches.match("/index.html")) ?? Response.error()),
     );
     return;
   }
 
+  // Cache-first for all other same-origin GETs: return cached copy
+  // immediately if present, and in parallel kick off a network fetch to
+  // refresh the cache for the next visit.
   event.respondWith(
-    caches.match(req).then((cached) => {
-      const network = fetch(req)
-        .then((res) => {
-          if (res.ok && res.type === "basic") {
-            const copy = res.clone();
-            caches.open(CACHE).then((cache) => cache.put(req, copy)).catch(() => {});
-          }
-          return res;
-        })
-        .catch(() => cached ?? Response.error());
-      return cached ?? network;
-    }),
+    (async () => {
+      const cached = await caches.match(req);
+      const networkPromise = fetch(req).then((res) => {
+        // res.type === "basic" confirms same-origin (guards against opaque
+        // responses slipping through if the origin check above ever relaxes).
+        if (res.ok && res.type === "basic") cacheWrite(req, res.clone());
+        return res;
+      });
+      return cached ?? (await networkPromise);
+    })(),
   );
 });
