@@ -81,6 +81,12 @@ stdenv.mkDerivation {
     cp -r packages $out/lib/anywhen/
     cp -r node_modules $out/lib/anywhen/
     cp package.json bunfig.toml tsconfig.base.json $out/lib/anywhen/
+    # Guard: the wrapper in default.nix hard-codes this entry point path.
+    # Fail the build (not runtime) if it moves.
+    test -f "$out/lib/anywhen/packages/app/src/server/index.ts" || {
+      echo "installPhase: server entry point missing — update default.nix anywhenBin if the path changed"
+      exit 1
+    }
     runHook postInstall
   '';
 
