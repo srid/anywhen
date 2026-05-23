@@ -110,6 +110,17 @@ const focusRowById = (id: TaskId) => {
 
 type DragSnapshot = { id: TaskId; descendants: Set<TaskId> };
 
+// Pointer-events drag state. A row's pointerdown stages a "pending press";
+// the drag commits only when the user moves past DRAG_MOVE_THRESHOLD (mouse)
+// or holds for DRAG_LONGPRESS_MS without moving (touch / pen).
+type PendingPress = {
+  id: TaskId;
+  startX: number;
+  startY: number;
+  pointerType: string;
+  longPressTimer?: ReturnType<typeof setTimeout>;
+};
+
 // Distance the pointer must travel before a mouse press becomes a drag. Below
 // this threshold the press is treated as a click (select / focus).
 const DRAG_MOVE_THRESHOLD = 5;
@@ -278,16 +289,6 @@ export function App() {
   const [drag, setDrag] = createSignal<DragSnapshot | null>(null);
   const [dropTarget, setDropTarget] = createSignal<{ id: TaskId; zone: DropZone } | null>(null);
 
-  // Pointer-events drag state. A row's pointerdown stages a "pending press";
-  // the drag commits only when the user moves past DRAG_MOVE_THRESHOLD (mouse)
-  // or holds for DRAG_LONGPRESS_MS without moving (touch / pen).
-  type PendingPress = {
-    id: TaskId;
-    startX: number;
-    startY: number;
-    pointerType: string;
-    longPressTimer?: ReturnType<typeof setTimeout>;
-  };
   let pendingPress: PendingPress | null = null;
 
   const canDropOn = (rowId: TaskId): boolean => {
