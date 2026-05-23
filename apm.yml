@@ -9,3 +9,6 @@ dependencies:
     - srid/agency#master
     - juspay/justci#main
     - anthropics/claude-code/plugins/frontend-design/skills/frontend-design#main
+    - juspay/skills/skills/nix-for-dev
+    - juspay/skills/skills/nix-justfile
+    - juspay/nix-chrome-devtools-mcp

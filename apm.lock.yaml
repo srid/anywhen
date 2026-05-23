@@ -1,5 +1,5 @@
 lockfile_version: '1'
-generated_at: '2026-05-23T16:47:42.692266+00:00'
+generated_at: '2026-05-23T22:34:30.268276+00:00'
 apm_version: 0.14.2
 dependencies:
 - repo_url: anthropics/claude-code
@@ -23,9 +23,34 @@ dependencies:
   deployed_file_hashes:
     .claude/rules/workflow.md: sha256:babf61cdd29cfc8f03b3d20f17b4bf13ef5f173dc05640bc83c505dca4b42010
   content_hash: sha256:8cb8e2fddee6967e1d41ac5fc6d0616155fd5d7cafe95340c338d84d971655a0
+- repo_url: juspay/nix-chrome-devtools-mcp
+  host: github.com
+  resolved_commit: 407e0abef0d0e5c7bc401819d0a815b8c49c6674
+  package_type: apm_package
+  deployed_files:
+  - .claude/skills/nix-chrome-devtools-mcp
+  content_hash: sha256:1af1b958b54a863cd9aae61bc4078969abed77f5a9f8539e73ee4a1c53349bc3
+- repo_url: juspay/skills
+  host: github.com
+  resolved_commit: e5791cf388499456c8083a1667ecc1bd6c35fe2c
+  virtual_path: skills/nix-for-dev
+  is_virtual: true
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/nix-for-dev
+  content_hash: sha256:222bee6d02ef727eff965ae224683604c59d387c3e4ce47582543a8550b86bc4
+- repo_url: juspay/skills
+  host: github.com
+  resolved_commit: e5791cf388499456c8083a1667ecc1bd6c35fe2c
+  virtual_path: skills/nix-justfile
+  is_virtual: true
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/nix-justfile
+  content_hash: sha256:8f48e067e59da48c3ac90b4e2228ebb4ecfd988375b40efe831339d9a493accd
 - repo_url: srid/agency
   host: github.com
-  resolved_commit: a19e96686ea20ad02e2869334f426e024565c703
+  resolved_commit: 16889eb67592c8448c8592e527953ce7272f625c
   resolved_ref: master
   package_type: apm_package
   deployed_files:
@@ -47,4 +72,12 @@ dependencies:
     .claude/agents/lowy.md: sha256:05aff7f6a91149a42c1fb9a3ca382a6f77bc39ac8a8d45436d443dd3349fb11e
     .claude/hooks/agency/scripts/do-stop-guard.sh: sha256:cb033f86c15ffd3d09d8e4b74a61f55a70def4cc4131cc013b7368a2d23f3f33
     .claude/rules/apm-sources.md: sha256:0d34f182279b93803855bd7f7b27a57e7cf3117ce4291d31a46294c629ee75d5
-  content_hash: sha256:b4c49cbb5308a43ac20ae76f7dfa77f56a102b13625c6cc6313f801c104359ca
+  content_hash: sha256:5418127b67140ce58953d891bb9755a21fb6508f72f7453485b52358a77be324
+mcp_servers:
+- chrome-devtools
+mcp_configs:
+  chrome-devtools:
+    name: chrome-devtools
+    transport: stdio
+    registry: false
+    command: .agents/skills/nix-chrome-devtools-mcp/bin/serve
