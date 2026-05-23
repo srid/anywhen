@@ -64,6 +64,6 @@ export function resolveStateDir(): string {
       "ANYWHEN_STATE_DIR is not set. The dev shell exports it; under nix run it's set by the wrapper.",
     );
   }
-  mkdirSync(dirname(join(fromEnv, DB_FILENAME)), { recursive: true });
+  mkdirSync(fromEnv, { recursive: true });
   return fromEnv;
 }
