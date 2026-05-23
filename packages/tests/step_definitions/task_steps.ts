@@ -108,6 +108,17 @@ Given("the app is running with a fresh database", async function (this: AnywhenW
     headers: { "content-type": "application/json" },
   });
   if (!res.ok) throw new Error(`Reset failed: ${res.status} ${await res.text()}`);
+  // Universal dialog auto-accept for every scenario. Today only the import
+  // path fires window.confirm(), but registering here (rather than at the
+  // import step's call site) makes the rule "destructive confirms in tests
+  // are auto-accepted" structural — any future feature that adds a confirm
+  // inherits the same handler without per-feature dialog plumbing. A
+  // scenario that needs to assert *that* a dialog appeared, or dismiss
+  // rather than accept, must override this handler explicitly inside its
+  // own step.
+  this.page.on("dialog", async (d) => {
+    await d.accept();
+  });
   await this.page.goto(this.serverUrl);
   await this.page.locator('[data-testid="search-input"]').waitFor({ state: "visible" });
   await this.page.waitForLoadState("networkidle");
