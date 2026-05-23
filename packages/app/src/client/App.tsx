@@ -151,14 +151,16 @@ export function App() {
     return tasks;
   });
 
-  const trimmedQuery = createMemo<string>(() => normalizeQuery(query()));
-  const filterQuery = createMemo<string | null>(() => trimmedQuery() || null);
+  // The normalized non-empty query. Empty input → null so both the filter
+  // pipeline (skip when null) and the create path (refuse to add) read the
+  // same gate.
+  const activeQuery = createMemo<string | null>(() => normalizeQuery(query()) || null);
 
   const sorted = createMemo<{ task: Task; depth: number }[]>(() => sortedWithDepths(taskList()));
 
   const rows = createMemo<Row[]>(() => {
     const list = sorted();
-    const q = filterQuery();
+    const q = activeQuery();
     if (!q) {
       return list.map(({ task, depth }) => ({ task, depth, dimmed: false }));
     }
@@ -183,7 +185,7 @@ export function App() {
   };
 
   const createFromInput = async () => {
-    const title = trimmedQuery();
+    const title = activeQuery();
     if (!title) return;
     // Clear the input synchronously before the await so subsequent keystrokes
     // aren't clobbered by a late `setQuery("")` after the mutation resolves.
@@ -433,7 +435,7 @@ export function App() {
           data-testid="add-button"
           aria-label={`Add task (${cmdLabel()}+Enter)`}
           title={`Add task (${cmdLabel()}+Enter)`}
-          disabled={!trimmedQuery()}
+          disabled={!activeQuery()}
           onClick={() => void createFromInput()}
         >
           Add
@@ -445,8 +447,8 @@ export function App() {
           when={rows().length > 0}
           fallback={
             <div class="empty">
-              {filterQuery()
-                ? `No tasks match "${filterQuery()}". Press ${cmdLabel()}+Enter to add it.`
+              {activeQuery()
+                ? `No tasks match "${activeQuery()}". Press ${cmdLabel()}+Enter to add it.`
                 : `No tasks yet. Type a title and press ${cmdLabel()}+Enter (or tap Add).`}
             </div>
           }
@@ -503,7 +505,7 @@ export function App() {
                     }}
                   />
                   <span class="title">
-                    <For each={highlightSegments(row.task.title, filterQuery() ?? "")}>
+                    <For each={highlightSegments(row.task.title, activeQuery() ?? "")}>
                       {(seg) => (seg.match ? <mark>{seg.text}</mark> : <span>{seg.text}</span>)}
                     </For>
                   </span>
