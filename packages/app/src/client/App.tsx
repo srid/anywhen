@@ -227,9 +227,9 @@ export function App() {
   };
 
   // Start editing the focused row. Seeds the draft with the current title so
-  // typing replaces; the input's onMount selects the text so a single
-  // keystroke replaces the whole title (cursor-at-end also works for
-  // append-style edits — see the input ref effect below).
+  // typing replaces; a createEffect below selects the input on open so a
+  // single keystroke replaces the whole title (cursor-at-end also works for
+  // append-style edits).
   const beginEdit = (id: TaskId) => {
     const task = taskList().find((t) => t.id === id);
     if (!task) return;
