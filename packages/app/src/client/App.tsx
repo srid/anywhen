@@ -131,11 +131,13 @@ const DRAG_LONGPRESS_MS = 350;
 // Mac desktop only — iOS devices match /Mac/ in the UA but lack a Cmd key, so
 // the hint should read "Ctrl" there. `navigator.platform` is deprecated; the
 // userAgent contains "Mac OS X" on macOS and "iPhone"/"iPad"/"iPod" on iOS.
-const isMacPlatform = (): boolean => {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent;
-  return /Mac/.test(ua) && !/iPhone|iPad|iPod/.test(ua);
-};
+// Evaluated once at module load; UA never changes during a session.
+const CMD_LABEL =
+  typeof navigator !== "undefined" &&
+  /Mac/.test(navigator.userAgent) &&
+  !/iPhone|iPad|iPod/.test(navigator.userAgent)
+    ? "⌘"
+    : "Ctrl";
 
 export function App() {
   // Live subscription to the tasks Collection. `notes.keys()` is a reactive
@@ -181,7 +183,11 @@ export function App() {
     const ancestors = ancestorIds(matched, (id) => byId.get(id)?.parentId ?? null);
     return list
       .filter(({ task: t }) => matched.has(t.id) || ancestors.has(t.id))
-      .map(({ task, depth }) => ({ task, depth, dimmed: !matched.has(task.id) }));
+      .map(({ task, depth }) => ({
+        task,
+        depth,
+        dimmed: !matched.has(task.id),
+      }));
   });
 
   const callMutation = async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
@@ -287,7 +293,10 @@ export function App() {
   });
 
   const [drag, setDrag] = createSignal<DragSnapshot | null>(null);
-  const [dropTarget, setDropTarget] = createSignal<{ id: TaskId; zone: DropZone } | null>(null);
+  const [dropTarget, setDropTarget] = createSignal<{
+    id: TaskId;
+    zone: DropZone;
+  } | null>(null);
 
   let pendingPress: PendingPress | null = null;
 
@@ -329,10 +338,16 @@ export function App() {
     // this, the first move out of the source row would lose the drag stream.
     try {
       sourceEl.setPointerCapture(e.pointerId);
-    } catch {
+    } catch (err) {
       // Some headless environments reject capture for released pointers;
       // the drag falls back to whatever element happens to be under the pointer.
+      console.warn("setPointerCapture failed:", err);
     }
+    // Cancel any previous pending press before starting a new one (guards
+    // against the second-finger case where a new pointerdown arrives before
+    // the first long-press timer fires, which would otherwise orphan the old
+    // timer until it expires).
+    clearPendingPress();
     pendingPress = {
       id,
       startX: e.clientX,
@@ -340,6 +355,8 @@ export function App() {
       pointerType: e.pointerType,
     };
     if (e.pointerType === "touch" || e.pointerType === "pen") {
+      // `press` captures the identity of this specific press so the timer
+      // guard can tell if a later clearPendingPress() already cancelled it.
       const press = pendingPress;
       press.longPressTimer = setTimeout(() => {
         if (pendingPress === press) beginDrag(id);
@@ -366,10 +383,7 @@ export function App() {
     // Active drag: hit-test the row visually under the pointer.
     e.preventDefault();
     const hit = document.elementFromPoint(e.clientX, e.clientY);
-    const rowEl =
-      hit instanceof Element
-        ? (hit.closest('[data-testid="task-row"]') as HTMLElement | null)
-        : null;
+    const rowEl = hit?.closest('[data-testid="task-row"]') as HTMLElement | null;
     if (!rowEl) {
       setDropTarget(null);
       return;
@@ -397,12 +411,10 @@ export function App() {
     void callMutation(() => api.move({ id: src, target }));
   };
 
-  const handleRowPointerCancel = (_e: PointerEvent) => {
+  const handleRowPointerCancel = () => {
     clearPendingPress();
     clearDragState();
   };
-
-  const cmdLabel = createMemo(() => (isMacPlatform() ? "⌘" : "Ctrl"));
 
   return (
     <main>
@@ -434,8 +446,8 @@ export function App() {
           type="button"
           class="add-btn"
           data-testid="add-button"
-          aria-label={`Add task (${cmdLabel()}+Enter)`}
-          title={`Add task (${cmdLabel()}+Enter)`}
+          aria-label={`Add task (${CMD_LABEL}+Enter)`}
+          title={`Add task (${CMD_LABEL}+Enter)`}
           disabled={!activeQuery()}
           onClick={() => void createFromInput()}
         >
@@ -449,8 +461,8 @@ export function App() {
           fallback={
             <div class="empty">
               {activeQuery()
-                ? `No tasks match "${activeQuery()}". Press ${cmdLabel()}+Enter to add it.`
-                : `No tasks yet. Type a title and press ${cmdLabel()}+Enter (or tap Add).`}
+                ? `No tasks match "${activeQuery()}". Press ${CMD_LABEL}+Enter to add it.`
+                : `No tasks yet. Type a title and press ${CMD_LABEL}+Enter (or tap Add).`}
             </div>
           }
         >
@@ -487,6 +499,7 @@ export function App() {
                   onPointerMove={(e) => handleRowPointerMove(e, row.task.id)}
                   onPointerUp={handleRowPointerUp}
                   onPointerCancel={handleRowPointerCancel}
+                  onLostPointerCapture={handleRowPointerCancel}
                 >
                   <For each={Array.from({ length: row.depth })}>
                     {() => <span class="indent" />}
@@ -532,7 +545,7 @@ export function App() {
 
       <div class="hint">
         <span>
-          <kbd>{cmdLabel()}</kbd>+<kbd>↵</kbd> to add the typed task
+          <kbd>{CMD_LABEL}</kbd>+<kbd>↵</kbd> to add the typed task
         </span>
         <span>
           <kbd>↑</kbd>
