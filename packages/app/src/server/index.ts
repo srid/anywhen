@@ -78,7 +78,14 @@ const server = Bun.serve({
     // Static serve from dist/ for everything else; SPA fallback to index.html.
     const candidate = path === "/" ? "/index.html" : path;
     const filePath = resolve(DIST_DIR, `.${candidate}`);
-    if (!filePath.startsWith(DIST_DIR)) return new Response("Forbidden", { status: 403 });
+    // Containment check needs the trailing separator — `startsWith(DIST_DIR)`
+    // alone admits sibling prefixes (`/var/lib/anywhen-dist-evil` starts with
+    // `/var/lib/anywhen-dist`), which a crafted `..` path can reach. Comparing
+    // with the separator (or equality with DIST_DIR itself for the dir hit)
+    // rejects those.
+    if (filePath !== DIST_DIR && !filePath.startsWith(`${DIST_DIR}/`)) {
+      return new Response("Forbidden", { status: 403 });
+    }
 
     const file = Bun.file(filePath);
     if (await file.exists()) return new Response(file);
