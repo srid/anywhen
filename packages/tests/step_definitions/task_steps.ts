@@ -232,9 +232,9 @@ Then(
 );
 
 // Keyboard nav: Playwright's locator.press() accepts the same key syntax as
-// page.keyboard.press(), so chords like "Shift+Tab" and "Alt+ArrowUp" flow
-// through unchanged. Focus first so the row's onKeyDown receives the event
-// (the tree has no global keydown for these chords — they're per-row).
+// page.keyboard.press(), so vim chords like "Shift+J" and plain "h"/"l"
+// flow through unchanged. Focus first so the row's onKeyDown receives the
+// event (the tree has no global keydown for these keys — they're per-row).
 When(
   "I press {string} on the task titled {string}",
   async function (this: AnywhenWorld, key: string, title: string) {

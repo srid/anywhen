@@ -236,29 +236,53 @@ export function App() {
     focusRowById(next.task.id);
   };
 
+  // Vim-style row bindings. Ctrl / Meta / Alt chords are left to the browser
+  // so OS- and app-level shortcuts (back/forward, devtools, etc.) keep
+  // working when a row has focus.
   const handleRowKeyDown = (e: KeyboardEvent, id: TaskId) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === " ") {
       e.preventDefault();
       void toggle(id);
       return;
     }
-    if (e.key === "Backspace") {
+    if (e.key === "x") {
       e.preventDefault();
       void remove(id);
       return;
     }
-    if (e.key === "Tab" && !e.altKey && !e.ctrlKey && !e.metaKey) {
+    // Shift+j/k → uppercase J/K → move row among siblings.
+    // Plain j/k → move selection within visible rows.
+    if (e.key === "j") {
       e.preventDefault();
-      void moveByKey(id, e.shiftKey ? "outdent" : "indent");
+      moveSelection(id, 1);
       return;
     }
-    if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+    if (e.key === "k") {
       e.preventDefault();
-      if (e.altKey) {
-        void moveByKey(id, e.key === "ArrowUp" ? "up" : "down");
-      } else {
-        moveSelection(id, e.key === "ArrowUp" ? -1 : 1);
-      }
+      moveSelection(id, -1);
+      return;
+    }
+    if (e.key === "J") {
+      e.preventDefault();
+      void moveByKey(id, "down");
+      return;
+    }
+    if (e.key === "K") {
+      e.preventDefault();
+      void moveByKey(id, "up");
+      return;
+    }
+    // h/l mirror vim's left/right: l indents (one level deeper), h outdents.
+    if (e.key === "l") {
+      e.preventDefault();
+      void moveByKey(id, "indent");
+      return;
+    }
+    if (e.key === "h") {
+      e.preventDefault();
+      void moveByKey(id, "outdent");
+      return;
     }
   };
 
@@ -537,18 +561,18 @@ export function App() {
           <kbd>↵</kbd> to add the typed task
         </span>
         <span>
-          <kbd>↑</kbd>
-          <kbd>↓</kbd> to move selection
+          <kbd>j</kbd>
+          <kbd>k</kbd> to move selection
         </span>
         <span>
-          <kbd>Tab</kbd> / <kbd>⇧Tab</kbd> to indent / outdent
+          <kbd>l</kbd> / <kbd>h</kbd> to indent / outdent
         </span>
         <span>
-          <kbd>Alt</kbd>+<kbd>↑</kbd>
-          <kbd>↓</kbd> to reorder siblings
+          <kbd>⇧J</kbd>
+          <kbd>⇧K</kbd> to reorder siblings
         </span>
         <span>
-          <kbd>Space</kbd> toggle · <kbd>⌫</kbd> delete · <kbd>/</kbd> search
+          <kbd>Space</kbd> toggle · <kbd>x</kbd> delete · <kbd>/</kbd> search
         </span>
       </div>
 

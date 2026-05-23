@@ -6,10 +6,10 @@ A personal task manager. One search box: filter the tree, or add to it.
 > the Add button) + view the tree + toggle done + delete (with cascade
 > to descendants) + reorder via pointer drag — works for mouse, pen, and
 > touch (long-press to enter drag mode) — top edge = drop before, bottom
-> edge = drop after, middle = nest as child + keyboard navigation (`↑`/`↓`
-> moves selection, `Tab`/`⇧Tab` indents/outdents, `Alt`+`↑`/`↓` reorders
-> siblings, `⌫` deletes the focused row, `Space` toggles done, `/` focuses
-> the search box) + live filter (type a query — matches highlight in their
+> edge = drop after, middle = nest as child + vim-friendly keyboard
+> navigation (`j`/`k` moves selection, `l`/`h` indents/outdents, `⇧J`/`⇧K`
+> reorders siblings, `x` deletes the focused row, `Space` toggles done,
+> `/` focuses the search box) + live filter (type a query — matches highlight in their
 > own row, ancestors stay visible but dimmed so the path to a match is
 > intact) + mobile-friendly layout (responsive media queries, touch-sized
 > tap targets, always-visible row actions on coarse pointers) + PWA
