@@ -12,20 +12,12 @@ pkgs.mkShell {
   env = anywhenEnv;
 
   shellHook = ''
-    # Hydrate node_modules/@kolu/surface from the nix-store path. We `cp -r`
-    # (not symlink) because TypeScript resolves transitive imports from the
-    # *real* file location: a symlink target sitting in /nix/store has no
-    # adjacent node_modules, so @orpc/contract / zod / solid-js can't be
-    # found from surface's source. Copying lets resolution walk up to
-    # anywhen's own node_modules where those packages live.
-    #
-    # This is not vendoring — the canonical source is npins-pinned kolu;
-    # node_modules is gitignored cache regenerated on every install.
+    # Hydrate node_modules/@kolu/surface and default the dev state dir.
+    # Hydration strategy lives in scripts/hydrate-kolu-surface.sh — one
+    # script, three callers (this shellHook, the just `install` recipes,
+    # and the anywhen build derivation's postBunNodeModulesInstallPhase).
     if root=$(git rev-parse --show-toplevel 2>/dev/null); then
-      mkdir -p "$root/node_modules/@kolu"
-      rm -rf "$root/node_modules/@kolu/surface"
-      cp -rL "$ANYWHEN_KOLU_SURFACE" "$root/node_modules/@kolu/surface"
-      chmod -R u+w "$root/node_modules/@kolu/surface"
+      (cd "$root" && sh scripts/hydrate-kolu-surface.sh "$ANYWHEN_KOLU_SURFACE")
 
       # Default dev state dir to repo-local ./state so `just dev` runs without
       # ceremony. Cucumber overrides with a per-run mktemp -d (see

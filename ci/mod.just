@@ -22,7 +22,7 @@ default: nix typecheck biome fmt-check bun-nix-fresh e2e
 # node so concurrent `bun install` runs against the same workspace don't race.
 install:
     {{ nix_shell }} bun install
-    {{ nix_shell }} sh -c 'mkdir -p node_modules/@kolu && rm -rf node_modules/@kolu/surface && cp -rL "$ANYWHEN_KOLU_SURFACE" node_modules/@kolu/surface && chmod -R u+w node_modules/@kolu/surface'
+    {{ nix_shell }} sh scripts/hydrate-kolu-surface.sh "$ANYWHEN_KOLU_SURFACE"
 
 # Build all flake outputs via devour-flake.
 nix:

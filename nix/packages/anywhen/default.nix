@@ -26,6 +26,9 @@ let
       # without this. We don't run tests in this derivation, but the
       # workspace tree has to be complete for `bun install` to succeed.
       ../../../packages/tests
+      # @kolu/surface hydration script — invoked from
+      # postBunNodeModulesInstallPhase below.
+      ../../../scripts
     ];
   };
 in
@@ -52,14 +55,12 @@ stdenv.mkDerivation {
   dontPatchShebangs = true;
 
   # @kolu/surface is NOT in bun.lock — it's a Nix-store source supplied by
-  # the overlay (mirrors `shell.nix`'s shellHook). Drop the copy in *after*
-  # bun install populates node_modules, otherwise bun install would either
-  # overwrite our copy or refuse to proceed.
+  # the overlay (same hydration strategy as `shell.nix`'s shellHook and
+  # the `just install` recipes). Drop the copy in *after* bun install
+  # populates node_modules, otherwise bun install would either overwrite
+  # our copy or refuse to proceed.
   postBunNodeModulesInstallPhase = ''
-    mkdir -p node_modules/@kolu
-    rm -rf node_modules/@kolu/surface
-    cp -rL ${anywhen-kolu-surface} node_modules/@kolu/surface
-    chmod -R u+w node_modules/@kolu/surface
+    sh scripts/hydrate-kolu-surface.sh ${anywhen-kolu-surface}
   '';
 
   # Skip the hook's default `bun build --compile` invocation — that flag
