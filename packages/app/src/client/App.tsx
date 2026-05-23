@@ -148,6 +148,11 @@ export function App() {
   const [query, setQuery] = createSignal("");
   const [selected, setSelected] = createSignal<TaskId | null>(null);
   const [error, setError] = createSignal<string | null>(null);
+  // Solid ref to the search input. The "/" shortcut and the post-add focus
+  // path both need a stable handle to focus the element; reaching for it via
+  // `document.querySelector('[data-testid=...]')` would make the production
+  // shortcut depend on a test-instrumentation attribute.
+  let searchInputRef!: HTMLInputElement;
 
   const rows = createMemo<Row[]>(() => buildRows(tasks() ?? []));
 
@@ -256,11 +261,9 @@ export function App() {
       ) {
         return;
       }
-      const input = document.querySelector<HTMLInputElement>('[data-testid="search-input"]');
-      if (!input) return;
       e.preventDefault();
-      input.focus();
-      input.select();
+      searchInputRef.focus();
+      searchInputRef.select();
     };
     window.addEventListener("keydown", onGlobalKeyDown);
     onCleanup(() => window.removeEventListener("keydown", onGlobalKeyDown));
@@ -341,6 +344,7 @@ export function App() {
 
       <div class="search">
         <input
+          ref={searchInputRef}
           data-testid="search-input"
           aria-label="Search or add a task"
           placeholder="Search or type + to add a task"
