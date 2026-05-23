@@ -21,7 +21,7 @@ import { implementSurface, publisherChannel } from "@kolu/surface/server";
 import { MemoryPublisher } from "@orpc/experimental-publisher/memory";
 import { implement } from "@orpc/server";
 import { BACKUP_VERSION, type Task, type TaskId } from "../shared/schemas";
-import { surface } from "../shared/surface";
+import { type RuntimeInfo, surface } from "../shared/surface";
 import { descendantIds } from "../shared/tree";
 import type { TaskStore } from "../storage/tasks";
 
@@ -37,7 +37,7 @@ import type { TaskStore } from "../storage/tasks";
 // avoids this because it always spreads the surface fragment alongside
 // hand-written namespaces; a surface-only host needs the explicit rewrap.
 
-export function buildRouter(store: TaskStore, cache: Map<TaskId, Task>) {
+export function buildRouter(store: TaskStore, cache: Map<TaskId, Task>, runtimeInfo: RuntimeInfo) {
   // MemoryPublisher's generic insists on `Record<string, object>`; we publish
   // `Task` objects and `string[]` key snapshots, both of which satisfy
   // `object` in JS. Per-channel typing lives on the surface contract — the
@@ -133,6 +133,9 @@ export function buildRouter(store: TaskStore, cache: Map<TaskId, Task>) {
             ctx.collections.tasks.remove(k);
           }
         },
+      },
+      runtime: {
+        info: async () => runtimeInfo,
       },
     },
   });

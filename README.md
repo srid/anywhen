@@ -19,7 +19,10 @@ A personal task manager. One search box: filter the tree, or add to it.
 > app shell and serves `index.html` from cache when offline) + JSON
 > backup (the footer's Export downloads a versioned envelope of every
 > task; Import replaces the current tree with the contents of a backup
-> file — drop the export into Dropbox/git/etc. for off-app retention).
+> file — drop the export into Dropbox/git/etc. for off-app retention)
+> + runtime info footer (GitHub source link, server hostname, SQLite
+> path — so a user opening the app can see where their data lives at a
+> glance).
 > Filter atoms, tags, due dates, body, blocked-by, and the detail panel
 > land in later PRs.
 

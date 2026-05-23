@@ -8,6 +8,7 @@
 // `nix run` the wrapper sets `ANYWHEN_DIST_DIR` to a pre-built /nix/store
 // path and the build call is skipped.
 
+import { hostname as osHostname } from "node:os";
 import { resolve } from "node:path";
 import { RPCHandler as WsRPCHandler } from "@orpc/server/bun-ws";
 import { RPCHandler } from "@orpc/server/fetch";
@@ -19,7 +20,7 @@ import { buildClient, pwaHeadersFor } from "./build";
 import { buildRouter } from "./router";
 
 const stateDir = resolveStateDir();
-const db = await openDb(stateDir);
+const { db, dbPath } = await openDb(stateDir);
 const store = taskStore(db);
 // Opt-in sample data for `just dev`. The recipe sets the env var; cucumber
 // does not, so e2e scenarios still start from an empty DB. seedSampleData is
@@ -32,7 +33,7 @@ if (process.env.ANYWHEN_SEED_SAMPLE_DATA === "1") {
 // once from SQL at boot; mutated by procedure handlers via the framework's
 // `ctx.collections.tasks.{upsert,remove}` fan-out (see `router.ts`).
 const cache = await store.listMap();
-const router = buildRouter(store, cache);
+const router = buildRouter(store, cache, { hostname: osHostname(), dbPath });
 const httpHandler = new RPCHandler(router);
 const wsHandler = new WsRPCHandler(router);
 

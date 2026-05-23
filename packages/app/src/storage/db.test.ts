@@ -18,7 +18,7 @@ const freshStateDir = () => {
 };
 
 test("openDb creates the tasks table on a fresh state dir", async () => {
-  const db = await openDb(freshStateDir());
+  const { db } = await openDb(freshStateDir());
   onTestFinished(() => db.destroy());
   // Selecting from the table proves it exists and has the expected shape.
   const rows = await db.selectFrom("tasks").selectAll().execute();
@@ -27,7 +27,7 @@ test("openDb creates the tasks table on a fresh state dir", async () => {
 
 test("openDb is idempotent — re-opening the same DB applies no migrations", async () => {
   const dir = freshStateDir();
-  const first = await openDb(dir);
+  const { db: first } = await openDb(dir);
   await first
     .insertInto("tasks")
     .values({
@@ -44,14 +44,14 @@ test("openDb is idempotent — re-opening the same DB applies no migrations", as
 
   // Reopen and confirm the row survived (i.e., migration didn't recreate
   // the table) and the second migrateToLatest() didn't error.
-  const second = await openDb(dir);
+  const { db: second } = await openDb(dir);
   onTestFinished(() => second.destroy());
   const rows = await second.selectFrom("tasks").selectAll().execute();
   expect(rows.map((r) => r.title)).toEqual(["carry-over"]);
 });
 
 test("init migration applied via Kysely's tracking table", async () => {
-  const db = await openDb(freshStateDir());
+  const { db } = await openDb(freshStateDir());
   onTestFinished(() => db.destroy());
   // Kysely's Migrator tracks state in `kysely_migration`; verifying the
   // one expected entry confirms the FileMigrationProvider discovered the
