@@ -47,6 +47,20 @@ fmt-check: install
 new-migration name: install
     {{ nix_shell }} bun packages/app/scripts/new-migration.ts {{ name }}
 
+# Regenerate bun.nix from bun.lock. Run this after any change to bun.lock
+# (i.e. after `bun install`/`bun add`). CI's `bun-nix-fresh` recipe gates
+# on this file matching the lockfile so a stale bun.nix can't ship.
+regenerate-bun-nix:
+    {{ nix_shell }} sh -c 'nix run .#bun2nix -- -o bun.nix && nixpkgs-fmt bun.nix'
+
+# Build the wrapped binary and print its store path.
+nix-build:
+    nix build .#default --print-out-paths --no-link
+
+# Run the wrapped binary directly (uses XDG_DATA_HOME state dir).
+nix-run *args:
+    nix run .#default -- {{ args }}
+
 # Cucumber e2e tests (spawns server from source on an ephemeral port)
 test: install
     cd packages/tests && \

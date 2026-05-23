@@ -1,7 +1,9 @@
 // Lifecycle for the cucumber run.
 //
 // BeforeAll: pick an ephemeral port, mktemp a per-run state dir, spawn the
-//   bun server with ANYWHEN_STATE_DIR pointing at it, wait for /api/health.
+//   wrapped anywhen binary (Nix-built, exposed via $ANYWHEN_TEST_BIN by
+//   `nix develop .#e2e`) with ANYWHEN_STATE_DIR pointing at it, wait for
+//   /api/health.
 // Before:    open a fresh Playwright page on the server's URL.
 // After:     close the page; on failure dump a screenshot to reports/.
 // AfterAll:  close the browser and kill the server.
@@ -9,6 +11,11 @@
 // Mirrors the shape of kolu-master/packages/tests/support/hooks.ts but at
 // the scale of a single feature — no agent mocks, no PTY whitelist, just
 // enough to drive the search box and assert the tree.
+//
+// Black-box e2e: tests spawn the *same* artifact `nix run` would, not
+// `bun src/server/index.ts`. Changes to the build derivation (deps,
+// client bundle, wrapper) get exercised end-to-end; the source-tree
+// spawn path is reserved for `just dev`.
 
 import { AfterAll, Before, BeforeAll, After, Status } from "@cucumber/cucumber";
 import type { ITestCaseHookParameter } from "@cucumber/cucumber";
@@ -20,8 +27,17 @@ import getPort from "get-port";
 import { chromium } from "playwright";
 import type { AnywhenWorld } from "./world";
 
-const REPO_ROOT = resolve(import.meta.dirname, "..", "..", "..");
-const SERVER_ENTRY = join(REPO_ROOT, "packages/app/src/server/index.ts");
+const REPORTS_DIR = resolve(import.meta.dirname, "..", "reports");
+
+const resolveTestBin = (): string => {
+  const bin = process.env.ANYWHEN_TEST_BIN;
+  if (!bin) {
+    throw new Error(
+      "ANYWHEN_TEST_BIN is not set. Run tests via `nix develop .#e2e -c just test` so the wrapped Nix-built binary is available.",
+    );
+  }
+  return bin;
+};
 
 let serverProcess: ChildProcess | undefined;
 let serverUrl: string;
@@ -47,8 +63,7 @@ BeforeAll({ timeout: 30_000 }, async () => {
   stateDir = mkdtempSync(join(tmpdir(), "anywhen-test-"));
   serverUrl = `http://127.0.0.1:${port}`;
 
-  serverProcess = spawn("bun", [SERVER_ENTRY], {
-    cwd: REPO_ROOT,
+  serverProcess = spawn(resolveTestBin(), [], {
     stdio: "pipe",
     env: {
       ...process.env,
@@ -97,7 +112,7 @@ Before({ tags: "@mobile" }, async function (this: AnywhenWorld) {
 
 After(async function (this: AnywhenWorld, scenario: ITestCaseHookParameter) {
   if (scenario.result?.status === Status.FAILED && this.page) {
-    const dir = join(REPO_ROOT, "packages/tests/reports/screenshots");
+    const dir = join(REPORTS_DIR, "screenshots");
     mkdirSync(dir, { recursive: true });
     const slug = scenario.pickle.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
     // Best-effort: don't let a screenshot failure obscure the real test failure.
