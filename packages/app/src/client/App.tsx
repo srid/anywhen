@@ -16,6 +16,7 @@ import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show }
 import { matchesQuery } from "../shared/filter";
 import { normalizeQuery } from "../shared/input";
 import {
+  DRAG_LONGPRESS_MS,
   type DropZone,
   type MoveTarget,
   type Task,
@@ -115,9 +116,6 @@ type PendingPress = {
 // Distance the pointer must travel before a mouse press becomes a drag. Below
 // this threshold the press is treated as a click (select / focus).
 const DRAG_MOVE_THRESHOLD = 5;
-// Touch presses need a hold to disambiguate "I want to scroll the list" from
-// "I want to drag this row". 350ms is the iOS-ish window.
-const DRAG_LONGPRESS_MS = 350;
 
 export function App() {
   // Live subscription to the tasks Collection. `notes.keys()` is a reactive

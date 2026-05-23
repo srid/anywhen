@@ -49,6 +49,11 @@ export const DROP_ZONES = MoveTargetSchema.options.map((o) => o.shape.kind.value
 export const ZONE_BEFORE_RATIO = 0.25;
 export const ZONE_AFTER_RATIO = 0.75;
 
+// How long a pointer must be held in place before touch/pen drag activates.
+// Exported so the e2e test can derive its pre-drag delay from the same
+// value — changing this constant here keeps the test timing in sync.
+export const DRAG_LONGPRESS_MS = 350;
+
 export const MoveTaskInputSchema = z.object({
   id: TaskIdSchema,
   target: MoveTargetSchema,

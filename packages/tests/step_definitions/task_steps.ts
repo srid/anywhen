@@ -1,6 +1,7 @@
 import { Given, When, Then } from "@cucumber/cucumber";
 import { expect, type Locator } from "@playwright/test";
 import {
+  DRAG_LONGPRESS_MS,
   DROP_ZONES,
   type DropZone,
   ZONE_AFTER_RATIO,
@@ -210,15 +211,17 @@ When(
     }
     const sourceRow = this.page.locator(`[data-testid="task-row"][data-task-title="${source}"]`);
     const targetRow = this.page.locator(`[data-testid="task-row"][data-task-title="${target}"]`);
-    // 450 ms holds the press past DRAG_LONGPRESS_MS (350 in App.tsx) so the
-    // touch long-press timer fires before the first move.
-    await dispatchTouchDrag(sourceRow, targetRow, where, { preDragDelayMs: 450 });
+    // Hold past DRAG_LONGPRESS_MS so the long-press timer fires before the
+    // first move. The +100 ms margin absorbs scheduler jitter.
+    await dispatchTouchDrag(sourceRow, targetRow, where, {
+      preDragDelayMs: DRAG_LONGPRESS_MS + 100,
+    });
   },
 );
 
 // Handle-drag: presses on the explicit drag handle, which bypasses the
-// 350 ms long-press timer and begins dragging immediately. No pre-drag
-// delay is passed — that's the entire point of the handle.
+// long-press timer (DRAG_LONGPRESS_MS) and begins dragging immediately.
+// No pre-drag delay is passed — that's the entire point of the handle.
 When(
   "I handle-drag the task titled {string} {word} the task titled {string}",
   async function (this: AnywhenWorld, source: string, where: string, target: string) {
