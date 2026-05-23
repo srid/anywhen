@@ -12,6 +12,14 @@ import type { AnywhenWorld } from "../support/world";
 const isDropZone = (value: string): value is DropZone =>
   (DROP_ZONES as readonly string[]).includes(value);
 
+// Throws with a clear message when the Gherkin step word isn't a known zone.
+// Called at the top of every drag step so bad feature-file text surfaces immediately.
+function assertDropZone(value: string): asserts value is DropZone {
+  if (!isDropZone(value)) {
+    throw new Error(`Unknown drop zone: ${value} (expected ${DROP_ZONES.join(", ")})`);
+  }
+}
+
 // Row-relative Y for the centre of each drop zone — derived from the same
 // ratios the UI's zoneAt() reads. One module-scoped table so a future
 // threshold tweak in App.tsx moves both the mouse and touch step in lockstep.
@@ -206,9 +214,7 @@ Then(
 When(
   "I touch-drag the task titled {string} {word} the task titled {string}",
   async function (this: AnywhenWorld, source: string, where: string, target: string) {
-    if (!isDropZone(where)) {
-      throw new Error(`Unknown drop zone: ${where} (expected ${DROP_ZONES.join(", ")})`);
-    }
+    assertDropZone(where);
     const sourceRow = this.page.locator(`[data-testid="task-row"][data-task-title="${source}"]`);
     const targetRow = this.page.locator(`[data-testid="task-row"][data-task-title="${target}"]`);
     // Hold past DRAG_LONGPRESS_MS so the long-press timer fires before the
@@ -225,9 +231,7 @@ When(
 When(
   "I handle-drag the task titled {string} {word} the task titled {string}",
   async function (this: AnywhenWorld, source: string, where: string, target: string) {
-    if (!isDropZone(where)) {
-      throw new Error(`Unknown drop zone: ${where} (expected ${DROP_ZONES.join(", ")})`);
-    }
+    assertDropZone(where);
     const sourceRow = this.page.locator(`[data-testid="task-row"][data-task-title="${source}"]`);
     const targetRow = this.page.locator(`[data-testid="task-row"][data-task-title="${target}"]`);
     await dispatchTouchDrag(sourceRow, targetRow, where, {
@@ -245,9 +249,7 @@ When(
 When(
   "I drag the task titled {string} {word} the task titled {string}",
   async function (this: AnywhenWorld, source: string, where: string, target: string) {
-    if (!isDropZone(where)) {
-      throw new Error(`Unknown drop zone: ${where} (expected ${DROP_ZONES.join(", ")})`);
-    }
+    assertDropZone(where);
     const sourceRow = this.page.locator(`[data-testid="task-row"][data-task-title="${source}"]`);
     const targetRow = this.page.locator(`[data-testid="task-row"][data-task-title="${target}"]`);
     const sourceBox = await sourceRow.boundingBox();
