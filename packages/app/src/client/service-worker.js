@@ -31,6 +31,13 @@ self.addEventListener("message", (event) => {
   if (event.data === "SKIP_WAITING") self.skipWaiting();
 });
 
+// The "always network-only" namespace must mirror the server's routing
+// table in packages/app/src/server/index.ts (which currently dispatches
+// `/rpc/*` to the oRPC handler and `/api/health` to the health endpoint).
+// Keep this predicate broader than any single route — it covers the whole
+// `/api/*` namespace so a new server endpoint added under `/api/...` is not
+// silently served from cache. Adding a new top-level RPC-ish prefix on the
+// server requires extending this predicate.
 const isRpcPath = (url) => url.pathname.startsWith("/rpc/") || url.pathname.startsWith("/api/");
 
 self.addEventListener("fetch", (event) => {

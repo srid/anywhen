@@ -114,6 +114,9 @@ const server = Bun.serve({
       return new Response("WebSocket upgrade failed", { status: 426 });
     }
 
+    // `/rpc/*` and `/api/*` are the "always network-only" namespaces — the
+    // service worker's isRpcPath predicate (client/service-worker.js) mirrors
+    // this. New top-level RPC-ish prefixes must be added in both places.
     if (path === "/api/health") return new Response("ok", { status: 200 });
 
     if (path.startsWith("/rpc/")) {
