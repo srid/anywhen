@@ -16,7 +16,7 @@ nix_shell_e2e := if env('PLAYWRIGHT_BROWSERS_PATH', '') != '' { '' } else { 'nix
 [macos]
 [parallel]
 [metadata("ci")]
-default: nix typecheck biome fmt-check bun-nix-fresh e2e
+default: nix nixos-test typecheck biome fmt-check bun-nix-fresh e2e
 
 # Single per-platform `bun install`. Funnel every bun consumer through this
 # node so concurrent `bun install` runs against the same workspace don't race.

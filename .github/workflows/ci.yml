@@ -46,14 +46,15 @@ jobs:
         run: nix develop --command just lint
       - name: bun.nix is fresh
         run: nix develop --command just ci::bun-nix-fresh
-      - name: nix build .
-        run: nix build .#default --print-out-paths --no-link
       - name: e2e
         run: nix develop .#e2e --command just test
       # Builds every flake output of the top-level flake for the current
-      # system. Once justci's `just dump` parser handles `just` 1.46+,
-      # this collapses back into the `nix run github:juspay/justci`
-      # invocation noted above.
+      # system via devour-flake (anywhen + anywhenBin + anywhenBuilt +
+      # kolu-surface + bun2nix). Supersedes `nix build .#default` — the
+      # `nix` recipe's devour-flake invocation covers .#default plus the
+      # adjacent outputs. Once justci's `just dump` parser handles
+      # `just` 1.46+, this collapses back into the `nix run
+      # github:juspay/justci` invocation noted above.
       - name: nix-build
         run: nix develop --command just ci nix
       # Builds the NixOS example flake (nix/nixos/example) — exposes
