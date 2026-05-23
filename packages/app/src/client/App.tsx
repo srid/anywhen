@@ -190,8 +190,12 @@ export function App() {
     setSelected(created.id);
   };
 
-  const toggle = (id: TaskId) => {
-    void callMutation(() => api.toggle(id));
+  const toggle = async (id: TaskId) => {
+    await callMutation(() => api.toggle(id));
+    // `<For>` rebuilds the row after refetch, so the focused element is
+    // discarded mid-toggle and the user loses their cursor on the tree.
+    // Same problem `moveByKey` solves; same fix.
+    focusRowById(id);
   };
 
   const remove = async (id: TaskId) => {
@@ -226,7 +230,7 @@ export function App() {
   const handleRowKeyDown = (e: KeyboardEvent, id: TaskId) => {
     if (e.key === " ") {
       e.preventDefault();
-      toggle(id);
+      void toggle(id);
       return;
     }
     if (e.key === "Backspace") {

@@ -176,6 +176,14 @@ Then(
   },
 );
 
+Then(
+  "the task titled {string} should be focused",
+  async function (this: AnywhenWorld, title: string) {
+    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    await expect(row).toBeFocused();
+  },
+);
+
 Then("the search box should be focused", async function (this: AnywhenWorld) {
   await expect(this.page.locator('[data-testid="search-input"]')).toBeFocused();
 });

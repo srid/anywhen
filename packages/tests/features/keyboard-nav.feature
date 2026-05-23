@@ -72,6 +72,15 @@ Feature: Keyboard navigation for the task tree
     When I press "ArrowDown" on the task titled "alpha"
     Then the task titled "beta" should be selected
 
+  Scenario: Space on a focused row keeps the row focused after toggling done
+    Given the app is running with a fresh database
+    When I type "+ stays focused" in the search box
+    And I press Enter in the search box
+    Then the tree should contain a task titled "stays focused"
+    When I press " " on the task titled "stays focused"
+    Then the task titled "stays focused" should have status "done"
+    And the task titled "stays focused" should be focused
+
   Scenario: Slash focuses the search box from anywhere
     Given the app is running with a fresh database
     When I type "+ note" in the search box
