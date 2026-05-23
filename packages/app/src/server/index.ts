@@ -33,9 +33,8 @@ const port = Number(process.env.PORT ?? 7700);
 // Either "use this pre-built dist" (production / `nix run`) or "build into
 // this writable path" (dev / cucumber). The env var is the sole adapter;
 // the rest of the server treats `dist.path` uniformly.
-const distEnv = process.env.ANYWHEN_DIST_DIR;
-const dist = distEnv
-  ? { kind: "prebuilt" as const, path: distEnv }
+const dist = process.env.ANYWHEN_DIST_DIR
+  ? { kind: "prebuilt" as const, path: process.env.ANYWHEN_DIST_DIR }
   : { kind: "build" as const, path: resolve(import.meta.dirname, "..", "..", "dist") };
 if (dist.kind === "build") {
   await buildClient(dist.path);
