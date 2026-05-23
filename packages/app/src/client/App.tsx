@@ -63,6 +63,8 @@ const buildRows = (tasks: Task[]): Row[] => {
 // quarter → after, middle half → inside (re-parent). Symmetric so the user
 // can always nudge a task one step up, one step down, or one level deeper.
 const zoneAt = (offsetY: number, height: number): DropZone => {
+  // Zero-height rows are collapsed/invisible; "inside" is the neutral
+  // fallback (no positional indicator appears on such rows anyway).
   if (height <= 0) return "inside";
   const ratio = offsetY / height;
   if (ratio < ZONE_BEFORE_RATIO) return "before";
