@@ -95,7 +95,7 @@ export function buildRouter(store: TaskStore, cache: Map<TaskId, Task>) {
         // Collection deps) so export is a single in-memory pass — no
         // separate SELECT against the store.
         export: async ({ ctx }) => {
-          const tasks = Array.from(ctx.collections.tasks.readAll().values());
+          const tasks = [...ctx.collections.tasks.readAll().values()];
           return {
             version: BACKUP_VERSION,
             exportedAt: new Date().toISOString(),
@@ -115,7 +115,7 @@ export function buildRouter(store: TaskStore, cache: Map<TaskId, Task>) {
         // future read-through path would let the cache shift under us
         // across the await boundary.
         import: async ({ input, ctx }) => {
-          const oldKeys = Array.from(ctx.collections.tasks.readAll().keys());
+          const oldKeys = [...ctx.collections.tasks.readAll().keys()];
           await store.replaceAll(input.tasks);
           const newKeys = new Set(input.tasks.map((t) => t.id));
           for (const k of oldKeys) if (!newKeys.has(k)) ctx.collections.tasks.remove(k);
