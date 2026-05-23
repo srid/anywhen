@@ -28,7 +28,11 @@
 #
 #   ANYWHEN_TEST_BIN      — set in flake.nix (devShells.e2e). Path
 #                           to the wrapped anywhen binary the
-#                           cucumber harness spawns.
+#                           cucumber harness spawns. Nix sets it
+#                           because the in-store path isn't
+#                           computable from the harness — this is
+#                           a configuration-injection point, not a
+#                           volatility seam.
 { pkgs }:
 {
   ANYWHEN_KOLU_SURFACE = pkgs.anywhen-kolu-surface;
