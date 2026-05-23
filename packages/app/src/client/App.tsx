@@ -181,17 +181,15 @@ export function App() {
   };
 
   const handleDrop = (e: DragEvent, rowId: TaskId) => {
-    if (!canDropOn(rowId)) {
-      clearDragState();
-      return;
-    }
     e.preventDefault();
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const zone = zoneAt(e.clientY - rect.top, rect.height);
+    // Use the zone the dragover handler already settled on. Re-deriving from
+    // a fresh getBoundingClientRect() here would let scroll/reflow between
+    // the last dragover and the drop split the indicator from the RPC.
+    const t = dropTarget();
     const src = drag()?.id;
     clearDragState();
-    if (!src) return;
-    const target: MoveTarget = { kind: zone, refId: rowId };
+    if (!src || !t || t.id !== rowId) return;
+    const target: MoveTarget = { kind: t.zone, refId: rowId };
     void callMutation(() => api.move({ id: src, target }));
   };
 
