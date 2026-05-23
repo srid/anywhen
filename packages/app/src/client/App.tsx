@@ -245,61 +245,40 @@ export function App() {
   // Ctrl/Meta chords cede to the browser. Alt is consumed only by the
   // ArrowUp/Down reorder aliases, so plain Alt+x or Alt+j fall through to
   // the browser unchanged.
+  //
+  // Composite key "Shift+Tab" is encoded as the lookup key so the Tab and
+  // Shift+Tab cases don't need a nested conditional inside the handler.
+  const ROW_KEY_ACTIONS: Record<string, (id: TaskId) => void> = {
+    " ":         (id) => void toggle(id),
+    // vim primary  │  ARIA alias
+    x:           (id) => void remove(id),
+    Backspace:   (id) => void remove(id),
+    j:           (id) => moveSelection(id, 1),
+    ArrowDown:   (id) => moveSelection(id, 1),
+    k:           (id) => moveSelection(id, -1),
+    ArrowUp:     (id) => moveSelection(id, -1),
+    J:           (id) => void moveByKey(id, "down"),
+    K:           (id) => void moveByKey(id, "up"),
+    l:           (id) => void moveByKey(id, "indent"),
+    Tab:         (id) => void moveByKey(id, "indent"),
+    h:           (id) => void moveByKey(id, "outdent"),
+    "Shift+Tab": (id) => void moveByKey(id, "outdent"),
+  };
+
   const handleRowKeyDown = (e: KeyboardEvent, id: TaskId) => {
     if (e.ctrlKey || e.metaKey) return;
 
+    // Alt is consumed only by the legacy ArrowUp/Down reorder aliases; any
+    // other alt-chord falls through to the browser unchanged.
     if (e.altKey) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        void moveByKey(id, "down");
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        void moveByKey(id, "up");
-      }
+      if (e.key === "ArrowDown") { e.preventDefault(); void moveByKey(id, "down"); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); void moveByKey(id, "up"); }
       return;
     }
 
-    switch (e.key) {
-      case " ":
-        e.preventDefault();
-        void toggle(id);
-        return;
-      case "x":
-      case "Backspace":
-        e.preventDefault();
-        void remove(id);
-        return;
-      case "j":
-      case "ArrowDown":
-        e.preventDefault();
-        moveSelection(id, 1);
-        return;
-      case "k":
-      case "ArrowUp":
-        e.preventDefault();
-        moveSelection(id, -1);
-        return;
-      case "J":
-        e.preventDefault();
-        void moveByKey(id, "down");
-        return;
-      case "K":
-        e.preventDefault();
-        void moveByKey(id, "up");
-        return;
-      case "l":
-        e.preventDefault();
-        void moveByKey(id, "indent");
-        return;
-      case "h":
-        e.preventDefault();
-        void moveByKey(id, "outdent");
-        return;
-      case "Tab":
-        e.preventDefault();
-        void moveByKey(id, e.shiftKey ? "outdent" : "indent");
-        return;
-    }
+    const key = e.shiftKey && e.key === "Tab" ? "Shift+Tab" : e.key;
+    const action = ROW_KEY_ACTIONS[key];
+    if (action) { e.preventDefault(); action(id); }
   };
 
   onMount(() => {
