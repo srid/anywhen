@@ -5,6 +5,7 @@
   --muted: #8c8378;
   --line: #e6dfd2;
   --accent: #7a623d;
+  --accent-dark: #6a5535;
   --done: #6b8e53;
   --todo: #a8a098;
   --soft: #f4f0e6;
@@ -25,6 +26,9 @@ body {
     -apple-system,
     "Inter",
     sans-serif;
+  /* Allow vertical scroll across the whole page; rows opt out only while
+     actively dragging (see .row.dragging below). */
+  -webkit-text-size-adjust: 100%;
 }
 
 main {
@@ -55,11 +59,12 @@ h1 .dot {
   align-items: center;
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 12px 18px 12px 44px;
+  padding: 8px 8px 8px 44px;
   font-size: 16px;
   background: #fff;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
   margin: 4px 0 22px;
+  gap: 6px;
 }
 
 .search:focus-within {
@@ -87,9 +92,38 @@ h1 .dot {
   flex: 1;
   font: inherit;
   color: var(--ink);
+  min-width: 0;
+  padding: 4px 0;
 }
 .search input::placeholder {
   color: var(--muted);
+}
+
+.add-btn {
+  flex-shrink: 0;
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    opacity 0.12s;
+  min-height: 36px;
+}
+.add-btn:hover:not(:disabled),
+.add-btn:focus-visible:not(:disabled) {
+  background: var(--accent-dark);
+  outline: none;
+}
+.add-btn:disabled {
+  background: var(--line);
+  color: var(--muted);
+  cursor: default;
 }
 
 .tree {
@@ -104,6 +138,9 @@ h1 .dot {
   border-radius: 6px;
   position: relative;
   cursor: grab;
+  /* Allow vertical scroll when finger flicks across a row; long-press in the
+     handler is what promotes the press into a drag. */
+  touch-action: pan-y;
 }
 .row:hover {
   background: rgba(122, 98, 61, 0.04);
@@ -114,6 +151,8 @@ h1 .dot {
 .row.dragging {
   opacity: 0.4;
   cursor: grabbing;
+  /* While actively dragging, block native scroll so the drag stays smooth. */
+  touch-action: none;
 }
 .row.drop-inside {
   background: rgba(122, 98, 61, 0.18);
@@ -146,13 +185,15 @@ h1 .dot {
 }
 
 .check {
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   border: 1.5px solid var(--todo);
   border-radius: 4px;
   flex-shrink: 0;
   position: relative;
   cursor: pointer;
+  background: transparent;
+  padding: 0;
 }
 .check.done {
   border-color: var(--done);
@@ -161,10 +202,10 @@ h1 .dot {
 .check.done::after {
   content: "";
   position: absolute;
-  left: 3px;
-  top: 0px;
+  left: 5px;
+  top: 1px;
   width: 4px;
-  height: 8px;
+  height: 9px;
   border: solid #fff;
   border-width: 0 1.5px 1.5px 0;
   transform: rotate(45deg);
@@ -238,7 +279,7 @@ h1 .dot {
   background: transparent;
   border: 0;
   padding: 0 6px;
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1;
   color: var(--muted);
   cursor: pointer;
@@ -248,6 +289,8 @@ h1 .dot {
     opacity 0.1s,
     color 0.1s,
     background 0.1s;
+  min-width: 24px;
+  min-height: 24px;
 }
 .row:hover .delete,
 .row:focus-within .delete {
@@ -275,4 +318,59 @@ h1 .dot {
 }
 .credit a:hover {
   border-bottom-style: solid;
+}
+
+/* Touch / coarse-pointer devices: reveal the delete button (no hover), and
+   bump tap targets to the WCAG-friendly 44px minimum on the action buttons. */
+@media (pointer: coarse) {
+  .delete {
+    opacity: 1;
+    min-width: 32px;
+    min-height: 32px;
+    padding: 4px 10px;
+  }
+  .check {
+    width: 22px;
+    height: 22px;
+  }
+  .check.done::after {
+    left: 7px;
+    top: 2px;
+    height: 11px;
+  }
+  .row {
+    padding: 8px 6px;
+  }
+}
+
+/* Narrow viewports — phones in portrait. Slim the page chrome, stack the
+   hint vertically, and shrink the heading so the search box owns the screen. */
+@media (max-width: 600px) {
+  main {
+    padding: 24px 14px 40px;
+  }
+  h1 {
+    font-size: 24px;
+  }
+  .tagline {
+    font-size: 13px;
+    margin-bottom: 18px;
+  }
+  .search {
+    padding-left: 38px;
+    /* Prevent iOS Safari from auto-zooming when the input is focused; 16px
+       font is the documented threshold. */
+    font-size: 16px;
+  }
+  .search::before {
+    left: 13px;
+  }
+  .add-btn {
+    padding: 8px 12px;
+  }
+  .hint {
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+  }
 }

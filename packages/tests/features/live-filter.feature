@@ -6,12 +6,9 @@ Feature: Live filter narrows the tree as you type
 
   Scenario: typing a substring shows matches and hides non-matches
     Given the app is running with a fresh database
-    When I type "+ buy milk" in the search box
-    And I press Enter in the search box
-    And I type "+ buy eggs" in the search box
-    And I press Enter in the search box
-    And I type "+ draft PR" in the search box
-    And I press Enter in the search box
+    When I add a task titled "buy milk"
+    And I add a task titled "buy eggs"
+    And I add a task titled "draft PR"
     And I type "buy" in the search box
     Then the tree should contain a task titled "buy milk"
     And the tree should contain a task titled "buy eggs"
@@ -20,10 +17,8 @@ Feature: Live filter narrows the tree as you type
 
   Scenario: ancestors of a match stay visible but dimmed
     Given the app is running with a fresh database
-    When I type "+ groceries" in the search box
-    And I press Enter in the search box
-    And I type "+ buy milk" in the search box
-    And I press Enter in the search box
+    When I add a task titled "groceries"
+    And I add a task titled "buy milk"
     And I press "Tab" on the task titled "buy milk"
     And I type "buy" in the search box
     Then the tree should contain a task titled "buy milk"
@@ -32,10 +27,8 @@ Feature: Live filter narrows the tree as you type
 
   Scenario: clearing the query restores the full tree
     Given the app is running with a fresh database
-    When I type "+ apple" in the search box
-    And I press Enter in the search box
-    And I type "+ banana" in the search box
-    And I press Enter in the search box
+    When I add a task titled "apple"
+    And I add a task titled "banana"
     And I type "app" in the search box
     Then the tree should not contain a task titled "banana"
     When I clear the search box

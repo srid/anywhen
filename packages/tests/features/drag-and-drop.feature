@@ -4,19 +4,15 @@ Feature: Drag-and-drop tasks to change order or parent
   makes the dragged task a previous sibling, the bottom edge makes it the
   next sibling, and the middle nests it as a child.
 
-  The intermediate `Then the tree should contain...` assertions between
-  consecutive adds are load-bearing: without them, Playwright fills the
-  next "+ title" before the previous add's `setQuery("")` has settled,
-  the empty-string clears the new text, and the second Enter sees a blank
-  query and never fires the add.
+  Drag is wired on Pointer Events (not HTML5 DnD) so the same code path
+  covers mouse, pen, and touch. Mouse drag commits on a small movement
+  threshold; touch drag commits on a short long-press.
 
   Scenario: reorder siblings by dragging one before another
     Given the app is running with a fresh database
-    When I type "+ alpha" in the search box
-    And I press Enter in the search box
+    When I add a task titled "alpha"
     Then the tree should contain a task titled "alpha"
-    When I type "+ beta" in the search box
-    And I press Enter in the search box
+    When I add a task titled "beta"
     Then the tree should contain a task titled "beta"
     And the tasks should appear in order: "alpha", "beta"
     When I drag the task titled "beta" before the task titled "alpha"
@@ -24,22 +20,18 @@ Feature: Drag-and-drop tasks to change order or parent
 
   Scenario: nest a task inside another by dropping in the middle
     Given the app is running with a fresh database
-    When I type "+ parent" in the search box
-    And I press Enter in the search box
+    When I add a task titled "parent"
     Then the tree should contain a task titled "parent"
-    When I type "+ leaf" in the search box
-    And I press Enter in the search box
+    When I add a task titled "leaf"
     Then the tree should contain a task titled "leaf"
     When I drag the task titled "leaf" inside the task titled "parent"
     Then the task titled "leaf" should be a child of the task titled "parent"
 
   Scenario: promote a child back to a root by dropping after its parent
     Given the app is running with a fresh database
-    When I type "+ parent" in the search box
-    And I press Enter in the search box
+    When I add a task titled "parent"
     Then the tree should contain a task titled "parent"
-    When I type "+ child" in the search box
-    And I press Enter in the search box
+    When I add a task titled "child"
     Then the tree should contain a task titled "child"
     When I drag the task titled "child" inside the task titled "parent"
     Then the task titled "child" should be a child of the task titled "parent"
