@@ -4,7 +4,7 @@
 bun run typecheck
 
 ## Format command
-nix fmt
+just fmt
 
 ## Test command
 bun test

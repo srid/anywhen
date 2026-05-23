@@ -367,6 +367,22 @@ h1 .dot {
   margin-right: 2px;
 }
 
+/* Explicit grip affordance for touch users. Hidden on fine pointers —
+   whole-row drag works fine with a mouse — and revealed in the
+   @media (pointer: coarse) block below. */
+.drag-handle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--rule);
+  flex-shrink: 0;
+}
+
+.drag-handle svg {
+  fill: currentColor;
+  display: block;
+}
+
 /* Round-dot checkbox: empty ring (todo, eternity loop) → filled disc
    (done, the point, the now). Visually quotes the brand mark. */
 
@@ -615,6 +631,12 @@ h1 .dot {
   }
   .row {
     padding: 10px 8px;
+  }
+  .drag-handle {
+    display: flex;
+    min-width: 28px;
+    min-height: 36px;
+    margin-left: -4px;
   }
 }
 
