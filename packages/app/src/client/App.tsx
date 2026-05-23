@@ -254,7 +254,6 @@ export function App() {
                 data-task-title={row.task.title}
                 data-task-status={row.task.status}
                 data-task-id={row.task.id}
-                data-task-depth={row.depth}
                 data-task-parent-id={row.task.parentId ?? ""}
                 role="treeitem"
                 aria-selected={selected() === row.task.id}
