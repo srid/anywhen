@@ -3,20 +3,18 @@
 // WebSocket under `/rpc/ws` (Collection snapshot+deltas via the surface's
 // streaming `keys` / `get(key)` verbs).
 //
-// The client is built explicitly via Bun.build (NOT via Bun.serve's HTML
-// import) because Bun.serve's HTML bundler does not honor plugins
-// registered through bunfig preload — `bun-plugin-solid`'s JSX transform
-// never fires there, and Bun's default JSX transform emits
-// `React.createElement` calls that break at runtime. Bun.build accepts a
-// `plugins` array directly, so we drive the build ourselves.
+// Client bundling lives in `./build.ts` so the Nix `buildPhase` invokes the
+// same code path. At dev/test boot we call `buildClient(dist.path)`; under
+// `nix run` the wrapper sets `ANYWHEN_DIST_DIR` to a pre-built /nix/store
+// path and the build call is skipped.
 
 import { resolve } from "node:path";
 import { RPCHandler as WsRPCHandler } from "@orpc/server/bun-ws";
 import { RPCHandler } from "@orpc/server/fetch";
 import type { ServerWebSocket } from "bun";
-import { buildClient, pwaHeadersFor } from "../build-client";
 import { openDb, resolveStateDir } from "../storage/db";
 import { taskStore } from "../storage/tasks";
+import { buildClient, pwaHeadersFor } from "./build";
 import { buildRouter } from "./router";
 
 const stateDir = resolveStateDir();
@@ -31,29 +29,30 @@ const httpHandler = new RPCHandler(router);
 const wsHandler = new WsRPCHandler(router);
 
 const port = Number(process.env.PORT ?? 7700);
-// `hostname` accepts an IP (`0.0.0.0` for all interfaces) or a name Bun
-// resolves at boot. Default to all interfaces so `just dev` is reachable
-// from other devices on the LAN; the NixOS module wires this from
-// `services.anywhen.host`.
-const hostname = process.env.HOST ?? "0.0.0.0";
 
-// When ANYWHEN_DIST_DIR is set, the caller (typically the Nix package's
-// wrapper) has pre-built the client bundle at that path — skip the
-// runtime build so we don't try to write into the read-only Nix store.
-// Unset (the dev shell path) keeps the existing behavior: build into
-// packages/app/dist at startup. `buildClient` also copies PWA assets
-// (manifest, service worker, icons) per the PWA_FILES contract in
-// build-client.ts — both branches end with the same dist/ shape.
-const distDir = process.env.ANYWHEN_DIST_DIR;
-const DIST_DIR = distDir ?? resolve(import.meta.dirname, "..", "..", "dist");
-if (!distDir) {
-  const clientDir = resolve(import.meta.dirname, "..", "client");
-  await buildClient({ clientDir, outDir: DIST_DIR });
+// Either "use this pre-built dist" (production / `nix run`) or "build into
+// this writable path" (dev / cucumber). The env var is the sole adapter;
+// the rest of the server treats `dist.path` uniformly.
+const dist = process.env.ANYWHEN_DIST_DIR
+  ? { kind: "prebuilt" as const, path: process.env.ANYWHEN_DIST_DIR }
+  : { kind: "build" as const, path: resolve(import.meta.dirname, "..", "..", "dist") };
+if (dist.kind === "build") {
+  await buildClient(dist.path);
+} else {
+  // Fail loud at startup if the wrapper points at a directory missing the
+  // built dist — without this assertion, `Bun.file` on a missing path
+  // returns a zero-byte BunFile and the SPA fallback (below) would serve
+  // 200 OK with an empty body instead of a clear error.
+  if (!(await Bun.file(resolve(dist.path, "index.html")).exists())) {
+    throw new Error(
+      `ANYWHEN_DIST_DIR=${dist.path} is set but index.html is missing — the wrapper points at an unbuilt dist.`,
+    );
+  }
 }
+const DIST_DIR = dist.path;
 
 const server = Bun.serve({
   port,
-  hostname,
   async fetch(req, srv) {
     const url = new URL(req.url);
     const path = url.pathname;
@@ -83,14 +82,7 @@ const server = Bun.serve({
     // Static serve from dist/ for everything else; SPA fallback to index.html.
     const candidate = path === "/" ? "/index.html" : path;
     const filePath = resolve(DIST_DIR, `.${candidate}`);
-    // Containment check needs the trailing separator — `startsWith(DIST_DIR)`
-    // alone admits sibling prefixes (`/var/lib/anywhen-dist-evil` starts with
-    // `/var/lib/anywhen-dist`), which a crafted `..` path can reach. Comparing
-    // with the separator (or equality with DIST_DIR itself for the dir hit)
-    // rejects those.
-    if (filePath !== DIST_DIR && !filePath.startsWith(`${DIST_DIR}/`)) {
-      return new Response("Forbidden", { status: 403 });
-    }
+    if (!filePath.startsWith(DIST_DIR)) return new Response("Forbidden", { status: 403 });
 
     const file = Bun.file(filePath);
     if (await file.exists()) return new Response(file, { headers: pwaHeadersFor(path) });
@@ -109,6 +101,6 @@ const server = Bun.serve({
   },
 });
 
-console.log(`anywhen listening on http://${server.hostname}:${server.port}`);
+console.log(`anywhen listening on http://localhost:${server.port}`);
 console.log(`  state dir: ${stateDir}`);
-console.log(`  dist dir:  ${DIST_DIR}`);
+console.log(`  dist dir:  ${DIST_DIR} (${dist.kind})`);

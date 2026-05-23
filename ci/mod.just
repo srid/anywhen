@@ -16,28 +16,17 @@ nix_shell_e2e := if env('PLAYWRIGHT_BROWSERS_PATH', '') != '' { '' } else { 'nix
 [macos]
 [parallel]
 [metadata("ci")]
-default: nix nixos-test typecheck biome fmt-check e2e
+default: nix typecheck biome fmt-check bun-nix-fresh e2e
 
 # Single per-platform `bun install`. Funnel every bun consumer through this
 # node so concurrent `bun install` runs against the same workspace don't race.
-# @kolu/surface hydration goes through the shared script
-# (nix/scripts/hydrate-surface.sh) — same as justfile + shell.nix.
 install:
     {{ nix_shell }} bun install
-    {{ nix_shell }} sh -c 'bash nix/scripts/hydrate-surface.sh "$ANYWHEN_KOLU_SURFACE" node_modules'
+    {{ nix_shell }} sh scripts/hydrate-kolu-surface.sh "$ANYWHEN_KOLU_SURFACE"
 
 # Build all flake outputs via devour-flake.
 nix:
     nix build github:srid/devour-flake -L --no-link --print-out-paths --override-input flake .
-
-# Build the NixOS example flake (nix/nixos/example) — exposes
-# checks.<linux>.vm-test which boots services.anywhen under qemu and
-# verifies the module end-to-end. `--override-input flake/anywhen .`
-# points the example's `anywhen` input at this repo's worktree so the
-# test runs against the local module, not against github:srid/anywhen.
-# Mirrors kolu's `home-manager` recipe.
-nixos-test: nix
-    nix build github:srid/devour-flake -L --no-link --print-out-paths --override-input flake ./nix/nixos/example --override-input flake/anywhen .
 
 # TypeScript type checking across the workspace
 typecheck: install
@@ -53,6 +42,26 @@ biome: install
 fmt-check: install
     {{ nix_shell }} sh -c 'biome format . && nixpkgs-fmt --check .'
 
-# Cucumber e2e — runs the full pipeline (server spawn, browser, scenarios).
+# bun.nix freshness — regenerate from bun.lock into a tmpdir and diff
+# against the committed file. Fails the pipeline if bun.lock has moved
+# without `just regenerate-bun-nix` being run. Mirrors kolu's
+# `pnpm-hash-fresh` pattern from /tmp/kolu-research/default.nix:44.
+bun-nix-fresh:
+    {{ nix_shell }} sh -c '\
+      set -eu; \
+      tmp=$(mktemp -d); \
+      trap "rm -rf $tmp" EXIT; \
+      nix run .#bun2nix -- -l bun.lock -o "$tmp/bun.nix"; \
+      nixpkgs-fmt "$tmp/bun.nix" >/dev/null; \
+      diff -u bun.nix "$tmp/bun.nix" || { \
+        echo; \
+        echo "bun.nix is stale relative to bun.lock."; \
+        echo "Run: just regenerate-bun-nix && git add bun.nix"; \
+        exit 1; \
+      }'
+
+# Cucumber e2e — runs the full pipeline (Nix-built server spawn, browser,
+# scenarios). The harness reads $ANYWHEN_TEST_BIN, set by `nix develop
+# .#e2e`, so this exercises the same artifact `nix run` would.
 e2e: install
     {{ nix_shell }} just test

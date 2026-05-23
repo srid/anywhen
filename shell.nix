@@ -12,13 +12,12 @@ pkgs.mkShell {
   env = anywhenEnv;
 
   shellHook = ''
-    # Hydrate node_modules/@kolu/surface via the shared script — see
-    # nix/scripts/hydrate-surface.sh for the cp -rL rationale. The
-    # justfile/ci.just install recipes and the anywhen package's
-    # buildPhase invoke the same script.
+    # Hydrate node_modules/@kolu/surface and default the dev state dir.
+    # Hydration strategy lives in scripts/hydrate-kolu-surface.sh — one
+    # script, three callers (this shellHook, the just `install` recipes,
+    # and the anywhen build derivation's postBunNodeModulesInstallPhase).
     if root=$(git rev-parse --show-toplevel 2>/dev/null); then
-      bash "$root/nix/scripts/hydrate-surface.sh" \
-        "$ANYWHEN_KOLU_SURFACE" "$root/node_modules"
+      (cd "$root" && sh scripts/hydrate-kolu-surface.sh "$ANYWHEN_KOLU_SURFACE")
 
       # Default dev state dir to repo-local ./state so `just dev` runs without
       # ceremony. Cucumber overrides with a per-run mktemp -d (see

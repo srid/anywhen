@@ -15,13 +15,9 @@ default:
     @just --list
 
 # Install dependencies (bun) and re-link @kolu/surface from the nix store
-# via the shared script (see nix/scripts/hydrate-surface.sh). The
-# `sh -c` wrapper is load-bearing — `$ANYWHEN_KOLU_SURFACE` must be
-# expanded inside the dev shell (where the overlay sets it), not in
-# just's outer shell which has no such variable.
 install:
     {{ nix_shell }} bun install
-    {{ nix_shell }} sh -c 'bash nix/scripts/hydrate-surface.sh "$ANYWHEN_KOLU_SURFACE" node_modules'
+    {{ nix_shell }} sh scripts/hydrate-kolu-surface.sh "$ANYWHEN_KOLU_SURFACE"
 
 # Run the app with auto-reload
 dev: install
@@ -51,14 +47,26 @@ fmt-check: install
 new-migration name: install
     {{ nix_shell }} bun packages/app/scripts/new-migration.ts {{ name }}
 
-# Cucumber e2e tests — builds the Nix `anywhen` package and points the
-# cucumber hook at its `bin/anywhen` wrapper, so each scenario runs
-# against the production closure (pre-built client `dist/`, frozen
-# `node_modules`) rather than `bun src/server/index.ts` from the dev tree.
+# Regenerate bun.nix from bun.lock. Run this after any change to bun.lock
+# (i.e. after `bun install`/`bun add`). CI's `bun-nix-fresh` recipe gates
+# on this file matching the lockfile so a stale bun.nix can't ship.
+# `-l bun.lock` is explicit so this stays symmetric with the CI check
+# regardless of any future change to bun2nix's default lockfile path.
+regenerate-bun-nix:
+    {{ nix_shell }} sh -c 'nix run .#bun2nix -- -l bun.lock -o bun.nix && nixpkgs-fmt bun.nix'
+
+# Build the wrapped binary and print its store path.
+nix-build:
+    nix build .#default --print-out-paths --no-link
+
+# Run the wrapped binary directly (uses XDG_DATA_HOME state dir).
+nix-run *args:
+    nix run .#default -- {{ args }}
+
+# Cucumber e2e tests (spawns server from source on an ephemeral port)
 test: install
-    ANYWHEN_BIN=$({{ nix_shell }} nix build .#anywhen --no-link --print-out-paths --accept-flake-config)/bin/anywhen && \
     cd packages/tests && \
-      ANYWHEN_BIN=$ANYWHEN_BIN CUCUMBER_PARALLEL={{ cucumber_parallel }} {{ nix_shell_e2e }} \
+      CUCUMBER_PARALLEL={{ cucumber_parallel }} {{ nix_shell_e2e }} \
         node --import tsx ../../node_modules/@cucumber/cucumber/bin/cucumber-js --profile ui
 
 # Remove all gitignored files (node_modules, build artifacts, etc.)

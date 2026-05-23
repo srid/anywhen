@@ -1,13 +1,14 @@
-// Standalone client bundler — called by the server at startup (dev path)
-// and by the Nix package's buildPhase (production path).
+// Client bundler — extracted from server/index.ts so the Nix build
+// derivation can invoke the same code path the dev server uses at startup.
+// One implementation; two callers: `bun build.ts <distDir>` from the Nix
+// `buildPhase`, and `buildClient(distDir)` from the dev server when
+// ANYWHEN_DIST_DIR is unset.
 //
-// Bun.serve's HTML-import bundler does not honor plugins registered
-// through bunfig preload, so we drive Bun.build ourselves with an inline
-// babel-preset-solid + babel-preset-typescript plugin. Keeping the build
-// in its own module lets nix/packages/anywhen invoke `bun build-client.ts
-// <outDir>` at Nix build time and ship the resulting dist/ inside the
-// store path — the server then skips the build when ANYWHEN_DIST_DIR
-// points at a pre-built directory.
+// Bun.serve's HTML-import bundler does not honor plugins registered through
+// bunfig preload — `babel-preset-solid`'s JSX transform never fires there,
+// and Bun's default JSX transform emits `React.createElement` calls that
+// break at runtime. Bun.build accepts a `plugins` array directly, so we
+// drive the build ourselves.
 
 import { resolve } from "node:path";
 import { transformAsync } from "@babel/core";
@@ -17,6 +18,9 @@ import babelTypeScript from "@babel/preset-typescript";
 import babelSolid from "babel-preset-solid";
 import type { BunPlugin } from "bun";
 
+// Solid JSX transform. babel-preset-solid emits the compiled-template
+// runtime (template/insert/createComponent) so signals drive DOM updates;
+// the typescript preset strips type annotations first.
 const solidJsxPlugin: BunPlugin = {
   name: "anywhen-solid",
   setup(build) {
@@ -24,7 +28,10 @@ const solidJsxPlugin: BunPlugin = {
       const code = await Bun.file(args.path).text();
       const result = await transformAsync(code, {
         filename: args.path,
-        presets: [babelSolid, babelTypeScript],
+        presets: [
+          [babelSolid, {}],
+          [babelTypeScript, {}],
+        ],
       });
       if (!result?.code) throw new Error(`Babel transform produced no output for ${args.path}`);
       return { contents: result.code, loader: "js" };
@@ -33,16 +40,15 @@ const solidJsxPlugin: BunPlugin = {
 };
 
 // Single source of truth for PWA assets that bypass Bun.build's HTML-import
-// bundler. Each entry drives two things: the post-build copy from clientDir
-// into outDir (so static serving + the SW's `cache.addAll(APP_SHELL)` find
-// them at predictable URLs), and any per-path response-header overrides at
+// bundler. Each entry drives two things: the post-build copy from CLIENT_DIR
+// into the dist directory, and any per-path response-header overrides at
 // serve time (Bun.file infers MIME from extension and gets .js / .svg right,
 // but `.webmanifest` is non-standard so set it explicitly;
 // Service-Worker-Allowed widens the SW's controllable scope — not strictly
 // required when the SW sits at the root, but harmless and future-proof).
 // Adding a new PWA asset = one row here.
-export type PwaFile = { name: string; headers?: HeadersInit };
-export const PWA_FILES: readonly PwaFile[] = [
+type PwaFile = { name: string; headers?: HeadersInit };
+const PWA_FILES: readonly PwaFile[] = [
   {
     name: "service-worker.js",
     headers: { "Content-Type": "application/javascript", "Service-Worker-Allowed": "/" },
@@ -55,10 +61,12 @@ export const PWA_FILES: readonly PwaFile[] = [
 export const pwaHeadersFor = (path: string): HeadersInit | undefined =>
   PWA_FILES.find((f) => path === `/${f.name}`)?.headers;
 
-export async function buildClient({ clientDir, outDir }: { clientDir: string; outDir: string }): Promise<void> {
+const CLIENT_DIR = resolve(import.meta.dirname, "..", "client");
+
+export async function buildClient(distDir: string): Promise<void> {
   const result = await Bun.build({
-    entrypoints: [resolve(clientDir, "index.html")],
-    outdir: outDir,
+    entrypoints: [resolve(CLIENT_DIR, "index.html")],
+    outdir: distDir,
     target: "browser",
     minify: false,
     plugins: [solidJsxPlugin],
@@ -67,22 +75,17 @@ export async function buildClient({ clientDir, outDir }: { clientDir: string; ou
     for (const msg of result.logs) console.error(msg);
     throw new Error("Client build failed");
   }
-  // Copy each PWA asset alongside the bundled output. The Nix package pre-
-  // bakes this into $out/share/anywhen/packages/app/dist (so production
-  // closures ship the SW, manifest, and icons); the dev path repeats it on
-  // every server startup.
   for (const { name } of PWA_FILES) {
-    await Bun.write(resolve(outDir, name), Bun.file(resolve(clientDir, name)));
+    await Bun.write(resolve(distDir, name), Bun.file(resolve(CLIENT_DIR, name)));
   }
 }
 
+// CLI form for the Nix builder: `bun build.ts <outdir>`.
 if (import.meta.main) {
-  const outDir = process.argv[2];
-  if (!outDir) {
-    console.error("usage: bun build-client.ts <out-dir>");
+  const out = process.argv[2];
+  if (!out) {
+    console.error("usage: bun build.ts <distDir>");
     process.exit(1);
   }
-  const clientDir = resolve(import.meta.dirname, "client");
-  await buildClient({ clientDir, outDir });
-  console.log(`[build-client] wrote ${outDir}`);
+  await buildClient(resolve(out));
 }

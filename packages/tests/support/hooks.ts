@@ -1,41 +1,48 @@
 // Lifecycle for the cucumber run.
 //
-// BeforeAll: pick an ephemeral port, mktemp a per-run state dir, spawn
-//   $ANYWHEN_BIN (the Nix-built `bin/anywhen` wrapper) with HOST/PORT/
-//   ANYWHEN_STATE_DIR pointing at the test sandbox, wait for /api/health.
+// BeforeAll: pick an ephemeral port, mktemp a per-run state dir, spawn the
+//   wrapped anywhen binary (Nix-built, exposed via $ANYWHEN_TEST_BIN by
+//   `nix develop .#e2e`) with ANYWHEN_STATE_DIR pointing at it, wait for
+//   /api/health.
 // Before:    open a fresh Playwright page on the server's URL.
 // After:     close the page; on failure dump a screenshot to reports/.
 // AfterAll:  close the browser and kill the server.
 //
-// E2E spawns the production binary (not `bun src/...`) so the cucumber
-// run exercises the closure that ships — pre-built client `dist/`, frozen
-// `node_modules`, and the wrapper that sets ANYWHEN_DIST_DIR. The just
-// recipe builds `nix build .#anywhen` and exports ANYWHEN_BIN before
-// invoking cucumber-js. Mirrors the shape of kolu's e2e hook.
+// Mirrors the shape of kolu-master/packages/tests/support/hooks.ts but at
+// the scale of a single feature — no agent mocks, no PTY whitelist, just
+// enough to drive the search box and assert the tree.
+//
+// Black-box e2e: tests spawn the *same* artifact `nix run` would, not
+// `bun src/server/index.ts`. Changes to the build derivation (deps,
+// client bundle, wrapper) get exercised end-to-end; the source-tree
+// spawn path is reserved for `just dev`.
 
-import { AfterAll, Before, BeforeAll, After, Status } from "@cucumber/cucumber";
-import type { ITestCaseHookParameter } from "@cucumber/cucumber";
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import type { ITestCaseHookParameter } from "@cucumber/cucumber";
+import { After, AfterAll, Before, BeforeAll, Status } from "@cucumber/cucumber";
 import getPort from "get-port";
 import { chromium } from "playwright";
 import type { AnywhenWorld } from "./world";
 
-const REPO_ROOT = resolve(import.meta.dirname, "..", "..", "..");
-// Spawn the Nix-built anywhen binary (set by `just test` after a
-// `nix build .#anywhen`) so e2e exercises the production closure —
-// pre-built client `dist/`, frozen `node_modules`, and the wrapper that
-// pins ANYWHEN_DIST_DIR. Running `bun src/server/index.ts` from source
-// would build the client at startup against the dev tree, which is a
-// different code path than what ships.
-const ANYWHEN_BIN = process.env.ANYWHEN_BIN;
-if (!ANYWHEN_BIN) {
-  throw new Error(
-    "ANYWHEN_BIN is not set. Run e2e via `just test` (which builds the Nix package and points ANYWHEN_BIN at $out/bin/anywhen) instead of invoking cucumber-js directly.",
-  );
-}
+const REPORTS_DIR = resolve(import.meta.dirname, "..", "reports");
+
+const resolveTestBin = (): string => {
+  const bin = process.env.ANYWHEN_TEST_BIN;
+  if (!bin) {
+    // Distinguish "no e2e shell at all" from "stale e2e shell that pre-dates
+    // ANYWHEN_TEST_BIN being added". PLAYWRIGHT_BROWSERS_PATH is the canary
+    // for the latter — it was set by the e2e shell long before TEST_BIN was.
+    const inE2eShell = process.env.PLAYWRIGHT_BROWSERS_PATH !== undefined;
+    const hint = inE2eShell
+      ? "You appear to be inside the e2e shell (PLAYWRIGHT_BROWSERS_PATH is set), but ANYWHEN_TEST_BIN is missing — the shell is likely stale. Exit and re-enter via `nix develop .#e2e`."
+      : "Run tests via `nix develop .#e2e -c just test` so the wrapped Nix-built binary is available.";
+    throw new Error(`ANYWHEN_TEST_BIN is not set. ${hint}`);
+  }
+  return bin;
+};
 
 let serverProcess: ChildProcess | undefined;
 let serverUrl: string;
@@ -61,11 +68,10 @@ BeforeAll({ timeout: 30_000 }, async () => {
   stateDir = mkdtempSync(join(tmpdir(), "anywhen-test-"));
   serverUrl = `http://127.0.0.1:${port}`;
 
-  serverProcess = spawn(ANYWHEN_BIN, [], {
+  serverProcess = spawn(resolveTestBin(), [], {
     stdio: "pipe",
     env: {
       ...process.env,
-      HOST: "127.0.0.1",
       PORT: String(port),
       ANYWHEN_STATE_DIR: stateDir,
     },
@@ -111,7 +117,7 @@ Before({ tags: "@mobile" }, async function (this: AnywhenWorld) {
 
 After(async function (this: AnywhenWorld, scenario: ITestCaseHookParameter) {
   if (scenario.result?.status === Status.FAILED && this.page) {
-    const dir = join(REPO_ROOT, "packages/tests/reports/screenshots");
+    const dir = join(REPORTS_DIR, "screenshots");
     mkdirSync(dir, { recursive: true });
     const slug = scenario.pickle.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
     // Best-effort: don't let a screenshot failure obscure the real test failure.
@@ -124,6 +130,7 @@ AfterAll(async () => {
   await browserSingleton?.close();
   if (serverProcess && !serverProcess.killed) {
     serverProcess.kill("SIGTERM");
+    // Give the server 200 ms to flush and exit cleanly before SIGKILL.
     await new Promise((r) => setTimeout(r, 200));
     if (!serverProcess.killed) serverProcess.kill("SIGKILL");
   }
