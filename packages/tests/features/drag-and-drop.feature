@@ -20,6 +20,8 @@ Feature: Drag-and-drop tasks to change order or parent
     And I press Enter in the search box
     And I type "+ leaf" in the search box
     And I press Enter in the search box
+    Then the tree should contain a task titled "parent"
+    And the tree should contain a task titled "leaf"
     When I drag the task titled "leaf" inside the task titled "parent"
     Then the task titled "leaf" should be a child of the task titled "parent"
 
@@ -29,6 +31,8 @@ Feature: Drag-and-drop tasks to change order or parent
     And I press Enter in the search box
     And I type "+ child" in the search box
     And I press Enter in the search box
+    Then the tree should contain a task titled "parent"
+    And the tree should contain a task titled "child"
     When I drag the task titled "child" inside the task titled "parent"
     Then the task titled "child" should be a child of the task titled "parent"
     When I drag the task titled "child" after the task titled "parent"
