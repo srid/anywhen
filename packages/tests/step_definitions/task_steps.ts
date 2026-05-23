@@ -144,3 +144,46 @@ Then(
     await expect(row).toHaveAttribute("data-task-parent-id", "");
   },
 );
+
+// Keyboard nav: Playwright's locator.press() accepts the same key syntax as
+// page.keyboard.press(), so chords like "Shift+Tab" and "Alt+ArrowUp" flow
+// through unchanged. Focus first so the row's onKeyDown receives the event
+// (the tree has no global keydown for these chords — they're per-row).
+When(
+  "I press {string} on the task titled {string}",
+  async function (this: AnywhenWorld, key: string, title: string) {
+    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    await row.focus();
+    await row.press(key);
+  },
+);
+
+When("I focus the task titled {string}", async function (this: AnywhenWorld, title: string) {
+  await this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`).focus();
+});
+
+// "/" is a global focus-search shortcut, so it shouldn't be dispatched at the
+// row — fire it at the page so the window-level handler runs.
+When("I press {string} globally", async function (this: AnywhenWorld, key: string) {
+  await this.page.keyboard.press(key);
+});
+
+Then(
+  "the task titled {string} should be selected",
+  async function (this: AnywhenWorld, title: string) {
+    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    await expect(row).toHaveAttribute("aria-selected", "true");
+  },
+);
+
+Then(
+  "the task titled {string} should be focused",
+  async function (this: AnywhenWorld, title: string) {
+    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    await expect(row).toBeFocused();
+  },
+);
+
+Then("the search box should be focused", async function (this: AnywhenWorld) {
+  await expect(this.page.locator('[data-testid="search-input"]')).toBeFocused();
+});
