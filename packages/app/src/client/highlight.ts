@@ -15,19 +15,18 @@ export type MatchSegment = { text: string; match: boolean };
 export const highlightSegments = (title: string, query: string): MatchSegment[] => {
   const needle = normalizeQuery(query);
   if (!needle) return [{ text: title, match: false }];
-  const lowerTitle = title.toLowerCase();
-  const lowerNeedle = needle.toLowerCase();
+  // matchAll with a global regex replaces the while+indexOf cursor loop:
+  // each match carries its index, so we can slice the gaps between matches
+  // without manually tracking a cursor variable.
+  const re = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
   const segments: MatchSegment[] = [];
   let cursor = 0;
-  while (cursor < title.length) {
-    const idx = lowerTitle.indexOf(lowerNeedle, cursor);
-    if (idx < 0) {
-      segments.push({ text: title.slice(cursor), match: false });
-      break;
-    }
+  for (const m of title.matchAll(re)) {
+    const idx = m.index ?? cursor;
     if (idx > cursor) segments.push({ text: title.slice(cursor, idx), match: false });
-    segments.push({ text: title.slice(idx, idx + needle.length), match: true });
-    cursor = idx + needle.length;
+    segments.push({ text: title.slice(idx, idx + m[0].length), match: true });
+    cursor = idx + m[0].length;
   }
-  return segments;
+  if (cursor < title.length) segments.push({ text: title.slice(cursor), match: false });
+  return segments.length ? segments : [{ text: title, match: false }];
 };
