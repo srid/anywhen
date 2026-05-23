@@ -44,6 +44,7 @@ export function buildRouter(store: TaskStore) {
         list: async () => store.list(),
         add: async ({ input }) => store.add(input),
         toggle: async ({ input }) => store.toggle(input),
+        move: async ({ input }) => store.move(input),
         remove: async ({ input }) => store.remove(input),
         __test__reset: async () => store.reset(),
       },
