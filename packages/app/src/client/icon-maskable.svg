@@ -1,3 +1,10 @@
+<!--
+  Maskable variant of icon.svg — full-bleed background (the OS applies
+  the corner mask at install time). Geometry is icon.svg scaled to
+  ~0.80×: every drawn element fits inside the W3C safe-zone (content
+  radius ≤204 on a 512×512 canvas). Edit both files together — see the
+  header comment in icon.svg.
+-->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <title>anywhen — all time is now</title>
   <rect width="512" height="512" fill="#0f0f10"/>

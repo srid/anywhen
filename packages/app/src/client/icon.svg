@@ -1,3 +1,11 @@
+<!--
+  anywhen brand mark — "all time is now". Concentric rings (eternity)
+  with a bright center dot (the eternal present). The maskable variant
+  in icon-maskable.svg is this same composition scaled to ~0.80× so
+  every element fits inside the W3C maskable safe-zone (content radius
+  ≤204 on a 512×512 canvas). Edit both files together — divergence is
+  only visible post-install, when the OS picks one or the other.
+-->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <title>anywhen — all time is now</title>
   <rect width="512" height="512" rx="96" fill="#0f0f10"/>
