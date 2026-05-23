@@ -1,7 +1,8 @@
-// Backup steps — export download interception, import file upload, and
-// dialog auto-acceptance for the destructive confirm() the import path
-// fires. Playwright's download event captures the JSON the client streams
-// into a Blob URL; subsequent steps read the saved file off disk.
+// Backup steps — export download interception and import file upload.
+// Playwright's download event captures the JSON the client streams into a
+// Blob URL; subsequent steps read the saved file off disk. The
+// destructive confirm() guard on import is auto-accepted by the universal
+// dialog handler registered in task_steps.ts's "fresh database" Given.
 
 import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,15 +21,6 @@ declare module "../support/world" {
     lastBackupJson?: unknown;
   }
 }
-
-// Accept any confirm() that fires — the import path uses one as its only
-// destructive guard. Attached once per scenario; Playwright auto-detaches
-// when the page closes in the After hook.
-const autoAcceptDialogs = (world: AnywhenWorld) => {
-  world.page.on("dialog", async (d) => {
-    await d.accept();
-  });
-};
 
 When("I export the backup", async function (this: AnywhenWorld) {
   const downloadPromise = this.page.waitForEvent("download");
@@ -73,7 +65,6 @@ Then(
 
 When("I import the most recent backup", async function (this: AnywhenWorld) {
   if (!this.lastBackupPath) throw new Error("No backup has been exported in this scenario");
-  autoAcceptDialogs(this);
   await this.page.locator('[data-testid="import-input"]').setInputFiles(this.lastBackupPath);
   // Wait for the import to complete and the Collection delta to reach the
   // client by polling for the expected post-import row count.
@@ -82,7 +73,6 @@ When("I import the most recent backup", async function (this: AnywhenWorld) {
 });
 
 When("I import a file containing {string}", async function (this: AnywhenWorld, body: string) {
-  autoAcceptDialogs(this);
   await this.page.locator('[data-testid="import-input"]').setInputFiles({
     name: "garbage.json",
     mimeType: "application/json",
