@@ -43,6 +43,30 @@
         systems);
     in
     {
+      # `nixosModules.default` exposes `services.anywhen.{enable, package,
+      # host, port}` for any NixOS host. `nixosModules.incus` is the
+      # contract consumed by srid/nixos-config's incus-pet skill —
+      # `incus-pet deploy github:srid/anywhen` builds it into a per-app
+      # NixOS container that proxies <listen>:<host-port> → 8080 inside.
+      # Port and stateVersion are pinned by the contract; host and
+      # hostname are mkDefault so the operator can override.
+      nixosModules.default = import ./nix/nixos/module.nix;
+      nixosModules.incus = { lib, pkgs, ... }: {
+        imports = [ self.nixosModules.default ];
+        incus.container = {
+          enable = true;
+          hostname = lib.mkDefault "anywhen";
+        };
+        system.stateVersion = "25.05";
+        services.anywhen = {
+          enable = true;
+          package = lib.mkDefault
+            self.packages.${pkgs.stdenv.hostPlatform.system}.default;
+          host = lib.mkDefault "0.0.0.0";
+          port = 8080;
+        };
+      };
+
       packages = eachSystem ({ pkgs, b2n }:
         let drvs = import ./default.nix { inherit pkgs b2n; };
         in {
