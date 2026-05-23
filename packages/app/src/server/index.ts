@@ -60,6 +60,17 @@ const solidJsxPlugin: BunPlugin = {
 const CLIENT_DIR = resolve(import.meta.dirname, "..", "client");
 const DIST_DIR = resolve(import.meta.dirname, "..", "..", "dist");
 
+// PWA-specific response headers. Bun.file infers MIME from extension and gets
+// .js / .svg right, but `.webmanifest` is non-standard so set it explicitly.
+// Service-Worker-Allowed widens the SW's controllable scope; not strictly
+// required when the SW sits at the root, but harmless and future-proof.
+const staticHeaders = (path: string): HeadersInit | undefined => {
+  if (path === "/manifest.webmanifest") return { "Content-Type": "application/manifest+json" };
+  if (path === "/service-worker.js")
+    return { "Content-Type": "application/javascript", "Service-Worker-Allowed": "/" };
+  return undefined;
+};
+
 const buildResult = await Bun.build({
   entrypoints: [resolve(CLIENT_DIR, "index.html")],
   outdir: DIST_DIR,
@@ -71,6 +82,16 @@ const buildResult = await Bun.build({
 if (!buildResult.success) {
   for (const msg of buildResult.logs) console.error(msg);
   throw new Error("Client build failed");
+}
+
+// PWA assets bypass Bun.build's HTML-import bundler — the service worker is
+// fetched at a fixed scope-root path by the browser (no module graph), and
+// the manifest/icons want stable filenames the manifest can reference. Copy
+// each from CLIENT_DIR into DIST_DIR after the build so static serving (and
+// the SW's cache.addAll(APP_SHELL)) finds them at predictable URLs.
+const PWA_ASSETS = ["service-worker.js", "manifest.webmanifest", "icon.svg", "icon-maskable.svg"];
+for (const name of PWA_ASSETS) {
+  await Bun.write(resolve(DIST_DIR, name), Bun.file(resolve(CLIENT_DIR, name)));
 }
 
 const server = Bun.serve({
@@ -104,7 +125,7 @@ const server = Bun.serve({
     if (!filePath.startsWith(DIST_DIR)) return new Response("Forbidden", { status: 403 });
 
     const file = Bun.file(filePath);
-    if (await file.exists()) return new Response(file);
+    if (await file.exists()) return new Response(file, { headers: staticHeaders(path) });
 
     // SPA fallback — any unknown path serves index.html so client-side
     // routing (if introduced later) doesn't 404 on direct navigation.
