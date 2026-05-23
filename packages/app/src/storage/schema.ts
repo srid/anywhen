@@ -7,6 +7,8 @@
 // on the `Database` map; migrations under ./migrations/ create the
 // columns referenced by these interfaces.
 
+import type { TaskStatus } from "../shared/schemas";
+
 export interface Database {
   tasks: TasksTable;
 }
@@ -15,7 +17,7 @@ export interface TasksTable {
   id: string;
   parent_id: string | null;
   title: string;
-  status: "todo" | "done";
+  status: TaskStatus;
   position: number;
   created_at: string;
   updated_at: string;
