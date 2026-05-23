@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
-import type { Expression, ExpressionBuilder, Kysely, Selectable, SqlBool } from "kysely";
+import {
+  type Expression,
+  type ExpressionBuilder,
+  type Kysely,
+  type Selectable,
+  sql,
+  type SqlBool,
+} from "kysely";
 import type { Database } from "./schema";
 import type { MoveTaskInput, Task, TaskId } from "../shared/schemas";
 
@@ -265,6 +272,34 @@ export const taskStore = (db: Kysely<Database>) => {
     // server process without state bleed.
     async reset(): Promise<void> {
       await db.deleteFrom("tasks").execute();
+    },
+
+    // Wipe-and-replace, transactional. The import path writes the exported
+    // snapshot back verbatim — same ids, positions, timestamps — so restore
+    // reproduces the pre-export state. PRAGMA defer_foreign_keys lets the
+    // bulk insert run in any order: parent rows and child rows land
+    // independently and the FK check fires once at commit. Without this,
+    // children inserted before their parents would fail mid-transaction.
+    async replaceAll(tasks: Task[]): Promise<void> {
+      await db.transaction().execute(async (trx) => {
+        await sql`PRAGMA defer_foreign_keys = ON`.execute(trx);
+        await trx.deleteFrom("tasks").execute();
+        if (tasks.length === 0) return;
+        await trx
+          .insertInto("tasks")
+          .values(
+            tasks.map((t) => ({
+              id: t.id,
+              parent_id: t.parentId,
+              title: t.title,
+              status: t.status,
+              position: t.position,
+              created_at: t.createdAt,
+              updated_at: t.updatedAt,
+            })),
+          )
+          .execute();
+      });
     },
   };
 };

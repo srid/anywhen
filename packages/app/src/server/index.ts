@@ -37,6 +37,7 @@ const httpHandler = new RPCHandler(router);
 const wsHandler = new WsRPCHandler(router);
 
 const port = Number(process.env.PORT ?? 7700);
+const hostname = process.env.HOST;
 
 // Either "use this pre-built dist" (production / `nix run`) or "build into
 // this writable path" (dev / cucumber). The env var is the sole adapter;
@@ -61,6 +62,7 @@ const DIST_DIR = dist.path;
 
 const server = Bun.serve({
   port,
+  hostname,
   async fetch(req, srv) {
     const url = new URL(req.url);
     const path = url.pathname;
@@ -109,6 +111,6 @@ const server = Bun.serve({
   },
 });
 
-console.log(`anywhen listening on http://localhost:${server.port}`);
+console.log(`anywhen listening on http://${server.hostname}:${server.port}`);
 console.log(`  state dir: ${stateDir}`);
 console.log(`  dist dir:  ${DIST_DIR} (${dist.kind})`);

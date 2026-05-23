@@ -64,6 +64,19 @@ export const EditTaskInputSchema = z.object({
   title: z.string().min(1),
 });
 
+// Backup envelope for export/import. The version literal lets a future schema
+// migration discriminate against older dumps (today there is only v1, so the
+// import path simply rejects anything else — no migration table yet). The
+// tasks array is the full domain shape; export/import round-trips IDs,
+// positions, and timestamps verbatim so a restore reproduces the pre-export
+// state exactly.
+export const BACKUP_VERSION = 1;
+export const BackupSchema = z.object({
+  version: z.literal(BACKUP_VERSION),
+  exportedAt: z.string(),
+  tasks: z.array(TaskSchema),
+});
+
 export type TaskId = z.infer<typeof TaskIdSchema>;
 export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 export type Task = z.infer<typeof TaskSchema>;
@@ -72,3 +85,4 @@ export type MoveTarget = z.infer<typeof MoveTargetSchema>;
 export type MoveTaskInput = z.infer<typeof MoveTaskInputSchema>;
 export type EditTaskInput = z.infer<typeof EditTaskInputSchema>;
 export type DropZone = MoveTarget["kind"];
+export type Backup = z.infer<typeof BackupSchema>;

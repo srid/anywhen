@@ -1,0 +1,94 @@
+// Backup steps — export download interception and import file upload.
+// Playwright's download event captures the JSON the client streams into a
+// Blob URL; subsequent steps read the saved file off disk. The
+// destructive confirm() guard on import is auto-accepted by the universal
+// dialog handler registered in task_steps.ts's "fresh database" Given.
+
+import { promises as fs } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Then, When } from "@cucumber/cucumber";
+import { expect } from "@playwright/test";
+import { BackupSchema, type Backup } from "../../app/src/shared/schemas";
+import type { AnywhenWorld } from "../support/world";
+
+// Per-world handle to the last download — picked up by the assertion and
+// import steps. Cleared between scenarios via the After hook in support/
+// hooks.ts (worlds are per-scenario; this is a fresh field each time).
+declare module "../support/world" {
+  interface AnywhenWorld {
+    lastBackupPath?: string;
+    lastBackupJson?: unknown;
+  }
+}
+
+// Parse `lastBackupJson` as a valid Backup or throw with a clear message.
+// Both assertion steps validate the same way; centralising here avoids
+// duplicating the safeParse+throw pattern.
+function requireBackup(world: AnywhenWorld): Backup {
+  const parsed = BackupSchema.safeParse(world.lastBackupJson);
+  if (!parsed.success) {
+    throw new Error(`Downloaded backup is not a valid Backup envelope: ${parsed.error.message}`);
+  }
+  return parsed.data;
+}
+
+When("I export the backup", async function (this: AnywhenWorld) {
+  const downloadPromise = this.page.waitForEvent("download");
+  await this.page.locator('[data-testid="export-button"]').click();
+  const download = await downloadPromise;
+  const dest = join(
+    tmpdir(),
+    `anywhen-backup-${Date.now()}-${Math.random().toString(36).slice(2)}.json`,
+  );
+  await download.saveAs(dest);
+  this.lastBackupPath = dest;
+  const raw = await fs.readFile(dest, "utf-8");
+  this.lastBackupJson = JSON.parse(raw);
+});
+
+Then(
+  "the downloaded backup should have version {int}",
+  async function (this: AnywhenWorld, version: number) {
+    expect(requireBackup(this).version).toBe(version);
+  },
+);
+
+Then(
+  "the downloaded backup should contain a task titled {string}",
+  async function (this: AnywhenWorld, title: string) {
+    const backup = requireBackup(this);
+    const found = backup.tasks.some((t) => t.title === title);
+    if (!found) {
+      throw new Error(
+        `Backup did not contain a task titled "${title}". Titles: ${backup.tasks.map((t) => t.title).join(", ")}`,
+      );
+    }
+  },
+);
+
+When("I import the most recent backup", async function (this: AnywhenWorld) {
+  if (!this.lastBackupPath) throw new Error("No backup has been exported in this scenario");
+  await this.page.locator('[data-testid="import-input"]').setInputFiles(this.lastBackupPath);
+  // Wait for the import to complete and the Collection delta to reach the
+  // client by polling for the expected post-import row count.
+  const expected = requireBackup(this).tasks.length;
+  await expect(this.page.locator('[data-testid="task-row"]')).toHaveCount(expected);
+});
+
+When("I import a file containing {string}", async function (this: AnywhenWorld, body: string) {
+  await this.page.locator('[data-testid="import-input"]').setInputFiles({
+    name: "garbage.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(body, "utf-8"),
+  });
+});
+
+Then(
+  "the error message should mention {string}",
+  async function (this: AnywhenWorld, fragment: string) {
+    const err = this.page.locator('[data-testid="error"]');
+    await expect(err).toBeVisible();
+    await expect(err).toContainText(fragment);
+  },
+);
