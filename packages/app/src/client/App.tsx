@@ -231,6 +231,11 @@ export function App() {
       void remove(id);
       return;
     }
+    // Modifier-key polarity differs between Tab and Arrow on purpose:
+    //   Tab keeps Shift through so Shift+Tab can mean outdent;
+    //   Arrow keeps Alt through because Alt+Arrow is the reorder chord.
+    // Ctrl/Meta are guarded everywhere — those are OS-level navigation
+    // chords we never want to capture.
     if (e.key === "Tab" && !e.altKey && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       void moveByKey(id, e.shiftKey ? "outdent" : "indent");
