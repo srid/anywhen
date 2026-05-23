@@ -2,7 +2,7 @@
   "mcpServers": {
     "chrome-devtools": {
       "type": "stdio",
-      "command": ".agents/skills/nix-chrome-devtools-mcp/bin/serve",
+      "command": ".claude/skills/nix-chrome-devtools-mcp/bin/serve",
       "args": []
     }
   }
