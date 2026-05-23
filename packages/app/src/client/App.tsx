@@ -149,6 +149,13 @@ export function App() {
   // Server-reported runtime metadata for the footer. Static at boot, so
   // one fetch on mount is enough — no re-fetch on focus, no polling.
   const [runtimeInfo] = createResource(() => runtimeApi.info());
+  // Surface fetch failures explicitly rather than letting the footer sit
+  // on its "…" placeholder forever. A console error is enough for a
+  // single-user local app — there's no other UI to swap in.
+  createEffect(() => {
+    const err = runtimeInfo.error;
+    if (err) console.error("[runtime] info fetch failed:", err);
+  });
   let searchInputRef!: HTMLInputElement;
 
   // Reconstruct the flat task list from the keys + per-key values. Each
