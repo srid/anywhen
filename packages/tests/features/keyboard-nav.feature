@@ -1,9 +1,9 @@
 Feature: Vim-friendly keyboard navigation for the task tree
   j/k move the selection, h/l outdent and indent (re-parent), J/K reorder
-  siblings, x deletes (cascading to descendants), and "/" focuses the search
-  box. h/l and J/K all ride the same tasks.move verb the drag-and-drop UI
-  uses; the storage seam is the only place that knows reparent needs a cycle
-  check.
+  siblings, x deletes (cascading to descendants), e enters inline edit
+  mode on the focused row, and "/" focuses the search box. h/l and J/K
+  all ride the same tasks.move verb the drag-and-drop UI uses; the storage
+  seam is the only place that knows reparent needs a cycle check.
 
   Scenario: l on a row indents it under the previous sibling
     Given the app is running with a fresh database
@@ -51,6 +51,13 @@ Feature: Vim-friendly keyboard navigation for the task tree
     Then the tree should contain a task titled "throwaway"
     When I press "x" on the task titled "throwaway"
     Then the tree should not contain a task titled "throwaway"
+
+  Scenario: e on a focused row enters edit mode
+    Given the app is running with a fresh database
+    When I add a task titled "rename me"
+    Then the tree should contain a task titled "rename me"
+    When I press "e" on the task titled "rename me"
+    Then the edit input on the task titled "rename me" should be visible
 
   Scenario: j moves selection to the next visible row
     Given the app is running with a fresh database

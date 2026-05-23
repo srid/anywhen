@@ -73,6 +73,13 @@ export function buildRouter(store: TaskStore, cache: Map<TaskId, Task>, runtimeI
           ctx.collections.tasks.upsert(task.id, task);
           return task;
         },
+        // `edit` rewrites only the title; same upsert fan-out as toggle so
+        // every subscriber sees the renamed row in one delta.
+        edit: async ({ input, ctx }) => {
+          const task = await store.edit(input.id, input.title);
+          ctx.collections.tasks.upsert(task.id, task);
+          return task;
+        },
         // `move` rewrites parent_id / position. `store.move` returns the
         // updated row, so we publish directly without a second snapshot.
         move: async ({ input, ctx }) => {

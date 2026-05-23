@@ -222,6 +222,21 @@ export const taskStore = (db: Kysely<Database>) => {
       });
     },
 
+    // Rename a task. No read-then-write race here (unlike toggle, which
+    // must read status to flip it), so no transaction is needed —
+    // the UPDATE is a single atomic statement. Title is validated non-empty
+    // at the wire boundary via `EditTaskInputSchema`.
+    // `executeTakeFirstOrThrow` implicitly signals a missing id.
+    async edit(id: TaskId, title: string): Promise<Task> {
+      const updated = await db
+        .updateTable("tasks")
+        .set({ title, updated_at: new Date().toISOString() })
+        .where("id", "=", id)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      return rowToTask(updated);
+    },
+
     // Transactional: read-then-flip is a lost-update risk without a txn,
     // since the async boundary lets a concurrent toggle land between the
     // status read and the update write.

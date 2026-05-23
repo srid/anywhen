@@ -154,6 +154,17 @@ export function App() {
   // handler survives the <For>'s teardown-and-rebuild when the Collection
   // delta arrives — the new row's effect runs on mount and reads the signal.
   const [focusedId, setFocusedId] = createSignal<TaskId | null>(null);
+  // Inline title editor. `originalTitle` is captured at beginEdit time so
+  // both the unchanged-title guard and the input's aria-label read a stable
+  // baseline, not the live row (which can drift between mount and commit if
+  // a Collection delta arrives). `draft` evolves with the user's input.
+  // null = no row is being edited; populating the field means a session is
+  // live, so all three values are meaningful together.
+  const [editing, setEditing] = createSignal<{
+    id: TaskId;
+    originalTitle: string;
+    draft: string;
+  } | null>(null);
   const [error, setError] = createSignal<string | null>(null);
   // Server-reported runtime metadata for the footer. Static at boot, so
   // one fetch on mount is enough — no re-fetch on focus, no polling.
@@ -264,6 +275,70 @@ export function App() {
     if (!error() && selected() === id) setSelected(null);
   };
 
+  // Start editing the focused row. Seeds the draft with the current title so
+  // typing replaces; a createEffect below selects the input on open so a
+  // single keystroke replaces the whole title (cursor-at-end also works for
+  // append-style edits).
+  const beginEdit = (id: TaskId) => {
+    const task = taskList().find((t) => t.id === id);
+    if (!task) return;
+    setEditing({ id, originalTitle: task.title, draft: task.title });
+  };
+
+  // Tear down the edit session and restore keyboard focus to the row so vim
+  // navigation continues from where the user left off.
+  const closeEdit = (id: TaskId) => {
+    setEditing(null);
+    setFocusedId(id);
+  };
+
+  const cancelEdit = () => {
+    const e = editing();
+    if (!e) return;
+    closeEdit(e.id);
+  };
+
+  // Commit the current draft if it's non-empty and actually changed. Trimming
+  // mirrors the server's `min(1)` validation — a whitespace-only draft is a
+  // no-op, not an error, so the user doesn't see a server rejection for
+  // tapping outside an accidentally-cleared input. On a failed mutation we
+  // keep the editor open with the draft intact: tearing down would discard
+  // the user's typing, leaving no path back to the input.
+  //
+  // The post-await teardown is gated on `editing()?.id === e.id` — without
+  // that check, a stale commit (e.g. a blur fired while the mutation was
+  // in flight, then the user opened a fresh edit on a different row) would
+  // wipe the new session.
+  const commitEdit = async () => {
+    const e = editing();
+    if (!e) return;
+    const title = e.draft.trim();
+    if (!title || title === e.originalTitle) {
+      closeEdit(e.id);
+      return;
+    }
+    const result = await callWrite(() => api.edit({ id: e.id, title }));
+    if (result === undefined) return;
+    if (editing()?.id !== e.id) return;
+    closeEdit(e.id);
+  };
+
+  // Editor key handling kept adjacent to the other edit lifecycle functions
+  // so "what keys edit mode responds to" is one cohesive unit. Every key
+  // stops propagation so the row's vim handler can't fire on typing keys
+  // (the row guard at handleRowKeyDown is the primary defense; this is
+  // belt-and-suspenders). Enter commits; Escape discards.
+  const handleEditKeyDown = (ev: KeyboardEvent) => {
+    ev.stopPropagation();
+    if (ev.key === "Enter") {
+      ev.preventDefault();
+      void commitEdit();
+    } else if (ev.key === "Escape") {
+      ev.preventDefault();
+      cancelEdit();
+    }
+  };
+
   const moveByKey = async (id: TaskId, action: KeyMove) => {
     const target = resolveKeyMove(taskList(), id, action);
     if (!target) return;
@@ -298,6 +373,7 @@ export function App() {
     // vim primary  │  ARIA alias
     x: (id) => void remove(id),
     Backspace: (id) => void remove(id),
+    e: (id) => beginEdit(id),
     j: (id) => moveSelection(id, 1),
     ArrowDown: (id) => moveSelection(id, 1),
     k: (id) => moveSelection(id, -1),
@@ -312,6 +388,11 @@ export function App() {
 
   const handleRowKeyDown = (e: KeyboardEvent, id: TaskId) => {
     if (e.ctrlKey || e.metaKey) return;
+    // While this row is in edit mode, hand keyboard control to the inline
+    // input — its own onKeyDown handles Enter / Escape and lets every other
+    // key fall through to typing. Without this guard, pressing 'x' inside
+    // the editor would also delete the row.
+    if (editing()?.id === id) return;
 
     // Alt is consumed only by the legacy ArrowUp/Down reorder aliases; any
     // other alt-chord falls through to the browser unchanged.
@@ -440,8 +521,10 @@ export function App() {
   const handleRowPointerDown = (e: PointerEvent, id: TaskId) => {
     // Ignore right/middle clicks and modifier-key chords (those navigate).
     if (e.button !== 0) return;
-    // Don't hijack clicks on action buttons inside the row.
-    if (e.target instanceof Element && e.target.closest("button")) return;
+    // Don't hijack clicks on action buttons or the inline edit input — those
+    // are interactive surfaces inside the row that need to receive the
+    // press untransformed (button click, caret placement in the input).
+    if (e.target instanceof Element && e.target.closest("button, input")) return;
     const sourceEl = e.currentTarget as HTMLElement;
     // Two-layer affordance. CSS (`@media (pointer: coarse)`) reveals the handle
     // span only on touch / coarse-pointer devices, so a mouse user normally
@@ -647,6 +730,8 @@ export function App() {
                 return dt?.id === row.task.id ? dt.zone : null;
               });
               let rowEl!: HTMLDivElement;
+              let editInputRef: HTMLInputElement | undefined;
+              const isEditing = createMemo(() => editing()?.id === row.task.id);
               // When focusedId matches this row, focus its DOM element. Runs
               // on mount and whenever focusedId changes — so a mutation that
               // tears down and rebuilds this row (Collection delta after
@@ -654,6 +739,15 @@ export function App() {
               // element is bound.
               createEffect(() => {
                 if (focusedId() === row.task.id) rowEl.focus();
+              });
+              // When edit mode opens for this row, move focus into the input
+              // and select its contents so the user can replace the title
+              // with one keystroke (or refine it with arrow keys).
+              createEffect(() => {
+                if (isEditing() && editInputRef) {
+                  editInputRef.focus();
+                  editInputRef.select();
+                }
               });
               return (
                 <div
@@ -712,11 +806,46 @@ export function App() {
                       void toggle(row.task.id);
                     }}
                   />
-                  <span class="title">
-                    <For each={highlightSegments(row.task.title, activeQuery() ?? "")}>
-                      {(seg) => (seg.match ? <mark>{seg.text}</mark> : <span>{seg.text}</span>)}
-                    </For>
-                  </span>
+                  <Show
+                    when={isEditing()}
+                    fallback={
+                      <span class="title">
+                        <For each={highlightSegments(row.task.title, activeQuery() ?? "")}>
+                          {(seg) => (seg.match ? <mark>{seg.text}</mark> : <span>{seg.text}</span>)}
+                        </For>
+                      </span>
+                    }
+                  >
+                    <input
+                      ref={editInputRef}
+                      class="title-edit"
+                      data-testid="task-edit-input"
+                      type="text"
+                      aria-label={`Edit title for ${editing()!.originalTitle}`}
+                      value={editing()!.draft}
+                      onInput={(ev) => {
+                        // editing() is always non-null here — the input only
+                        // mounts when isEditing() is true.
+                        const current = editing()!;
+                        setEditing({ ...current, draft: ev.currentTarget.value });
+                      }}
+                      onKeyDown={handleEditKeyDown}
+                      onBlur={() => void commitEdit()}
+                    />
+                  </Show>
+                  <button
+                    type="button"
+                    class="edit"
+                    data-testid="task-edit"
+                    aria-label={`Edit ${row.task.title}`}
+                    title="Edit title"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      beginEdit(row.task.id);
+                    }}
+                  >
+                    ✎
+                  </button>
                   <button
                     type="button"
                     class="delete"
@@ -753,7 +882,7 @@ export function App() {
           <kbd>⇧K</kbd> to reorder siblings
         </span>
         <span>
-          <kbd>Space</kbd> toggle · <kbd>x</kbd> delete · <kbd>/</kbd> search
+          <kbd>Space</kbd> toggle · <kbd>e</kbd> edit · <kbd>x</kbd> delete · <kbd>/</kbd> search
         </span>
       </div>
 
