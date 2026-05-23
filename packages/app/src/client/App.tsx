@@ -272,6 +272,25 @@ export function App() {
     setFocusedId(e.id);
   };
 
+  // Editor key handling kept adjacent to the other edit lifecycle functions
+  // so "what keys edit mode responds to" is one cohesive unit. Enter commits;
+  // Escape discards; every other key stops propagation so the row's vim
+  // handler can't fire on typing keys (the row guard at handleRowKeyDown is
+  // the primary defense, this is belt-and-suspenders).
+  const handleEditKeyDown = (ev: KeyboardEvent) => {
+    if (ev.key === "Enter") {
+      ev.preventDefault();
+      ev.stopPropagation();
+      void commitEdit();
+    } else if (ev.key === "Escape") {
+      ev.preventDefault();
+      ev.stopPropagation();
+      cancelEdit();
+    } else {
+      ev.stopPropagation();
+    }
+  };
+
   const moveByKey = async (id: TaskId, action: KeyMove) => {
     const target = resolveKeyMove(taskList(), id, action);
     if (!target) return;
@@ -712,20 +731,7 @@ export function App() {
                         if (!current) return;
                         setEditing({ ...current, draft: ev.currentTarget.value });
                       }}
-                      onKeyDown={(ev) => {
-                        if (ev.key === "Enter") {
-                          ev.preventDefault();
-                          ev.stopPropagation();
-                          void commitEdit();
-                        } else if (ev.key === "Escape") {
-                          ev.preventDefault();
-                          ev.stopPropagation();
-                          cancelEdit();
-                        } else {
-                          // Keep typing keys out of the row's vim handler.
-                          ev.stopPropagation();
-                        }
-                      }}
+                      onKeyDown={handleEditKeyDown}
                       onBlur={() => void commitEdit()}
                     />
                   </Show>
