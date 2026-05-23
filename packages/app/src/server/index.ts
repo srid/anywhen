@@ -37,16 +37,16 @@ const port = Number(process.env.PORT ?? 7700);
 // `services.anywhen.host`.
 const hostname = process.env.HOST ?? "0.0.0.0";
 
-const CLIENT_DIR = resolve(import.meta.dirname, "..", "client");
 // When ANYWHEN_DIST_DIR is set, the caller (typically the Nix package's
 // wrapper) has pre-built the client bundle at that path — skip the
 // runtime build so we don't try to write into the read-only Nix store.
 // Unset (the dev shell path) keeps the existing behavior: build into
 // packages/app/dist at startup.
-const preBuiltDistDir = process.env.ANYWHEN_DIST_DIR;
-const DIST_DIR = preBuiltDistDir ?? resolve(import.meta.dirname, "..", "..", "dist");
-if (!preBuiltDistDir) {
-  await buildClient({ clientDir: CLIENT_DIR, outDir: DIST_DIR });
+const distDir = process.env.ANYWHEN_DIST_DIR;
+const DIST_DIR = distDir ?? resolve(import.meta.dirname, "..", "..", "dist");
+if (!distDir) {
+  const clientDir = resolve(import.meta.dirname, "..", "client");
+  await buildClient({ clientDir, outDir: DIST_DIR });
 }
 
 const server = Bun.serve({
