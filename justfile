@@ -17,7 +17,7 @@ default:
 # Install dependencies (bun) and re-link @kolu/surface from the nix store
 install:
     {{ nix_shell }} bun install
-    {{ nix_shell }} sh -c 'mkdir -p node_modules/@kolu && rm -rf node_modules/@kolu/surface && cp -rL "$ANYWHEN_KOLU_SURFACE" node_modules/@kolu/surface && chmod -R u+w node_modules/@kolu/surface'
+    {{ nix_shell }} sh scripts/hydrate-kolu-surface.sh "$ANYWHEN_KOLU_SURFACE"
 
 # Run the app with auto-reload. Seeds sample tasks into an empty DB so a
 # fresh `just dev` run shows the tree populated; a no-op against a DB that
@@ -48,6 +48,22 @@ fmt-check: install
 # Scaffold a new Kysely migration: just new-migration <short_name>
 new-migration name: install
     {{ nix_shell }} bun packages/app/scripts/new-migration.ts {{ name }}
+
+# Regenerate bun.nix from bun.lock. Run this after any change to bun.lock
+# (i.e. after `bun install`/`bun add`). CI's `bun-nix-fresh` recipe gates
+# on this file matching the lockfile so a stale bun.nix can't ship.
+# `-l bun.lock` is explicit so this stays symmetric with the CI check
+# regardless of any future change to bun2nix's default lockfile path.
+regenerate-bun-nix:
+    {{ nix_shell }} sh -c 'nix run .#bun2nix -- -l bun.lock -o bun.nix && nixpkgs-fmt bun.nix'
+
+# Build the wrapped binary and print its store path.
+nix-build:
+    nix build .#default --print-out-paths --no-link
+
+# Run the wrapped binary directly (uses XDG_DATA_HOME state dir).
+nix-run *args:
+    nix run .#default -- {{ args }}
 
 # Cucumber e2e tests (spawns server from source on an ephemeral port)
 test: install

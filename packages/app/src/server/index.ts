@@ -3,25 +3,19 @@
 // WebSocket under `/rpc/ws` (Collection snapshot+deltas via the surface's
 // streaming `keys` / `get(key)` verbs).
 //
-// The client is built explicitly via Bun.build (NOT via Bun.serve's HTML
-// import) because Bun.serve's HTML bundler does not honor plugins
-// registered through bunfig preload — `bun-plugin-solid`'s JSX transform
-// never fires there, and Bun's default JSX transform emits
-// `React.createElement` calls that break at runtime. Bun.build accepts a
-// `plugins` array directly, so we drive the build ourselves.
+// Client bundling lives in `./build.ts` so the Nix `buildPhase` invokes the
+// same code path. At dev/test boot we call `buildClient(dist.path)`; under
+// `nix run` the wrapper sets `ANYWHEN_DIST_DIR` to a pre-built /nix/store
+// path and the build call is skipped.
 
 import { resolve } from "node:path";
-import { transformAsync } from "@babel/core";
-// @ts-expect-error - babel preset types are loose
-import babelTypeScript from "@babel/preset-typescript";
 import { RPCHandler as WsRPCHandler } from "@orpc/server/bun-ws";
 import { RPCHandler } from "@orpc/server/fetch";
-// @ts-expect-error - babel preset types are loose
-import babelSolid from "babel-preset-solid";
-import type { BunPlugin, ServerWebSocket } from "bun";
+import type { ServerWebSocket } from "bun";
 import { openDb, resolveStateDir } from "../storage/db";
 import { seedSampleData } from "../storage/seed";
 import { taskStore } from "../storage/tasks";
+import { buildClient, pwaHeadersFor } from "./build";
 import { buildRouter } from "./router";
 
 const stateDir = resolveStateDir();
@@ -44,71 +38,26 @@ const wsHandler = new WsRPCHandler(router);
 
 const port = Number(process.env.PORT ?? 7700);
 
-// Solid JSX transform. babel-preset-solid emits the compiled-template
-// runtime (template/insert/createComponent) so signals drive DOM updates;
-// the typescript preset strips type annotations first.
-const solidJsxPlugin: BunPlugin = {
-  name: "anywhen-solid",
-  setup(build) {
-    build.onLoad({ filter: /\.(?:js|ts)x$/ }, async (args) => {
-      const code = await Bun.file(args.path).text();
-      const result = await transformAsync(code, {
-        filename: args.path,
-        presets: [
-          [babelSolid, {}],
-          [babelTypeScript, {}],
-        ],
-      });
-      if (!result?.code) throw new Error(`Babel transform produced no output for ${args.path}`);
-      return { contents: result.code, loader: "js" };
-    });
-  },
-};
-
-const CLIENT_DIR = resolve(import.meta.dirname, "..", "client");
-const DIST_DIR = resolve(import.meta.dirname, "..", "..", "dist");
-
-// Single source of truth for PWA assets that bypass Bun.build's HTML-import
-// bundler. Each entry drives two things: the post-build copy from CLIENT_DIR
-// into DIST_DIR, and any per-path response-header overrides at serve time
-// (Bun.file infers MIME from extension and gets .js / .svg right, but
-// `.webmanifest` is non-standard so set it explicitly; Service-Worker-Allowed
-// widens the SW's controllable scope — not strictly required when the SW
-// sits at the root, but harmless and future-proof). Adding a new PWA asset
-// = one row here.
-type PwaFile = { name: string; headers?: HeadersInit };
-const PWA_FILES: readonly PwaFile[] = [
-  {
-    name: "service-worker.js",
-    headers: { "Content-Type": "application/javascript", "Service-Worker-Allowed": "/" },
-  },
-  { name: "manifest.webmanifest", headers: { "Content-Type": "application/manifest+json" } },
-  { name: "icon.svg" },
-  { name: "icon-maskable.svg" },
-];
-const pwaHeadersFor = (path: string): HeadersInit | undefined =>
-  PWA_FILES.find((f) => path === `/${f.name}`)?.headers;
-
-const buildResult = await Bun.build({
-  entrypoints: [resolve(CLIENT_DIR, "index.html")],
-  outdir: DIST_DIR,
-  target: "browser",
-  minify: false,
-  plugins: [solidJsxPlugin],
-});
-
-if (!buildResult.success) {
-  for (const msg of buildResult.logs) console.error(msg);
-  throw new Error("Client build failed");
+// Either "use this pre-built dist" (production / `nix run`) or "build into
+// this writable path" (dev / cucumber). The env var is the sole adapter;
+// the rest of the server treats `dist.path` uniformly.
+const dist = process.env.ANYWHEN_DIST_DIR
+  ? { kind: "prebuilt" as const, path: process.env.ANYWHEN_DIST_DIR }
+  : { kind: "build" as const, path: resolve(import.meta.dirname, "..", "..", "dist") };
+if (dist.kind === "build") {
+  await buildClient(dist.path);
+} else {
+  // Fail loud at startup if the wrapper points at a directory missing the
+  // built dist — without this assertion, `Bun.file` on a missing path
+  // returns a zero-byte BunFile and the SPA fallback (below) would serve
+  // 200 OK with an empty body instead of a clear error.
+  if (!(await Bun.file(resolve(dist.path, "index.html")).exists())) {
+    throw new Error(
+      `ANYWHEN_DIST_DIR=${dist.path} is set but index.html is missing — the wrapper points at an unbuilt dist.`,
+    );
+  }
 }
-
-// Copy each PWA asset from CLIENT_DIR into DIST_DIR so static serving (and
-// the SW's `cache.addAll(APP_SHELL)`) finds them at predictable URLs. The
-// SW must live at a fixed scope-root path; the manifest references icons by
-// stable name.
-for (const { name } of PWA_FILES) {
-  await Bun.write(resolve(DIST_DIR, name), Bun.file(resolve(CLIENT_DIR, name)));
-}
+const DIST_DIR = dist.path;
 
 const server = Bun.serve({
   port,
@@ -162,4 +111,4 @@ const server = Bun.serve({
 
 console.log(`anywhen listening on http://localhost:${server.port}`);
 console.log(`  state dir: ${stateDir}`);
-console.log(`  dist dir:  ${DIST_DIR}`);
+console.log(`  dist dir:  ${DIST_DIR} (${dist.kind})`);

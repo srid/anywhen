@@ -8,3 +8,4 @@ dependencies:
   apm:
     - srid/agency#master
     - juspay/justci#main
+    - anthropics/claude-code/plugins/frontend-design/skills/frontend-design#main
