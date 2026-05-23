@@ -723,11 +723,12 @@ export function App() {
                       class="title-edit"
                       data-testid="task-edit-input"
                       type="text"
-                      aria-label={`Edit title for ${editing()?.originalTitle ?? row.task.title}`}
-                      value={editing()?.draft ?? ""}
+                      aria-label={`Edit title for ${editing()!.originalTitle}`}
+                      value={editing()!.draft}
                       onInput={(ev) => {
-                        const current = editing();
-                        if (!current) return;
+                        // editing() is always non-null here — the input only
+                        // mounts when isEditing() is true.
+                        const current = editing()!;
                         setEditing({ ...current, draft: ev.currentTarget.value });
                       }}
                       onKeyDown={handleEditKeyDown}
