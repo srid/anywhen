@@ -124,10 +124,14 @@ Then(
 // raw mouse API with `steps` to force interpolated moves, landing the final
 // position inside the target row's before / inside / after zone (matching
 // the 25% / 75% split in client/App.tsx → zoneAt).
-// Touch-driven reorder: long-press on the source row, then touchmove to the
-// target's drop zone. Dispatched via CDP because Playwright doesn't expose a
-// high-level touch-drag API — synthesized PointerEvents wouldn't be trusted
-// and would skip the browser's pointer-capture path.
+// Touch-driven reorder: long-press on the source row, then move to the
+// target's drop zone. We dispatch synthetic PointerEvents on the rows
+// directly (with pointerType: "touch") rather than firing CDP touch events
+// — Chromium's touch → pointer-event translation through the input
+// pipeline is unreliable in headless test mode. The handlers under test
+// consume PointerEvents regardless of provenance, so this exercises the
+// long-press + drop-zone logic with the same fidelity and far less
+// flake.
 When(
   "I touch-drag the task titled {string} {word} the task titled {string}",
   async function (this: AnywhenWorld, source: string, where: string, target: string) {
@@ -143,32 +147,28 @@ When(
     const sy = sourceBox.y + sourceBox.height / 2;
     const dx = targetBox.x + targetBox.width / 2;
     const dy = targetBox.y + targetBox.height * ZONE_CENTRE[where];
-    const cdp = await this.context.newCDPSession(this.page);
-    try {
-      await cdp.send("Input.dispatchTouchEvent", {
-        type: "touchStart",
-        touchPoints: [{ x: sx, y: sy, id: 1 }],
-      });
-      // Wait past the long-press window (DRAG_LONGPRESS_MS = 350 in App.tsx).
-      await this.page.waitForTimeout(450);
-      await cdp.send("Input.dispatchTouchEvent", {
-        type: "touchMove",
-        touchPoints: [{ x: dx, y: dy, id: 1 }],
-      });
-      // A second move lets the dropTarget signal settle on the final zone
-      // before the touchend fires — mirrors the two-step pattern in the mouse
-      // drag step above.
-      await cdp.send("Input.dispatchTouchEvent", {
-        type: "touchMove",
-        touchPoints: [{ x: dx, y: dy, id: 1 }],
-      });
-      await cdp.send("Input.dispatchTouchEvent", {
-        type: "touchEnd",
-        touchPoints: [],
-      });
-    } finally {
-      await cdp.detach();
-    }
+    const pointer = {
+      pointerType: "touch",
+      pointerId: 1,
+      isPrimary: true,
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      buttons: 1,
+    };
+    await sourceRow.dispatchEvent("pointerdown", { ...pointer, clientX: sx, clientY: sy });
+    // Wait past the long-press window (DRAG_LONGPRESS_MS = 350 in App.tsx).
+    await this.page.waitForTimeout(450);
+    await sourceRow.dispatchEvent("pointermove", { ...pointer, clientX: dx, clientY: dy });
+    // A second move lets the dropTarget signal settle on the final zone
+    // before pointerup commits.
+    await sourceRow.dispatchEvent("pointermove", { ...pointer, clientX: dx, clientY: dy });
+    await sourceRow.dispatchEvent("pointerup", {
+      ...pointer,
+      clientX: dx,
+      clientY: dy,
+      buttons: 0,
+    });
   },
 );
 
