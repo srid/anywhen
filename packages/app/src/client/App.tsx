@@ -231,16 +231,11 @@ export function App() {
       void moveByKey(id, e.shiftKey ? "outdent" : "indent");
       return;
     }
-    if (e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-        e.preventDefault();
+    if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      if (e.altKey) {
         void moveByKey(id, e.key === "ArrowUp" ? "up" : "down");
-      }
-      return;
-    }
-    if (!e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-        e.preventDefault();
+      } else {
         moveSelection(id, e.key === "ArrowUp" ? -1 : 1);
       }
     }
