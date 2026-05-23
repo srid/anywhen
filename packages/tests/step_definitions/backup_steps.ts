@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Then, When } from "@cucumber/cucumber";
 import { expect } from "@playwright/test";
-import { BackupSchema } from "../../app/src/shared/schemas";
+import { BackupSchema, type Backup } from "../../app/src/shared/schemas";
 import type { AnywhenWorld } from "../support/world";
 
 // Per-world handle to the last download — picked up by the assertion and
@@ -20,6 +20,17 @@ declare module "../support/world" {
     lastBackupPath?: string;
     lastBackupJson?: unknown;
   }
+}
+
+// Parse `lastBackupJson` as a valid Backup or throw with a clear message.
+// Both assertion steps validate the same way; centralising here avoids
+// duplicating the safeParse+throw pattern.
+function requireBackup(world: AnywhenWorld): Backup {
+  const parsed = BackupSchema.safeParse(world.lastBackupJson);
+  if (!parsed.success) {
+    throw new Error(`Downloaded backup is not a valid Backup envelope: ${parsed.error.message}`);
+  }
+  return parsed.data;
 }
 
 When("I export the backup", async function (this: AnywhenWorld) {
@@ -39,25 +50,18 @@ When("I export the backup", async function (this: AnywhenWorld) {
 Then(
   "the downloaded backup should have version {int}",
   async function (this: AnywhenWorld, version: number) {
-    const parsed = BackupSchema.safeParse(this.lastBackupJson);
-    if (!parsed.success) {
-      throw new Error(`Downloaded backup is not a valid Backup envelope: ${parsed.error.message}`);
-    }
-    expect(parsed.data.version).toBe(version);
+    expect(requireBackup(this).version).toBe(version);
   },
 );
 
 Then(
   "the downloaded backup should contain a task titled {string}",
   async function (this: AnywhenWorld, title: string) {
-    const parsed = BackupSchema.safeParse(this.lastBackupJson);
-    if (!parsed.success) {
-      throw new Error(`Downloaded backup is not a valid Backup envelope: ${parsed.error.message}`);
-    }
-    const found = parsed.data.tasks.some((t) => t.title === title);
+    const backup = requireBackup(this);
+    const found = backup.tasks.some((t) => t.title === title);
     if (!found) {
       throw new Error(
-        `Backup did not contain a task titled "${title}". Titles: ${parsed.data.tasks.map((t) => t.title).join(", ")}`,
+        `Backup did not contain a task titled "${title}". Titles: ${backup.tasks.map((t) => t.title).join(", ")}`,
       );
     }
   },
@@ -68,7 +72,7 @@ When("I import the most recent backup", async function (this: AnywhenWorld) {
   await this.page.locator('[data-testid="import-input"]').setInputFiles(this.lastBackupPath);
   // Wait for the import to complete and the Collection delta to reach the
   // client by polling for the expected post-import row count.
-  const expected = (this.lastBackupJson as { tasks: unknown[] }).tasks.length;
+  const expected = requireBackup(this).tasks.length;
   await expect(this.page.locator('[data-testid="task-row"]')).toHaveCount(expected);
 });
 
