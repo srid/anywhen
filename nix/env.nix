@@ -29,9 +29,8 @@
 #
 # ANYWHEN_KOLU_SURFACE — nix-store path to the @kolu/surface package source.
 #   Set by: this file, fed into the devShell via mkShell `env = ...`.
-#   Read by: nix/shell.nix (shellHook copies it into node_modules/@kolu/surface),
-#            packages/app/package.json postinstall (repeats the copy after
-#            `bun install`), justfile `install` recipe.
+#   Read by: nix/shell.nix (shellHook), justfile and ci/mod.just `install`
+#            recipes, all via nix/scripts/hydrate-surface.sh.
 #   Used only at dev / build time — the NixOS module does not set it
 #   because the anywhen package bundles surface into its closure.
 { pkgs }:
