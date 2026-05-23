@@ -12,6 +12,8 @@ import { implement } from "@orpc/server";
 import { implementSurface, publisherChannel } from "@kolu/surface/server";
 import { MemoryPublisher } from "@orpc/experimental-publisher/memory";
 import { surface } from "../shared/surface";
+import type { TaskId } from "../shared/schemas";
+import { descendantIds } from "../shared/tree";
 import type { TaskStore } from "../storage/tasks";
 
 // `implementSurface` returns `{ surface: t.router(namespaces) }`. The inner
@@ -72,7 +74,8 @@ export function buildRouter(store: TaskStore) {
         // the SQL DELETE — afterwards `listMap()` no longer sees them.
         remove: async ({ input, ctx }) => {
           const before = store.listMap();
-          const descendants = collectDescendants(before, input);
+          const childrenOf = childrenIndex(before);
+          const descendants = descendantIds<TaskId>(input, (id) => childrenOf.get(id) ?? []);
           store.remove(input);
           ctx.collections.tasks.remove(input);
           for (const id of descendants) ctx.collections.tasks.remove(id);
@@ -94,27 +97,19 @@ export function buildRouter(store: TaskStore) {
   return t.router({ ...surfaceFragment });
 }
 
-// Walk the parent_id graph from a deleted root to collect every descendant
-// the FK cascade will drop. Lives next to the router (not in storage/)
-// because only the Collection fan-out needs this view — `taskStore.remove`
-// itself relies on the SQL cascade and doesn't expose descendant ids.
-const collectDescendants = (
-  tasks: Map<string, { id: string; parentId: string | null }>,
-  rootId: string,
-): string[] => {
-  const byParent = new Map<string | null, string[]>();
+// Project the parent-pointer view in `listMap()` into a children index keyed
+// by parent id — the shape `descendantIds` consumes. Lives at the router
+// because the Collection fan-out is the only caller; `taskStore.remove`
+// itself relies on the SQL FK cascade and doesn't need this view.
+const childrenIndex = (
+  tasks: Map<TaskId, { id: TaskId; parentId: TaskId | null }>,
+): Map<TaskId, TaskId[]> => {
+  const out = new Map<TaskId, TaskId[]>();
   for (const t of tasks.values()) {
-    const arr = byParent.get(t.parentId) ?? [];
+    if (t.parentId === null) continue;
+    const arr = out.get(t.parentId) ?? [];
     arr.push(t.id);
-    byParent.set(t.parentId, arr);
+    out.set(t.parentId, arr);
   }
-  const out: string[] = [];
-  const walk = (id: string): void => {
-    for (const child of byParent.get(id) ?? []) {
-      out.push(child);
-      walk(child);
-    }
-  };
-  walk(rootId);
   return out;
 };

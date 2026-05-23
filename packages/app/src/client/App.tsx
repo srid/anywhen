@@ -19,6 +19,7 @@ import {
   ZONE_AFTER_RATIO,
   ZONE_BEFORE_RATIO,
 } from "../shared/schemas";
+import { ancestorIds, descendantIds } from "../shared/tree";
 import { app } from "./wire";
 
 const api = app.rpc.surface.tasks;
@@ -68,21 +69,6 @@ const depthOf = (tasks: Task[]): Map<TaskId, number> => {
   return depths;
 };
 
-// Compute the set of ancestor ids for a given set of matched ids. Ancestors
-// stay visible (dimmed) so the path from root to each match is intact.
-const ancestorsOf = (tasks: Task[], matched: Set<TaskId>): Set<TaskId> => {
-  const byId = new Map<TaskId, Task>(tasks.map((t) => [t.id, t]));
-  const ancestors = new Set<TaskId>();
-  for (const id of matched) {
-    let parent = byId.get(id)?.parentId ?? null;
-    while (parent && !ancestors.has(parent)) {
-      ancestors.add(parent);
-      parent = byId.get(parent)?.parentId ?? null;
-    }
-  }
-  return ancestors;
-};
-
 // Map a pointer's Y inside a row to a drop zone. Top quarter → before, bottom
 // quarter → after, middle half → inside (re-parent). Symmetric so the user
 // can always nudge a task one step up, one step down, or one level deeper.
@@ -92,19 +78,6 @@ const zoneAt = (offsetY: number, height: number): DropZone => {
   if (ratio < ZONE_BEFORE_RATIO) return "before";
   if (ratio > ZONE_AFTER_RATIO) return "after";
   return "inside";
-};
-
-const descendantsOf = (tasks: Task[], rootId: TaskId): Set<TaskId> => {
-  const byParent = byParentMap(tasks);
-  const out = new Set<TaskId>();
-  const walk = (id: TaskId) => {
-    for (const c of byParent.get(id) ?? []) {
-      out.add(c.id);
-      walk(c.id);
-    }
-  };
-  walk(rootId);
-  return out;
 };
 
 const siblingsOf = (
@@ -194,9 +167,10 @@ export function App() {
         dimmed: false,
       }));
     }
+    const byId = new Map<TaskId, Task>(list.map((t) => [t.id, t]));
     const matched = new Set<TaskId>();
     for (const t of list) if (matchesQuery(t.title, q)) matched.add(t.id);
-    const ancestors = ancestorsOf(list, matched);
+    const ancestors = ancestorIds(matched, (id) => byId.get(id)?.parentId ?? null);
     return list
       .filter((t) => matched.has(t.id) || ancestors.has(t.id))
       .map((task) => ({
@@ -315,7 +289,12 @@ export function App() {
   };
 
   const handleDragStart = (e: DragEvent, id: TaskId) => {
-    setDrag({ id, descendants: descendantsOf(taskList(), id) });
+    const tasks = taskList();
+    const byParent = byParentMap(tasks);
+    const descendants = descendantIds(id, (tid) =>
+      (byParent.get(tid) ?? []).map((c) => c.id),
+    );
+    setDrag({ id, descendants });
     if (e.dataTransfer) {
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData("text/plain", id);
