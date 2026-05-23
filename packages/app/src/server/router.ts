@@ -109,9 +109,14 @@ export function buildRouter(store: TaskStore, cache: Map<TaskId, Task>) {
         // per-row diff. Remove stale keys before upserting new ones so
         // an id that disappears from the import isn't briefly orphaned
         // alongside its replacement.
+        //
+        // Snap `oldKeys` *before* the SQL mutation: the cache and SQL
+        // must live in the same epoch when the snapshot is taken, or a
+        // future read-through path would let the cache shift under us
+        // across the await boundary.
         import: async ({ input, ctx }) => {
-          await store.replaceAll(input.tasks);
           const oldKeys = Array.from(ctx.collections.tasks.readAll().keys());
+          await store.replaceAll(input.tasks);
           const newKeys = new Set(input.tasks.map((t) => t.id));
           for (const k of oldKeys) if (!newKeys.has(k)) ctx.collections.tasks.remove(k);
           for (const t of input.tasks) ctx.collections.tasks.upsert(t.id, t);
