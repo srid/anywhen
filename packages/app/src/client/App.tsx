@@ -347,6 +347,12 @@ export function App() {
     // Don't hijack clicks on action buttons inside the row.
     if (e.target instanceof Element && e.target.closest("button")) return;
     const sourceEl = e.currentTarget as HTMLElement;
+    // The drag handle is the explicit grip affordance shown on touch devices.
+    // Pressing it bypasses both the long-press timer (touch) and the movement
+    // threshold (mouse) and starts dragging immediately, so users do not have
+    // to discover the long-press timing themselves.
+    const fromHandle =
+      e.target instanceof Element && e.target.closest(".drag-handle") !== null;
     // Capture the pointer so subsequent pointermove/up fire on this row even
     // after the pointer leaves it. Mouse has no implicit capture; without
     // this, the first move out of the source row would lose the drag stream.
@@ -368,6 +374,10 @@ export function App() {
       startY: e.clientY,
       pointerType: e.pointerType,
     };
+    if (fromHandle) {
+      beginDrag(id);
+      return;
+    }
     if (e.pointerType === "touch" || e.pointerType === "pen") {
       // `press` captures the identity of this specific press so the timer
       // guard can tell if a later clearPendingPress() already cancelled it.
@@ -576,6 +586,20 @@ export function App() {
                   <For each={Array.from({ length: row.depth })}>
                     {() => <span class="indent" />}
                   </For>
+                  <span
+                    class="drag-handle"
+                    data-testid="task-drag-handle"
+                    aria-hidden="true"
+                  >
+                    <svg viewBox="0 0 10 16" width="10" height="16">
+                      <circle cx="2.5" cy="3" r="1.2" />
+                      <circle cx="7.5" cy="3" r="1.2" />
+                      <circle cx="2.5" cy="8" r="1.2" />
+                      <circle cx="7.5" cy="8" r="1.2" />
+                      <circle cx="2.5" cy="13" r="1.2" />
+                      <circle cx="7.5" cy="13" r="1.2" />
+                    </svg>
+                  </span>
                   <button
                     type="button"
                     class="check"

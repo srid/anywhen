@@ -95,6 +95,19 @@ Then(
   },
 );
 
+// The drag handle is display:none on fine pointers and revealed by the
+// @media (pointer: coarse) rule. Asserting toBeVisible() exercises the
+// same code path that determines real-world visibility on touch devices.
+Then(
+  "the drag handle on the task titled {string} should be visible",
+  async function (this: AnywhenWorld, title: string) {
+    const handle = this.page
+      .locator(`[data-testid="task-row"][data-task-title="${title}"]`)
+      .locator('[data-testid="task-drag-handle"]');
+    await expect(handle).toBeVisible();
+  },
+);
+
 Then(
   "the tree should not contain a task titled {string}",
   async function (this: AnywhenWorld, title: string) {
@@ -163,6 +176,48 @@ When(
     await sourceRow.dispatchEvent("pointermove", { ...pointer, clientX: dx, clientY: dy });
     // A second move lets the dropTarget signal settle on the final zone
     // before pointerup commits.
+    await sourceRow.dispatchEvent("pointermove", { ...pointer, clientX: dx, clientY: dy });
+    await sourceRow.dispatchEvent("pointerup", {
+      ...pointer,
+      clientX: dx,
+      clientY: dy,
+      buttons: 0,
+    });
+  },
+);
+
+// Handle-drag: presses on the explicit drag handle, which bypasses the
+// 350 ms long-press timer and begins dragging immediately. No waitForTimeout
+// is needed — that's the entire point of the handle.
+When(
+  "I handle-drag the task titled {string} {word} the task titled {string}",
+  async function (this: AnywhenWorld, source: string, where: string, target: string) {
+    if (!isDropZone(where)) {
+      throw new Error(`Unknown drop zone: ${where} (expected ${DROP_ZONES.join(", ")})`);
+    }
+    const sourceRow = this.page.locator(`[data-testid="task-row"][data-task-title="${source}"]`);
+    const sourceHandle = sourceRow.locator('[data-testid="task-drag-handle"]');
+    const targetRow = this.page.locator(`[data-testid="task-row"][data-task-title="${target}"]`);
+    const handleBox = await sourceHandle.boundingBox();
+    const targetBox = await targetRow.boundingBox();
+    if (!handleBox || !targetBox) {
+      throw new Error("Could not measure handle/target for handle-drag");
+    }
+    const sx = handleBox.x + handleBox.width / 2;
+    const sy = handleBox.y + handleBox.height / 2;
+    const dx = targetBox.x + targetBox.width / 2;
+    const dy = targetBox.y + targetBox.height * ZONE_CENTRE[where];
+    const pointer = {
+      pointerType: "touch",
+      pointerId: 1,
+      isPrimary: true,
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      buttons: 1,
+    };
+    await sourceHandle.dispatchEvent("pointerdown", { ...pointer, clientX: sx, clientY: sy });
+    await sourceRow.dispatchEvent("pointermove", { ...pointer, clientX: dx, clientY: dy });
     await sourceRow.dispatchEvent("pointermove", { ...pointer, clientX: dx, clientY: dy });
     await sourceRow.dispatchEvent("pointerup", {
       ...pointer,
