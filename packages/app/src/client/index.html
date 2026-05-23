@@ -2,9 +2,25 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>anywhen</title>
+    <meta name="description" content="A personal task manager. One search box: filter the tree, or add to it." />
+    <meta name="theme-color" content="#0f0f10" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="anywhen" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="anywhen" />
     <link rel="stylesheet" href="./styles.css" />
+    <!--
+      PWA link tags (manifest, icon, apple-touch-icon) are injected at
+      runtime by client/pwa.ts. They use absolute root-relative URLs
+      (/manifest.webmanifest, /icon.svg) which Bun.build's HTML handler
+      tries to resolve at bundle time; injecting them from JS sidesteps
+      that, and the browser scans the DOM dynamically for both manifest
+      and icon links so install criteria still work.
+    -->
   </head>
   <body>
     <div id="root"></div>
