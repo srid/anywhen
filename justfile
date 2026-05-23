@@ -32,13 +32,16 @@ typecheck: install
 lint: install
     {{ nix_shell }} biome lint .
 
-# Format all files in-place (Biome + nixpkgs-fmt)
+# Format all files in-place (Biome + nixpkgs-fmt). nixpkgs-fmt accepts a
+# directory argument and recurses, so passing `.` covers every `*.nix` at
+# any depth — the previous `*.nix nix/**/*.nix` glob silently dropped files
+# under `nix/packages/` because POSIX sh doesn't expand `**`.
 fmt: install
-    {{ nix_shell }} sh -c 'biome format --write . && nixpkgs-fmt *.nix nix/**/*.nix'
+    {{ nix_shell }} sh -c 'biome format --write . && nixpkgs-fmt .'
 
 # Check formatting without modifying (used by CI)
 fmt-check: install
-    {{ nix_shell }} sh -c 'biome format . && nixpkgs-fmt --check *.nix nix/**/*.nix'
+    {{ nix_shell }} sh -c 'biome format . && nixpkgs-fmt --check .'
 
 # Cucumber e2e tests (spawns server from source on an ephemeral port)
 test: install
