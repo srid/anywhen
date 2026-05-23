@@ -57,8 +57,31 @@ When(
   "I click the delete button on the task titled {string}",
   async function (this: AnywhenWorld, title: string) {
     const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
-    await row.hover();
-    await row.locator('[data-testid="task-delete"]').click();
+    // Click without hover so the mobile "visible without hovering" scenario
+    // isn't silently rescued by a synthesized :hover state. Force-clicks
+    // bypass Playwright's actionability gate — fine here because visibility
+    // is asserted separately on the mobile path (see the dedicated step
+    // below) and the desktop scenarios assert behavior, not pixel visibility.
+    await row.locator('[data-testid="task-delete"]').click({ force: true });
+  },
+);
+
+// Mobile scenarios assert the CSS @media (pointer: coarse) rule actually
+// reveals the delete button. Playwright's toBeVisible() doesn't check opacity,
+// so we read the computed value directly — opacity 1 means the coarse-pointer
+// rule applied; opacity 0 means the row's hover-only rule is in effect.
+Then(
+  "the delete button on the task titled {string} should be revealed without hover",
+  async function (this: AnywhenWorld, title: string) {
+    const btn = this.page
+      .locator(`[data-testid="task-row"][data-task-title="${title}"]`)
+      .locator('[data-testid="task-delete"]');
+    const opacity = await btn.evaluate((el) => Number(getComputedStyle(el).opacity));
+    if (opacity < 1) {
+      throw new Error(
+        `delete button opacity was ${opacity}; the @media (pointer: coarse) rule did not apply`,
+      );
+    }
   },
 );
 
