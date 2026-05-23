@@ -651,6 +651,7 @@ h1 .dot {
   .add-btn,
   .check,
   .row,
+  .edit,
   .delete {
     transition: none;
   }
