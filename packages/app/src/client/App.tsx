@@ -16,6 +16,7 @@ import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show }
 import { matchesQuery } from "../shared/filter";
 import { normalizeQuery } from "../shared/input";
 import {
+  DRAG_LONGPRESS_MS,
   type DropZone,
   type MoveTarget,
   type Task,
@@ -115,9 +116,6 @@ type PendingPress = {
 // Distance the pointer must travel before a mouse press becomes a drag. Below
 // this threshold the press is treated as a click (select / focus).
 const DRAG_MOVE_THRESHOLD = 5;
-// Touch presses need a hold to disambiguate "I want to scroll the list" from
-// "I want to drag this row". 350ms is the iOS-ish window.
-const DRAG_LONGPRESS_MS = 350;
 
 export function App() {
   // Live subscription to the tasks Collection. `notes.keys()` is a reactive
@@ -347,6 +345,15 @@ export function App() {
     // Don't hijack clicks on action buttons inside the row.
     if (e.target instanceof Element && e.target.closest("button")) return;
     const sourceEl = e.currentTarget as HTMLElement;
+    // Two-layer affordance. CSS (`@media (pointer: coarse)`) reveals the handle
+    // span only on touch / coarse-pointer devices, so a mouse user normally
+    // sees nothing to click. The JS guard below fires for ANY pointer type
+    // that lands on the handle DOM node — the node is always present, just
+    // visually hidden on fine pointers. When it fires, the press bypasses
+    // both the long-press timer (touch / pen) and the movement threshold
+    // (mouse) and begins dragging immediately.
+    const fromHandle =
+      e.target instanceof Element && e.target.closest('[data-testid="task-drag-handle"]') !== null;
     // Capture the pointer so subsequent pointermove/up fire on this row even
     // after the pointer leaves it. Mouse has no implicit capture; without
     // this, the first move out of the source row would lose the drag stream.
@@ -362,6 +369,13 @@ export function App() {
     // the first long-press timer fires, which would otherwise orphan the old
     // timer until it expires).
     clearPendingPress();
+    if (fromHandle) {
+      beginDrag(id);
+      return;
+    }
+    // Only stage pendingPress for the paths that actually consume it — the
+    // mouse-threshold check in handleRowPointerMove and the long-press timer
+    // below. The handle path above bypasses both and short-circuits here.
     pendingPress = {
       id,
       startX: e.clientX,
@@ -576,6 +590,16 @@ export function App() {
                   <For each={Array.from({ length: row.depth })}>
                     {() => <span class="indent" />}
                   </For>
+                  <span class="drag-handle" data-testid="task-drag-handle" aria-hidden="true">
+                    <svg viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
+                      <circle cx="2.5" cy="3" r="1.2" />
+                      <circle cx="7.5" cy="3" r="1.2" />
+                      <circle cx="2.5" cy="8" r="1.2" />
+                      <circle cx="7.5" cy="8" r="1.2" />
+                      <circle cx="2.5" cy="13" r="1.2" />
+                      <circle cx="7.5" cy="13" r="1.2" />
+                    </svg>
+                  </span>
                   <button
                     type="button"
                     class="check"
