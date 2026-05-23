@@ -18,9 +18,17 @@
 #      under `$out/share/anywhen` and a `bin/anywhen` wrapper that
 #      points the runtime at the pre-built dist via `ANYWHEN_DIST_DIR`.
 #
-# Mirrors kolu's packaging shape but uses bun's lockfile / node_modules
-# directly rather than pnpm. The same FOD-based dance applies — see
-# kolu's `pnpmDeps` for the pnpm equivalent.
+# NOT a "mirror of kolu's packaging" — kolu uses pnpm and the
+# nixpkgs-blessed `pkgs.fetchPnpmDeps` helper. anywhen is on bun, and
+# nixpkgs does not yet expose a `fetchBunDeps` / `buildBunPackage`
+# (tracked upstream in NixOS/nixpkgs#255890). The community alternative
+# is [`bun2nix`](https://github.com/nix-community/bun2nix) — a Rust CLI
+# that converts `bun.lock` into a Nix expression with `mkBunDerivation` /
+# `mkBunNodeModules` library functions. We considered it; this PR
+# hand-rolls a FOD instead to keep the top-level zero-flake-input
+# convention intact (bun2nix would add a flake input or a vendored
+# generated `bun.nix`). If the bun-on-Nix story stabilizes upstream,
+# this derivation should collapse onto the standard helper.
 { stdenv
 , lib
 , bun
