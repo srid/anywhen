@@ -10,8 +10,10 @@ A personal task manager. One search box: filter the tree, or add to it.
 > siblings, `⌫` deletes the focused row, `Space` toggles done, `/` focuses
 > the search box) + live filter (type a query into the search box — matches
 > highlight in their own row, ancestors stay visible but dimmed so the path
-> to a match is intact). Filter atoms, tags, due dates, body, blocked-by,
-> and the detail panel land in later PRs.
+> to a match is intact) + PWA (installable from the browser, with a service
+> worker that caches the app shell and serves `index.html` from cache when
+> offline). Filter atoms, tags, due dates, body, blocked-by, and the detail
+> panel land in later PRs.
 
 ## Stack
 
@@ -99,6 +101,24 @@ The SolidJS JSX transform (`babel-preset-solid`) runs as an in-tree
 plugins as of Bun 1.3.10, so the server builds the client at startup
 into `packages/app/dist/` and serves that as static files (plus the
 `/rpc/*` oRPC endpoints).
+
+## PWA
+
+The client ships as an installable Progressive Web App. `client/index.html`
+links a web manifest (`manifest.webmanifest`) and theme color, the manifest
+references an SVG app icon, and `register-sw.ts` registers
+`/service-worker.js` after the app mounts. The service worker precaches the
+app shell (`/`, `/index.html`, manifest, icon), runtime-caches successful
+same-origin GETs, and falls back to a cached `/index.html` for navigations
+when the network is offline. RPC traffic (`/rpc/*`, `/api/*`) is never
+cached — the wire stays online-only by design.
+
+The manifest, icons, and service worker live alongside the rest of
+`client/` and are copied verbatim into `dist/` after `Bun.build` (they
+don't belong in the bundler's module graph: the SW must live at a fixed
+scope-root URL, and the manifest references icons by stable path). Static
+serving sets `application/manifest+json` for the manifest and
+`Service-Worker-Allowed: /` for the SW.
 
 ## CI
 
