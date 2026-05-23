@@ -12,7 +12,7 @@
 // covers mouse, touch, and pen. Touch initiates drag via a short long-press
 // so vertical scroll on a row remains a finger-flick away.
 
-import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { matchesQuery } from "../shared/filter";
 import { normalizeQuery } from "../shared/input";
 import {
@@ -99,15 +99,6 @@ const resolveKeyMove = (tasks: Task[], id: TaskId, action: KeyMove): MoveTarget 
   return ref ? { kind: action === "up" ? "before" : "after", refId: ref.id } : null;
 };
 
-const focusRowById = (id: TaskId) => {
-  requestAnimationFrame(() => {
-    const el = document.querySelector<HTMLElement>(
-      `[data-testid="task-row"][data-task-id="${CSS.escape(id)}"]`,
-    );
-    el?.focus();
-  });
-};
-
 type DragSnapshot = { id: TaskId; descendants: Set<TaskId> };
 
 // Pointer-events drag state. A row's pointerdown stages a "pending press";
@@ -137,6 +128,13 @@ export function App() {
   });
   const [query, setQuery] = createSignal("");
   const [selected, setSelected] = createSignal<TaskId | null>(null);
+  // "Which row should hold keyboard focus" — a render-lifecycle instruction,
+  // distinct from `selected` (the logical/aria selection driving styling). A
+  // per-row `createEffect` inside the <For> below re-applies focus whenever
+  // this signal matches the row's id. Setting focusedId from a mutation
+  // handler survives the <For>'s teardown-and-rebuild when the Collection
+  // delta arrives — the new row's effect runs on mount and reads the signal.
+  const [focusedId, setFocusedId] = createSignal<TaskId | null>(null);
   const [error, setError] = createSignal<string | null>(null);
   let searchInputRef!: HTMLInputElement;
 
@@ -211,7 +209,7 @@ export function App() {
 
   const toggle = async (id: TaskId) => {
     await callMutation(() => api.toggle(id));
-    focusRowById(id);
+    setFocusedId(id);
   };
 
   const remove = async (id: TaskId) => {
@@ -223,7 +221,7 @@ export function App() {
     const target = resolveKeyMove(taskList(), id, action);
     if (!target) return;
     await callMutation(() => api.move({ id, target }));
-    focusRowById(id);
+    setFocusedId(id);
   };
 
   const moveSelection = (id: TaskId, offset: 1 | -1) => {
@@ -233,32 +231,59 @@ export function App() {
     const next = rs[idx + offset];
     if (!next) return;
     setSelected(next.task.id);
-    focusRowById(next.task.id);
+    setFocusedId(next.task.id);
+  };
+
+  // Vim-style row bindings, with WAI-ARIA tree-pattern aliases. Each action
+  // lists its vim primary first; ArrowUp/Down + Tab/Shift+Tab + Backspace
+  // are the ARIA-required aliases (the tree/treeitem roles on the rows are
+  // a contract screen-reader users navigate by), and Alt+ArrowUp/Down stay
+  // as the legacy reorder aliases.
+  //
+  // Ctrl/Meta chords cede to the browser. Alt is consumed only by the
+  // ArrowUp/Down reorder aliases, so plain Alt+x or Alt+j fall through to
+  // the browser unchanged.
+  //
+  // Composite key "Shift+Tab" is encoded as the lookup key so the Tab and
+  // Shift+Tab cases don't need a nested conditional inside the handler.
+  const ROW_KEY_ACTIONS: Record<string, (id: TaskId) => void> = {
+    " ": (id) => void toggle(id),
+    // vim primary  │  ARIA alias
+    x: (id) => void remove(id),
+    Backspace: (id) => void remove(id),
+    j: (id) => moveSelection(id, 1),
+    ArrowDown: (id) => moveSelection(id, 1),
+    k: (id) => moveSelection(id, -1),
+    ArrowUp: (id) => moveSelection(id, -1),
+    J: (id) => void moveByKey(id, "down"),
+    K: (id) => void moveByKey(id, "up"),
+    l: (id) => void moveByKey(id, "indent"),
+    Tab: (id) => void moveByKey(id, "indent"),
+    h: (id) => void moveByKey(id, "outdent"),
+    "Shift+Tab": (id) => void moveByKey(id, "outdent"),
   };
 
   const handleRowKeyDown = (e: KeyboardEvent, id: TaskId) => {
-    if (e.key === " ") {
-      e.preventDefault();
-      void toggle(id);
-      return;
-    }
-    if (e.key === "Backspace") {
-      e.preventDefault();
-      void remove(id);
-      return;
-    }
-    if (e.key === "Tab" && !e.altKey && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      void moveByKey(id, e.shiftKey ? "outdent" : "indent");
-      return;
-    }
-    if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      if (e.altKey) {
-        void moveByKey(id, e.key === "ArrowUp" ? "up" : "down");
-      } else {
-        moveSelection(id, e.key === "ArrowUp" ? -1 : 1);
+    if (e.ctrlKey || e.metaKey) return;
+
+    // Alt is consumed only by the legacy ArrowUp/Down reorder aliases; any
+    // other alt-chord falls through to the browser unchanged.
+    if (e.altKey) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        void moveByKey(id, "down");
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        void moveByKey(id, "up");
       }
+      return;
+    }
+
+    const key = e.shiftKey && e.key === "Tab" ? "Shift+Tab" : e.key;
+    const action = ROW_KEY_ACTIONS[key];
+    if (action) {
+      e.preventDefault();
+      action(id);
     }
   };
 
@@ -509,8 +534,18 @@ export function App() {
                 const dt = dropTarget();
                 return dt?.id === row.task.id ? dt.zone : null;
               });
+              let rowEl!: HTMLDivElement;
+              // When focusedId matches this row, focus its DOM element. Runs
+              // on mount and whenever focusedId changes — so a mutation that
+              // tears down and rebuilds this row (Collection delta after
+              // toggle / move) re-establishes focus the moment the new
+              // element is bound.
+              createEffect(() => {
+                if (focusedId() === row.task.id) rowEl.focus();
+              });
               return (
                 <div
+                  ref={rowEl}
                   class="row"
                   classList={{
                     "is-done": row.task.status === "done",
@@ -585,18 +620,18 @@ export function App() {
           <kbd>↵</kbd> to add the typed task
         </span>
         <span>
-          <kbd>↑</kbd>
-          <kbd>↓</kbd> to move selection
+          <kbd>j</kbd>
+          <kbd>k</kbd> to move selection
         </span>
         <span>
-          <kbd>Tab</kbd> / <kbd>⇧Tab</kbd> to indent / outdent
+          <kbd>l</kbd> / <kbd>h</kbd> to indent / outdent
         </span>
         <span>
-          <kbd>Alt</kbd>+<kbd>↑</kbd>
-          <kbd>↓</kbd> to reorder siblings
+          <kbd>⇧J</kbd>
+          <kbd>⇧K</kbd> to reorder siblings
         </span>
         <span>
-          <kbd>Space</kbd> toggle · <kbd>⌫</kbd> delete · <kbd>/</kbd> search
+          <kbd>Space</kbd> toggle · <kbd>x</kbd> delete · <kbd>/</kbd> search
         </span>
       </div>
 
