@@ -24,7 +24,7 @@ import { app } from "./wire";
 const api = app.rpc.surface.tasks;
 
 // ── Tree derivation: flat Task[] → ordered, indented rows ─────────────
-type Row = { task: Task; depth: number; visible: boolean; dimmed: boolean };
+type Row = { task: Task; depth: number; dimmed: boolean };
 
 const byParentMap = (tasks: Task[]): Map<TaskId | null, Task[]> => {
   const out = new Map<TaskId | null, Task[]>();
@@ -191,7 +191,6 @@ export function App() {
       return list.map((task) => ({
         task,
         depth: depths.get(task.id) ?? 0,
-        visible: true,
         dimmed: false,
       }));
     }
@@ -203,7 +202,6 @@ export function App() {
       .map((task) => ({
         task,
         depth: depths.get(task.id) ?? 0,
-        visible: true,
         dimmed: !matched.has(task.id),
       }));
   });
@@ -221,11 +219,13 @@ export function App() {
 
   const handleKeyDown = async (e: KeyboardEvent) => {
     if (e.key !== "Enter") return;
-    const parsed = parseInput(query());
-    if (!parsed) return;
     // Query arm: filter is already applied live; Enter is a no-op so the
-    // input keeps focus and the user can refine their query.
-    if (parsed.kind === "query") return;
+    // input keeps focus and the user can refine their query. Reading
+    // `filterQuery()` here keeps `parseInput` callers down to one — the
+    // create arm below — instead of re-parsing the signal a second time.
+    if (filterQuery() !== null) return;
+    const parsed = parseInput(query());
+    if (!parsed || parsed.kind !== "create") return;
     e.preventDefault();
     const created = await callMutation(() => api.add({ title: parsed.title, parentId: null }));
     if (!created) return;
