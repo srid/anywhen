@@ -20,9 +20,11 @@ default: nix nixos-test typecheck biome fmt-check e2e
 
 # Single per-platform `bun install`. Funnel every bun consumer through this
 # node so concurrent `bun install` runs against the same workspace don't race.
+# @kolu/surface hydration goes through the shared script
+# (nix/scripts/hydrate-surface.sh) — same as justfile + shell.nix.
 install:
     {{ nix_shell }} bun install
-    {{ nix_shell }} sh -c 'mkdir -p node_modules/@kolu && rm -rf node_modules/@kolu/surface && cp -rL "$ANYWHEN_KOLU_SURFACE" node_modules/@kolu/surface && chmod -R u+w node_modules/@kolu/surface'
+    {{ nix_shell }} bash nix/scripts/hydrate-surface.sh "$ANYWHEN_KOLU_SURFACE" node_modules
 
 # Build all flake outputs via devour-flake.
 nix:

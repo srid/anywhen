@@ -113,16 +113,11 @@ stdenv.mkDerivation {
     runHook preBuild
 
     # Hydrate node_modules from the FOD, then overlay @kolu/surface
-    # from the npins-pinned source — same shape as shell.nix's hook.
-    # `cp -r` (not symlink) because TypeScript resolves transitive
-    # imports from the *real* file location; a symlink target inside
-    # /nix/store has no adjacent node_modules.
+    # via the shared script (nix/scripts/hydrate-surface.sh — same
+    # script the dev shell, justfile, and ci/mod.just invoke).
     cp -r ${nodeModules}/node_modules ./node_modules
     chmod -R u+w ./node_modules
-    rm -rf ./node_modules/@kolu/surface
-    mkdir -p ./node_modules/@kolu
-    cp -rL ${anywhen-kolu-surface} ./node_modules/@kolu/surface
-    chmod -R u+w ./node_modules/@kolu/surface
+    bash ${../../scripts/hydrate-surface.sh} ${anywhen-kolu-surface} ./node_modules
 
     # Pre-build the client bundle so the server never tries to write
     # into the read-only Nix store at runtime. The server skips its own
