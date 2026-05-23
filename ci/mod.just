@@ -48,6 +48,7 @@ fmt-check: install
 # `pnpm-hash-fresh` pattern from /tmp/kolu-research/default.nix:44.
 bun-nix-fresh:
     {{ nix_shell }} sh -c '\
+      set -eu; \
       tmp=$(mktemp -d); \
       trap "rm -rf $tmp" EXIT; \
       nix run .#bun2nix -- -l bun.lock -o "$tmp/bun.nix"; \
