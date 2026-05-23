@@ -5,6 +5,7 @@
   --muted: #8c8378;
   --line: #e6dfd2;
   --accent: #7a623d;
+  --accent-dark: #6a5535;
   --done: #6b8e53;
   --todo: #a8a098;
   --soft: #f4f0e6;
@@ -116,7 +117,7 @@ h1 .dot {
 }
 .add-btn:hover:not(:disabled),
 .add-btn:focus-visible:not(:disabled) {
-  background: #6a5535;
+  background: var(--accent-dark);
   outline: none;
 }
 .add-btn:disabled {
