@@ -117,8 +117,14 @@ const DRAG_MOVE_THRESHOLD = 5;
 // "I want to drag this row". 350ms is the iOS-ish window.
 const DRAG_LONGPRESS_MS = 350;
 
-const isMacPlatform = (): boolean =>
-  typeof navigator !== "undefined" && /Mac|iPhone|iPod|iPad/.test(navigator.platform);
+// Mac desktop only — iOS devices match /Mac/ in the UA but lack a Cmd key, so
+// the hint should read "Ctrl" there. `navigator.platform` is deprecated; the
+// userAgent contains "Mac OS X" on macOS and "iPhone"/"iPad"/"iPod" on iOS.
+const isMacPlatform = (): boolean => {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return /Mac/.test(ua) && !/iPhone|iPad|iPod/.test(ua);
+};
 
 export function App() {
   // Live subscription to the tasks Collection. `notes.keys()` is a reactive
