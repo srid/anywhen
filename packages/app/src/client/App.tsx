@@ -275,21 +275,18 @@ export function App() {
   };
 
   // Editor key handling kept adjacent to the other edit lifecycle functions
-  // so "what keys edit mode responds to" is one cohesive unit. Enter commits;
-  // Escape discards; every other key stops propagation so the row's vim
-  // handler can't fire on typing keys (the row guard at handleRowKeyDown is
-  // the primary defense, this is belt-and-suspenders).
+  // so "what keys edit mode responds to" is one cohesive unit. Every key
+  // stops propagation so the row's vim handler can't fire on typing keys
+  // (the row guard at handleRowKeyDown is the primary defense; this is
+  // belt-and-suspenders). Enter commits; Escape discards.
   const handleEditKeyDown = (ev: KeyboardEvent) => {
+    ev.stopPropagation();
     if (ev.key === "Enter") {
       ev.preventDefault();
-      ev.stopPropagation();
       void commitEdit();
     } else if (ev.key === "Escape") {
       ev.preventDefault();
-      ev.stopPropagation();
       cancelEdit();
-    } else {
-      ev.stopPropagation();
     }
   };
 
