@@ -5,8 +5,7 @@
 // query layer stays a within-`storage/` change.
 
 import { Database as BunDatabase } from "bun:sqlite";
-import { promises as fs } from "node:fs";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, promises as fs } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BunSqliteDialect } from "@meck93/kysely-bun-sqlite";
