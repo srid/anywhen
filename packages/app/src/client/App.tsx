@@ -699,7 +699,7 @@ export function App() {
                       class="title-edit"
                       data-testid="task-edit-input"
                       type="text"
-                      aria-label={`Edit title for ${row.task.title}`}
+                      aria-label={`Edit title for ${editing()?.originalTitle ?? row.task.title}`}
                       value={editing()?.draft ?? ""}
                       onInput={(ev) => {
                         const current = editing();
