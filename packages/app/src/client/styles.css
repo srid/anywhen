@@ -143,9 +143,8 @@ h1 .dot {
   touch-action: pan-y;
   /* Suppress the native long-press text-selection (and iOS callout/magnifier)
      during the 350ms drag-arming window — the row is an interactive draggable,
-     not selectable text. */
+     not selectable text. -webkit-touch-callout has no standard equivalent. */
   user-select: none;
-  -webkit-user-select: none;
   -webkit-touch-callout: none;
 }
 .row:hover {
