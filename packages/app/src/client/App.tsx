@@ -120,6 +120,14 @@ const DRAG_MOVE_THRESHOLD = 5;
 // "I want to drag this row". 350ms is the iOS-ish window.
 const DRAG_LONGPRESS_MS = 350;
 
+// Backup filename uses the local date — Dropbox-friendly, sorts well,
+// and matches the unit the user thinks in ("today's backup").
+const backupFilename = (): string => {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `anywhen-backup-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.json`;
+};
+
 export function App() {
   // Live subscription to the tasks Collection. `notes.keys()` is a reactive
   // accessor; `notes.byKey(id)?.()` is the per-row value, undefined until
@@ -304,14 +312,6 @@ export function App() {
       e.preventDefault();
       action(id);
     }
-  };
-
-  // Backup filename uses the local date — Dropbox-friendly, sorts well,
-  // and matches the unit the user thinks in ("today's backup").
-  const backupFilename = (): string => {
-    const d = new Date();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `anywhen-backup-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.json`;
   };
 
   const exportTasks = async () => {
