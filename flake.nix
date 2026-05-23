@@ -6,15 +6,12 @@
   outputs = { self, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
-      linuxSystems = [ "x86_64-linux" "aarch64-linux" ];
-      forSystems = systems': f: builtins.listToAttrs (map
+      eachSystem = f: builtins.listToAttrs (map
         (system: {
           name = system;
           value = f (import ./nix/nixpkgs.nix { inherit system; });
         })
-        systems');
-      eachSystem = forSystems systems;
-      eachLinuxSystem = forSystems linuxSystems;
+        systems);
     in
     {
       packages = eachSystem (pkgs: {
@@ -23,20 +20,18 @@
         kolu-surface = pkgs.anywhen-kolu-surface;
       });
 
-      # NixOS module — see nix/nixos/module.nix. Consumers wire it as:
+      # NixOS module — see nix/nixos/module.nix. The VM test that
+      # exercises it lives in nix/nixos/example/flake.nix (a separate
+      # flake with its own inputs, mirroring kolu's home-manager-example
+      # pattern) so this top-level flake stays zero-input. CI builds the
+      # example via `just ci nixos-test`.
+      #
+      # Consumers wire the module as:
       #
       #   imports = [ anywhen.nixosModules.default ];
       #   services.anywhen.enable = true;
       #   services.anywhen.package = pkgs.anywhen;  # see README
       nixosModules.default = import ./nix/nixos/module.nix;
-
-      # VM test — boots NixOS with services.anywhen and verifies the
-      # systemd unit + port binding + StateDirectory wiring. Linux-only
-      # because nixosTest needs a kvm/qemu host. devour-flake picks
-      # this up during `nix run github:juspay/justci` on Linux nodes.
-      checks = eachLinuxSystem (pkgs: {
-        vm-test = import ./nix/nixos/test.nix { inherit pkgs; };
-      });
 
       # `nix fmt` — format *.nix files only. JS/TS/CSS/JSON go through Biome
       # via `just fmt`; pulling Biome into the flake formatter would require

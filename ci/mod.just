@@ -16,7 +16,7 @@ nix_shell_e2e := if env('PLAYWRIGHT_BROWSERS_PATH', '') != '' { '' } else { 'nix
 [macos]
 [parallel]
 [metadata("ci")]
-default: nix typecheck biome fmt-check e2e
+default: nix nixos-test typecheck biome fmt-check e2e
 
 # Single per-platform `bun install`. Funnel every bun consumer through this
 # node so concurrent `bun install` runs against the same workspace don't race.
@@ -27,6 +27,15 @@ install:
 # Build all flake outputs via devour-flake.
 nix:
     nix build github:srid/devour-flake -L --no-link --print-out-paths --override-input flake .
+
+# Build the NixOS example flake (nix/nixos/example) — exposes
+# checks.<linux>.vm-test which boots services.anywhen under qemu and
+# verifies the module end-to-end. `--override-input flake/anywhen .`
+# points the example's `anywhen` input at this repo's worktree so the
+# test runs against the local module, not against github:srid/anywhen.
+# Mirrors kolu's `home-manager` recipe.
+nixos-test: nix
+    nix build github:srid/devour-flake -L --no-link --print-out-paths --override-input flake ./nix/nixos/example --override-input flake/anywhen .
 
 # TypeScript type checking across the workspace
 typecheck: install

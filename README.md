@@ -66,7 +66,7 @@ nix/
   env.nix                               # ANYWHEN_* shared env vars
   packages/surface/default.nix          # extracts packages/surface from kolu
   nixos/module.nix                      # services.anywhen NixOS module
-  nixos/test.nix                        # VM test (flake.checks.<linux>.vm-test)
+  nixos/example/flake.nix               # consumer example + VM test (separate flake)
 npins/sources.json                      # nixpkgs + kolu (juspay/kolu master)
 bunfig.toml                             # bun workspace install config (hoisted)
 biome.json · tsconfig.base.json
@@ -109,12 +109,17 @@ deployment, not a per-user agent).
 }
 ```
 
-A NixOS VM test at `nix/nixos/test.nix` boots the module under qemu and
-verifies the systemd unit, port binding, and `StateDirectory` wiring. It
-runs as `flake.checks.x86_64-linux.vm-test` and is exercised by
-`devour-flake` inside the `nix:` CI recipe. The test currently wires a
-stub package; the production bun-bundle derivation lands alongside the
-module's `services.anywhen.package` default in the follow-up package PR.
+A NixOS VM test lives in `nix/nixos/example/flake.nix` — a separate
+flake that imports the top-level `anywhen` flake as an input, mirroring
+[kolu's home-manager example](https://github.com/juspay/kolu/blob/master/nix/home/example/flake.nix).
+Keeping the test out of the top-level flake preserves anywhen's
+zero-input convention; only the example flake carries the
+`nixpkgs`/`anywhen` inputs needed for `testers.nixosTest`. CI runs it
+via the `nixos-test` recipe in `ci/mod.just`, which builds the example
+with `--override-input flake/anywhen .` so the test runs against the
+local checkout. The test currently wires a stub package; the production
+bun-bundle derivation lands alongside the module's
+`services.anywhen.package` default in the follow-up package PR.
 
 ## CI
 

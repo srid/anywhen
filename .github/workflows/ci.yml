@@ -46,10 +46,16 @@ jobs:
         run: nix develop --command just lint
       - name: e2e
         run: nix develop .#e2e --command just test
-      # Builds every flake output for the current system — including
-      # `checks.x86_64-linux.vm-test`, which boots the NixOS module under
-      # qemu and is otherwise invisible to typecheck/lint/e2e. Once justci's
-      # `just dump` parser handles `just` 1.46+, this collapses back into
-      # the `nix run github:juspay/justci` invocation noted above.
+      # Builds every flake output of the top-level flake for the current
+      # system. Once justci's `just dump` parser handles `just` 1.46+,
+      # this collapses back into the `nix run github:juspay/justci`
+      # invocation noted above.
       - name: nix-build
         run: nix develop --command just ci nix
+      # Builds the NixOS example flake (nix/nixos/example) — exposes
+      # `checks.x86_64-linux.vm-test`, which boots services.anywhen
+      # under qemu against the local module. Separate step because the
+      # example flake has its own inputs (nixpkgs, anywhen) so it isn't
+      # reachable from the top-level zero-input flake.
+      - name: nixos-test
+        run: nix develop --command just ci nixos-test
