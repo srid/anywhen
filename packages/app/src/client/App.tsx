@@ -88,15 +88,17 @@ const descendantsOf = (tasks: Task[], rootId: TaskId): Set<TaskId> => {
 // Same-parent siblings in position order, plus the task's index inside that
 // list. Keyboard reordering needs both (the "ref" sibling sits one slot away)
 // and indent needs the previous sibling; computing them together avoids
-// re-sorting the same array twice.
+// re-sorting the same array twice. Routes through `byParentMap` so the
+// "siblings = children of parent in position order" derivation lives in one
+// place; the `slice()` keeps the cached array unmutated for other callers.
 const siblingsOf = (
   tasks: Task[],
   id: TaskId,
 ): { siblings: Task[]; index: number; task: Task } | null => {
   const task = tasks.find((t) => t.id === id);
   if (!task) return null;
-  const siblings = tasks
-    .filter((t) => t.parentId === task.parentId)
+  const siblings = (byParentMap(tasks).get(task.parentId) ?? [])
+    .slice()
     .sort((a, b) => a.position - b.position);
   const index = siblings.findIndex((s) => s.id === id);
   return { siblings, index, task };
