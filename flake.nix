@@ -15,9 +15,8 @@
     in
     {
       packages = eachSystem (pkgs: {
-        # @kolu/surface source path — exposed so `nix build .#kolu-surface`
-        # realizes the store path used by the dev shell's symlink hook.
-        kolu-surface = pkgs.anywhen-kolu-surface;
+        default = pkgs.anywhen;
+        anywhen = pkgs.anywhen;
       });
 
       # NixOS module — see nix/nixos/module.nix. The VM test that

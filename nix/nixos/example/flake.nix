@@ -19,31 +19,10 @@
       linuxSystem = "x86_64-linux";
       linuxPkgs = nixpkgs.legacyPackages.${linuxSystem};
 
-      # Stub package — mimics anywhen's runtime contract (reads PORT and
-      # ANYWHEN_STATE_DIR, listens on PORT, answers /api/health) without
-      # dragging bun packaging into this PR. Swapped for the production
-      # `anywhen.packages.${system}.default` once that derivation lands.
-      stubPackage = linuxPkgs.writeShellApplication {
-        name = "anywhen";
-        runtimeInputs = [ linuxPkgs.python3 ];
-        text = ''
-          : "''${PORT:?PORT must be set}"
-          : "''${ANYWHEN_STATE_DIR:?ANYWHEN_STATE_DIR must be set}"
-          mkdir -p "$ANYWHEN_STATE_DIR"
-          : > "$ANYWHEN_STATE_DIR/anywhen.db"
-          exec python3 -c '
-          import http.server, os
-          class H(http.server.BaseHTTPRequestHandler):
-              def do_GET(self):
-                  if self.path == "/api/health":
-                      self.send_response(200); self.end_headers(); self.wfile.write(b"ok")
-                  else:
-                      self.send_response(404); self.end_headers()
-              def log_message(self, *a, **k): pass
-          http.server.HTTPServer(("0.0.0.0", int(os.environ["PORT"])), H).serve_forever()
-          '
-        '';
-      };
+      # The production anywhen package — pulled from the local checkout
+      # in CI via `--override-input flake/anywhen .`. Same closure that
+      # `services.anywhen.package = pkgs.anywhen` would consume.
+      anywhenPackage = anywhen.packages.${linuxSystem}.default;
     in
     {
       # Default machine — exercises the managed branch (systemd creates
@@ -60,7 +39,7 @@
 
             services.anywhen = {
               enable = true;
-              package = stubPackage;
+              package = anywhenPackage;
             };
           }
         ];
@@ -78,7 +57,7 @@
 
             services.anywhen = {
               enable = true;
-              package = stubPackage;
+              package = anywhenPackage;
             };
           };
 
@@ -91,7 +70,7 @@
 
             services.anywhen = {
               enable = true;
-              package = stubPackage;
+              package = anywhenPackage;
               port = 7711;
               stateDir = "/srv/anywhen-state";
               manageStateDir = false;

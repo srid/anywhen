@@ -78,6 +78,7 @@ nix/
   overlay.nix                           # adds anywhen-kolu-surface to pkgs
   env.nix                               # ANYWHEN_* shared env vars
   packages/surface/default.nix          # extracts packages/surface from kolu
+  packages/anywhen/default.nix          # anywhen app package (bun + dist)
   nixos/module.nix                      # services.anywhen NixOS module
   nixos/example/flake.nix               # consumer example + VM test (separate flake)
 npins/sources.json                      # nixpkgs + kolu (juspay/kolu master)
@@ -116,11 +117,20 @@ deployment, not a per-user agent).
   imports = [ inputs.anywhen.nixosModules.default ];
   services.anywhen = {
     enable = true;
-    package = pkgs.anywhen;   # added in a follow-up PR
+    package = pkgs.anywhen;   # production build — see nix/packages/anywhen
+    host = "0.0.0.0";         # default
     port = 7700;              # default
   };
 }
 ```
+
+`flake.packages.<system>.anywhen` (also `default`) is the production
+binary — a `bin/anywhen` wrapper around `bun` running
+`packages/app/src/server/index.ts` against a frozen `node_modules` tree
+and a pre-built client bundle, all materialized inside the Nix store.
+The deps are captured via a fixed-output derivation
+(`nix/packages/anywhen/default.nix`); updating `bun.lock` invalidates
+`outputHash` and forces a refetch.
 
 A NixOS VM test lives in `nix/nixos/example/flake.nix` — a separate
 flake that imports the top-level `anywhen` flake as an input, mirroring
@@ -130,9 +140,7 @@ zero-input convention; only the example flake carries the
 `nixpkgs`/`anywhen` inputs needed for `testers.nixosTest`. CI runs it
 via the `nixos-test` recipe in `ci/mod.just`, which builds the example
 with `--override-input flake/anywhen .` so the test runs against the
-local checkout. The test currently wires a stub package; the production
-bun-bundle derivation lands alongside the module's
-`services.anywhen.package` default in the follow-up package PR.
+local checkout.
 
 ## CI
 

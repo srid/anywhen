@@ -1,10 +1,11 @@
-# Root composer for anywhen Nix packages.
-#
-# For PR 1, the only consumable derivation is `kolu-surface` (the upstream
-# source path for @kolu/surface). The app itself is run via `bun` from the
-# dev shell — no `nix build` of the app yet. A future PR will add an
-# anywhen package derivation (bun bundle + sqlite migrations baked in).
+# Root composer for anywhen Nix packages. `default` is the production
+# anywhen app binary (`bin/anywhen` — `bun` running the server against a
+# pre-built client bundle and a frozen node_modules tree); the
+# `anywhen-kolu-surface` source path is exposed for the dev-shell hook
+# that hydrates `node_modules/@kolu/surface` and for the package
+# derivation's own build phase.
 { pkgs ? import ./nix/nixpkgs.nix { } }:
 {
-  inherit (pkgs) anywhen-kolu-surface;
+  inherit (pkgs) anywhen anywhen-kolu-surface;
+  default = pkgs.anywhen;
 }

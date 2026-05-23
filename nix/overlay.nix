@@ -2,4 +2,5 @@
 final: _prev:
 {
   anywhen-kolu-surface = final.callPackage ./packages/surface { };
+  anywhen = final.callPackage ./packages/anywhen { };
 }
