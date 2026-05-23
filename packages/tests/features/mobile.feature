@@ -57,3 +57,8 @@ Feature: Mobile UX — touch input on a phone-sized viewport
     Then the delete button on the task titled "throwaway" should be revealed without hover
     When I click the delete button on the task titled "throwaway"
     Then the tree should not contain a task titled "throwaway"
+
+  Scenario: the edit button is visible on touch without hovering
+    Given the app is running with a fresh database
+    When I add a task titled "tap me"
+    Then the edit button on the task titled "tap me" should be revealed without hover

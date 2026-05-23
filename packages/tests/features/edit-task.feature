@@ -47,12 +47,6 @@ Feature: Edit a task's title
     Then the tree should contain a task titled "unchanged"
 
   @mobile
-  Scenario: the edit button is visible on touch without hovering
-    Given the app is running with a fresh database
-    When I add a task titled "tap me"
-    Then the edit button on the task titled "tap me" should be revealed without hover
-
-  @mobile
   Scenario: rename a task on touch by tapping the edit button
     Given the app is running with a fresh database
     When I add a task titled "old name"
