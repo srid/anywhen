@@ -24,7 +24,7 @@ default: nix nixos-test typecheck biome fmt-check e2e
 # (nix/scripts/hydrate-surface.sh) — same as justfile + shell.nix.
 install:
     {{ nix_shell }} bun install
-    {{ nix_shell }} bash nix/scripts/hydrate-surface.sh "$ANYWHEN_KOLU_SURFACE" node_modules
+    {{ nix_shell }} sh -c 'bash nix/scripts/hydrate-surface.sh "$ANYWHEN_KOLU_SURFACE" node_modules'
 
 # Build all flake outputs via devour-flake.
 nix:

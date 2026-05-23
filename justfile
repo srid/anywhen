@@ -15,10 +15,13 @@ default:
     @just --list
 
 # Install dependencies (bun) and re-link @kolu/surface from the nix store
-# via the shared script (see nix/scripts/hydrate-surface.sh).
+# via the shared script (see nix/scripts/hydrate-surface.sh). The
+# `sh -c` wrapper is load-bearing — `$ANYWHEN_KOLU_SURFACE` must be
+# expanded inside the dev shell (where the overlay sets it), not in
+# just's outer shell which has no such variable.
 install:
     {{ nix_shell }} bun install
-    {{ nix_shell }} bash nix/scripts/hydrate-surface.sh "$ANYWHEN_KOLU_SURFACE" node_modules
+    {{ nix_shell }} sh -c 'bash nix/scripts/hydrate-surface.sh "$ANYWHEN_KOLU_SURFACE" node_modules'
 
 # Run the app with auto-reload
 dev: install
