@@ -11,6 +11,15 @@ import type { AnywhenWorld } from "../support/world";
 const isDropZone = (value: string): value is DropZone =>
   (DROP_ZONES as readonly string[]).includes(value);
 
+// Row-relative Y for the centre of each drop zone — derived from the same
+// ratios the UI's zoneAt() reads. One module-scoped table so a future
+// threshold tweak in App.tsx moves both the mouse and touch step in lockstep.
+const ZONE_CENTRE: Record<DropZone, number> = {
+  before: ZONE_BEFORE_RATIO / 2,
+  inside: (ZONE_BEFORE_RATIO + ZONE_AFTER_RATIO) / 2,
+  after: (ZONE_AFTER_RATIO + 1) / 2,
+};
+
 Given("the app is running with a fresh database", async function (this: AnywhenWorld) {
   // BeforeAll spawned one server with a temp ANYWHEN_STATE_DIR; scenarios
   // share it. Reset the tasks table via the surface's __test__reset verb
@@ -33,6 +42,18 @@ When("I press Enter in the search box", async function (this: AnywhenWorld) {
   await this.page.locator('[data-testid="search-input"]').press("Enter");
 });
 
+// Type a title + commit with Enter. Used everywhere a scenario needs to seed
+// a task — collapses the old "type '+ X' then press Enter" pair.
+When("I add a task titled {string}", async function (this: AnywhenWorld, title: string) {
+  const input = this.page.locator('[data-testid="search-input"]');
+  await input.fill(title);
+  await input.press("Enter");
+});
+
+When("I click the add button", async function (this: AnywhenWorld) {
+  await this.page.locator('[data-testid="add-button"]').click();
+});
+
 When(
   "I click the checkbox on the task titled {string}",
   async function (this: AnywhenWorld, title: string) {
@@ -45,8 +66,31 @@ When(
   "I click the delete button on the task titled {string}",
   async function (this: AnywhenWorld, title: string) {
     const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
-    await row.hover();
-    await row.locator('[data-testid="task-delete"]').click();
+    // Click without hover so the mobile "visible without hovering" scenario
+    // isn't silently rescued by a synthesized :hover state. Force-clicks
+    // bypass Playwright's actionability gate — fine here because visibility
+    // is asserted separately on the mobile path (see the dedicated step
+    // below) and the desktop scenarios assert behavior, not pixel visibility.
+    await row.locator('[data-testid="task-delete"]').click({ force: true });
+  },
+);
+
+// Mobile scenarios assert the CSS @media (pointer: coarse) rule actually
+// reveals the delete button. Playwright's toBeVisible() doesn't check opacity,
+// so we read the computed value directly — opacity 1 means the coarse-pointer
+// rule applied; opacity 0 means the row's hover-only rule is in effect.
+Then(
+  "the delete button on the task titled {string} should be revealed without hover",
+  async function (this: AnywhenWorld, title: string) {
+    const btn = this.page
+      .locator(`[data-testid="task-row"][data-task-title="${title}"]`)
+      .locator('[data-testid="task-delete"]');
+    const opacity = await btn.evaluate((el) => Number(getComputedStyle(el).opacity));
+    if (opacity < 1) {
+      throw new Error(
+        `delete button opacity was ${opacity}; the @media (pointer: coarse) rule did not apply`,
+      );
+    }
   },
 );
 
@@ -80,6 +124,54 @@ Then(
 // raw mouse API with `steps` to force interpolated moves, landing the final
 // position inside the target row's before / inside / after zone (matching
 // the 25% / 75% split in client/App.tsx → zoneAt).
+// Touch-driven reorder: long-press on the source row, then move to the
+// target's drop zone. We dispatch synthetic PointerEvents on the rows
+// directly (with pointerType: "touch") rather than firing CDP touch events
+// — Chromium's touch → pointer-event translation through the input
+// pipeline is unreliable in headless test mode. The handlers under test
+// consume PointerEvents regardless of provenance, so this exercises the
+// long-press + drop-zone logic with the same fidelity and far less
+// flake.
+When(
+  "I touch-drag the task titled {string} {word} the task titled {string}",
+  async function (this: AnywhenWorld, source: string, where: string, target: string) {
+    if (!isDropZone(where)) {
+      throw new Error(`Unknown drop zone: ${where} (expected ${DROP_ZONES.join(", ")})`);
+    }
+    const sourceRow = this.page.locator(`[data-testid="task-row"][data-task-title="${source}"]`);
+    const targetRow = this.page.locator(`[data-testid="task-row"][data-task-title="${target}"]`);
+    const sourceBox = await sourceRow.boundingBox();
+    const targetBox = await targetRow.boundingBox();
+    if (!sourceBox || !targetBox) throw new Error("Could not measure rows for touch-drag");
+    const sx = sourceBox.x + sourceBox.width / 2;
+    const sy = sourceBox.y + sourceBox.height / 2;
+    const dx = targetBox.x + targetBox.width / 2;
+    const dy = targetBox.y + targetBox.height * ZONE_CENTRE[where];
+    const pointer = {
+      pointerType: "touch",
+      pointerId: 1,
+      isPrimary: true,
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      buttons: 1,
+    };
+    await sourceRow.dispatchEvent("pointerdown", { ...pointer, clientX: sx, clientY: sy });
+    // Wait past the long-press window (DRAG_LONGPRESS_MS = 350 in App.tsx).
+    await this.page.waitForTimeout(450);
+    await sourceRow.dispatchEvent("pointermove", { ...pointer, clientX: dx, clientY: dy });
+    // A second move lets the dropTarget signal settle on the final zone
+    // before pointerup commits.
+    await sourceRow.dispatchEvent("pointermove", { ...pointer, clientX: dx, clientY: dy });
+    await sourceRow.dispatchEvent("pointerup", {
+      ...pointer,
+      clientX: dx,
+      clientY: dy,
+      buttons: 0,
+    });
+  },
+);
+
 When(
   "I drag the task titled {string} {word} the task titled {string}",
   async function (this: AnywhenWorld, source: string, where: string, target: string) {
@@ -91,15 +183,7 @@ When(
     const sourceBox = await sourceRow.boundingBox();
     const targetBox = await targetRow.boundingBox();
     if (!sourceBox || !targetBox) throw new Error("Could not measure rows for drag");
-    // Land in the middle of the chosen zone. The zone boundaries come from
-    // ZONE_BEFORE_RATIO / ZONE_AFTER_RATIO so a threshold tweak in App.tsx
-    // moves the test along with it.
-    const zoneCentre: Record<DropZone, number> = {
-      before: ZONE_BEFORE_RATIO / 2,
-      inside: (ZONE_BEFORE_RATIO + ZONE_AFTER_RATIO) / 2,
-      after: (ZONE_AFTER_RATIO + 1) / 2,
-    };
-    const dropY = targetBox.y + targetBox.height * zoneCentre[where];
+    const dropY = targetBox.y + targetBox.height * ZONE_CENTRE[where];
     const dropX = targetBox.x + targetBox.width / 2;
     await this.page.mouse.move(
       sourceBox.x + sourceBox.width / 2,
@@ -110,7 +194,9 @@ When(
     // then to the precise drop zone. The intermediate steps trigger the
     // dragstart / dragenter / dragover sequence that headless Chromium
     // skips when mousedown and mouseup share a frame.
-    await this.page.mouse.move(dropX, targetBox.y + targetBox.height / 2, { steps: 10 });
+    await this.page.mouse.move(dropX, targetBox.y + targetBox.height / 2, {
+      steps: 10,
+    });
     await this.page.mouse.move(dropX, dropY, { steps: 5 });
     await this.page.mouse.up();
   },

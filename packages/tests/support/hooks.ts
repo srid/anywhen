@@ -86,11 +86,26 @@ BeforeAll({ timeout: 30_000 }, async () => {
   });
 });
 
-Before(async function (this: AnywhenWorld) {
+Before({ tags: "not @mobile" }, async function (this: AnywhenWorld) {
   if (!browserSingleton) throw new Error("Browser was not initialised by BeforeAll");
   this.serverUrl = serverUrl;
   this.browser = browserSingleton;
   this.context = await this.browser.newContext();
+  this.page = await this.context.newPage();
+});
+
+// Scenarios tagged @mobile get a touch-enabled phone-sized context so the
+// long-press drag handler exercises the pointerType='touch' branch and the
+// mobile media queries kick in.
+Before({ tags: "@mobile" }, async function (this: AnywhenWorld) {
+  if (!browserSingleton) throw new Error("Browser was not initialised by BeforeAll");
+  this.serverUrl = serverUrl;
+  this.browser = browserSingleton;
+  this.context = await this.browser.newContext({
+    hasTouch: true,
+    isMobile: true,
+    viewport: { width: 390, height: 844 },
+  });
   this.page = await this.context.newPage();
 });
 
