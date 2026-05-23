@@ -28,6 +28,15 @@ install:
 nix:
     nix build github:srid/devour-flake -L --no-link --print-out-paths --override-input flake .
 
+# Build the NixOS example flake (nix/nixos/example) — exposes
+# checks.<linux>.vm-test which boots services.anywhen under qemu and
+# verifies the module end-to-end. `--override-input flake/anywhen .`
+# points the example's `anywhen` input at this repo's worktree so the
+# test runs against the local module, not against github:srid/anywhen.
+# Mirrors kolu's `home-manager` recipe.
+nixos-test: nix
+    nix build github:srid/devour-flake -L --no-link --print-out-paths --override-input flake ./nix/nixos/example --override-input flake/anywhen .
+
 # TypeScript type checking across the workspace
 typecheck: install
     {{ nix_shell }} bun --cwd packages/app typecheck
