@@ -701,6 +701,9 @@ export function App() {
         <span class="runtime-sep" aria-hidden="true">
           ·
         </span>
+        {/* "…" is the loading placeholder shown until runtime.info resolves.
+            Fetch errors are logged via the createEffect on runtimeInfo.error,
+            so a "…" that never clears is a cue to check the console. */}
         <span class="runtime-host" title="Server hostname">
           <span class="runtime-label">host</span>
           <code data-testid="footer-hostname">{runtimeInfo()?.hostname ?? "…"}</code>
