@@ -133,11 +133,17 @@ export function App() {
   // handler survives the <For>'s teardown-and-rebuild when the Collection
   // delta arrives — the new row's effect runs on mount and reads the signal.
   const [focusedId, setFocusedId] = createSignal<TaskId | null>(null);
-  // Inline title editor. Modelled as a single `{ id, draft }` signal rather
-  // than two parallel signals so "draft is meaningful only while editing
-  // some id" is structural — you can't end up in a state where one is set
-  // and the other isn't. null = no row is being edited.
-  const [editing, setEditing] = createSignal<{ id: TaskId; draft: string } | null>(null);
+  // Inline title editor. `originalTitle` is captured at beginEdit time so
+  // both the unchanged-title guard and the input's aria-label read a stable
+  // baseline, not the live row (which can drift between mount and commit if
+  // a Collection delta arrives). `draft` evolves with the user's input.
+  // null = no row is being edited; populating the field means a session is
+  // live, so all three values are meaningful together.
+  const [editing, setEditing] = createSignal<{
+    id: TaskId;
+    originalTitle: string;
+    draft: string;
+  } | null>(null);
   const [error, setError] = createSignal<string | null>(null);
   let searchInputRef!: HTMLInputElement;
 
@@ -227,7 +233,7 @@ export function App() {
   const beginEdit = (id: TaskId) => {
     const task = taskList().find((t) => t.id === id);
     if (!task) return;
-    setEditing({ id, draft: task.title });
+    setEditing({ id, originalTitle: task.title, draft: task.title });
   };
 
   const cancelEdit = () => {
@@ -242,17 +248,22 @@ export function App() {
   // Commit the current draft if it's non-empty and actually changed. Trimming
   // mirrors the server's `min(1)` validation — a whitespace-only draft is a
   // no-op, not an error, so the user doesn't see a server rejection for
-  // tapping outside an accidentally-cleared input.
+  // tapping outside an accidentally-cleared input. On a failed mutation we
+  // keep the editor open with the draft intact: tearing down would discard
+  // the user's typing, leaving no path back to the input.
   const commitEdit = async () => {
     const e = editing();
     if (!e) return;
-    setEditing(null);
     const title = e.draft.trim();
+    if (!title || title === e.originalTitle) {
+      setEditing(null);
+      setFocusedId(e.id);
+      return;
+    }
+    const result = await callMutation(() => api.edit({ id: e.id, title }));
+    if (result === undefined) return;
+    setEditing(null);
     setFocusedId(e.id);
-    if (!title) return;
-    const task = taskList().find((t) => t.id === e.id);
-    if (task && task.title === title) return;
-    await callMutation(() => api.edit({ id: e.id, title }));
   };
 
   const moveByKey = async (id: TaskId, action: KeyMove) => {
@@ -690,9 +701,11 @@ export function App() {
                       type="text"
                       aria-label={`Edit title for ${row.task.title}`}
                       value={editing()?.draft ?? ""}
-                      onInput={(ev) =>
-                        setEditing({ id: row.task.id, draft: ev.currentTarget.value })
-                      }
+                      onInput={(ev) => {
+                        const current = editing();
+                        if (!current) return;
+                        setEditing({ ...current, draft: ev.currentTarget.value });
+                      }}
                       onKeyDown={(ev) => {
                         if (ev.key === "Enter") {
                           ev.preventDefault();
