@@ -1,6 +1,7 @@
 import { Given, When, Then } from "@cucumber/cucumber";
-import { expect } from "@playwright/test";
+import { expect, type Locator } from "@playwright/test";
 import {
+  DRAG_LONGPRESS_MS,
   DROP_ZONES,
   type DropZone,
   ZONE_AFTER_RATIO,
@@ -11,6 +12,14 @@ import type { AnywhenWorld } from "../support/world";
 const isDropZone = (value: string): value is DropZone =>
   (DROP_ZONES as readonly string[]).includes(value);
 
+// Throws with a clear message when the Gherkin step word isn't a known zone.
+// Called at the top of every drag step so bad feature-file text surfaces immediately.
+function assertDropZone(value: string): asserts value is DropZone {
+  if (!isDropZone(value)) {
+    throw new Error(`Unknown drop zone: ${value} (expected ${DROP_ZONES.join(", ")})`);
+  }
+}
+
 // Row-relative Y for the centre of each drop zone — derived from the same
 // ratios the UI's zoneAt() reads. One module-scoped table so a future
 // threshold tweak in App.tsx moves both the mouse and touch step in lockstep.
@@ -19,6 +28,76 @@ const ZONE_CENTRE: Record<DropZone, number> = {
   inside: (ZONE_BEFORE_RATIO + ZONE_AFTER_RATIO) / 2,
   after: (ZONE_AFTER_RATIO + 1) / 2,
 };
+
+// Synthetic touch-pointer descriptor used by every dispatchEvent call in the
+// touch / handle drag steps. Frozen so call sites can spread it without
+// risking accidental mutation of the shared template.
+const TOUCH_POINTER = {
+  pointerType: "touch",
+  pointerId: 1,
+  isPrimary: true,
+  bubbles: true,
+  cancelable: true,
+  button: 0,
+  buttons: 1,
+} as const;
+
+// Simulate a synthetic touch drag from `sourceRow` into the named `zone` of
+// `targetRow`. `opts.from` overrides the pointerdown target (use the row's
+// drag-handle locator to exercise the handle path); `opts.preDragDelayMs`
+// holds the pointer in place between pointerdown and the first pointermove
+// (required for long-press touch-drag, omitted for handle-drag where the
+// press bypasses the long-press timer).
+//
+// We dispatch synthetic PointerEvents on the row elements directly rather
+// than firing CDP touch events — Chromium's touch → pointer-event translation
+// through the input pipeline is unreliable in headless test mode. The
+// handlers under test consume PointerEvents regardless of provenance, so
+// this exercises the long-press + drop-zone logic with the same fidelity
+// and far less flake.
+async function dispatchTouchDrag(
+  sourceRow: Locator,
+  targetRow: Locator,
+  zone: DropZone,
+  opts: { from?: Locator; preDragDelayMs?: number } = {},
+): Promise<void> {
+  const pointerDown = opts.from ?? sourceRow;
+  const sourceBox = await pointerDown.boundingBox();
+  const targetBox = await targetRow.boundingBox();
+  if (!sourceBox || !targetBox) {
+    throw new Error("Could not measure drag endpoints");
+  }
+  const sx = sourceBox.x + sourceBox.width / 2;
+  const sy = sourceBox.y + sourceBox.height / 2;
+  const dx = targetBox.x + targetBox.width / 2;
+  const dy = targetBox.y + targetBox.height * ZONE_CENTRE[zone];
+  await pointerDown.dispatchEvent("pointerdown", {
+    ...TOUCH_POINTER,
+    clientX: sx,
+    clientY: sy,
+  });
+  if (opts.preDragDelayMs) {
+    await new Promise((r) => setTimeout(r, opts.preDragDelayMs));
+  }
+  // Two moves let the dropTarget signal settle on the final zone before
+  // pointerup commits.
+  await sourceRow.dispatchEvent("pointermove", {
+    ...TOUCH_POINTER,
+    clientX: dx,
+    clientY: dy,
+  });
+  await sourceRow.dispatchEvent("pointermove", {
+    ...TOUCH_POINTER,
+    clientX: dx,
+    clientY: dy,
+  });
+  await sourceRow.dispatchEvent("pointerup", {
+    ...TOUCH_POINTER,
+    clientX: dx,
+    clientY: dy,
+    buttons: 0,
+  });
+}
 
 Given("the app is running with a fresh database", async function (this: AnywhenWorld) {
   // BeforeAll spawned one server with a temp ANYWHEN_STATE_DIR; scenarios
@@ -106,6 +185,21 @@ Then(
   },
 );
 
+// The drag handle is display:none on fine pointers and shown as display:flex
+// by the @media (pointer: coarse) rule. Unlike the delete button (which uses
+// opacity — invisible to toBeVisible), display:none IS detected by
+// toBeVisible(), so this assertion correctly mirrors real-world touch
+// visibility.
+Then(
+  "the drag handle on the task titled {string} should be visible",
+  async function (this: AnywhenWorld, title: string) {
+    const handle = this.page
+      .locator(`[data-testid="task-row"][data-task-title="${title}"]`)
+      .locator('[data-testid="task-drag-handle"]');
+    await expect(handle).toBeVisible();
+  },
+);
+
 Then(
   "the tree should not contain a task titled {string}",
   async function (this: AnywhenWorld, title: string) {
@@ -130,66 +224,45 @@ Then(
   },
 );
 
-// HTML5 native drag-and-drop in headless Chromium needs intermediate
-// mousemove events between mousedown and mouseup — otherwise dragover never
-// fires on the target and the row's drop handler is silent. We move via the
-// raw mouse API with `steps` to force interpolated moves, landing the final
-// position inside the target row's before / inside / after zone (matching
-// the 25% / 75% split in client/App.tsx → zoneAt).
-// Touch-driven reorder: long-press on the source row, then move to the
-// target's drop zone. We dispatch synthetic PointerEvents on the rows
-// directly (with pointerType: "touch") rather than firing CDP touch events
-// — Chromium's touch → pointer-event translation through the input
-// pipeline is unreliable in headless test mode. The handlers under test
-// consume PointerEvents regardless of provenance, so this exercises the
-// long-press + drop-zone logic with the same fidelity and far less
-// flake.
 When(
   "I touch-drag the task titled {string} {word} the task titled {string}",
   async function (this: AnywhenWorld, source: string, where: string, target: string) {
-    if (!isDropZone(where)) {
-      throw new Error(`Unknown drop zone: ${where} (expected ${DROP_ZONES.join(", ")})`);
-    }
+    assertDropZone(where);
     const sourceRow = this.page.locator(`[data-testid="task-row"][data-task-title="${source}"]`);
     const targetRow = this.page.locator(`[data-testid="task-row"][data-task-title="${target}"]`);
-    const sourceBox = await sourceRow.boundingBox();
-    const targetBox = await targetRow.boundingBox();
-    if (!sourceBox || !targetBox) throw new Error("Could not measure rows for touch-drag");
-    const sx = sourceBox.x + sourceBox.width / 2;
-    const sy = sourceBox.y + sourceBox.height / 2;
-    const dx = targetBox.x + targetBox.width / 2;
-    const dy = targetBox.y + targetBox.height * ZONE_CENTRE[where];
-    const pointer = {
-      pointerType: "touch",
-      pointerId: 1,
-      isPrimary: true,
-      bubbles: true,
-      cancelable: true,
-      button: 0,
-      buttons: 1,
-    };
-    await sourceRow.dispatchEvent("pointerdown", { ...pointer, clientX: sx, clientY: sy });
-    // Wait past the long-press window (DRAG_LONGPRESS_MS = 350 in App.tsx).
-    await this.page.waitForTimeout(450);
-    await sourceRow.dispatchEvent("pointermove", { ...pointer, clientX: dx, clientY: dy });
-    // A second move lets the dropTarget signal settle on the final zone
-    // before pointerup commits.
-    await sourceRow.dispatchEvent("pointermove", { ...pointer, clientX: dx, clientY: dy });
-    await sourceRow.dispatchEvent("pointerup", {
-      ...pointer,
-      clientX: dx,
-      clientY: dy,
-      buttons: 0,
+    // Hold past DRAG_LONGPRESS_MS so the long-press timer fires before the
+    // first move. The +100 ms margin absorbs scheduler jitter.
+    await dispatchTouchDrag(sourceRow, targetRow, where, {
+      preDragDelayMs: DRAG_LONGPRESS_MS + 100,
     });
   },
 );
 
+// Handle-drag: presses on the explicit drag handle, which bypasses the
+// long-press timer (DRAG_LONGPRESS_MS) and begins dragging immediately.
+// No pre-drag delay is passed — that's the entire point of the handle.
+When(
+  "I handle-drag the task titled {string} {word} the task titled {string}",
+  async function (this: AnywhenWorld, source: string, where: string, target: string) {
+    assertDropZone(where);
+    const sourceRow = this.page.locator(`[data-testid="task-row"][data-task-title="${source}"]`);
+    const targetRow = this.page.locator(`[data-testid="task-row"][data-task-title="${target}"]`);
+    await dispatchTouchDrag(sourceRow, targetRow, where, {
+      from: sourceRow.locator('[data-testid="task-drag-handle"]'),
+    });
+  },
+);
+
+// Mouse-driven reorder. Headless Chromium needs intermediate mousemove
+// events between mousedown and mouseup — otherwise dragover never fires on
+// the target and the row's drop handler is silent. We move via the raw
+// mouse API with `steps` to force interpolated moves, landing the final
+// position inside the target row's before / inside / after zone (matching
+// the 25% / 75% split in client/App.tsx → zoneAt).
 When(
   "I drag the task titled {string} {word} the task titled {string}",
   async function (this: AnywhenWorld, source: string, where: string, target: string) {
-    if (!isDropZone(where)) {
-      throw new Error(`Unknown drop zone: ${where} (expected ${DROP_ZONES.join(", ")})`);
-    }
+    assertDropZone(where);
     const sourceRow = this.page.locator(`[data-testid="task-row"][data-task-title="${source}"]`);
     const targetRow = this.page.locator(`[data-testid="task-row"][data-task-title="${target}"]`);
     const sourceBox = await sourceRow.boundingBox();
