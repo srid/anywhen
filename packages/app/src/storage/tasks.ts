@@ -83,7 +83,7 @@ export const taskStore = (db: Database) => {
     // Rejects: moving into self, dropping a task adjacent to itself
     // (degenerate no-op), or any move that would make an ancestor become
     // its own descendant.
-    move(input: MoveTaskInput): Task {
+    move(input: MoveTaskInput): void {
       const { id, target } = input;
       const task = getStmt.get(id);
       if (!task) throw new Error(`Task ${id} not found`);
@@ -115,9 +115,6 @@ export const taskStore = (db: Database) => {
       }
 
       movePositionStmt.run(newParentId, newPosition, new Date().toISOString(), id);
-      const updated = getStmt.get(id);
-      if (!updated) throw new Error(`Task ${id} disappeared after move`);
-      return rowToTask(updated);
     },
 
     toggle(id: TaskId): Task {
