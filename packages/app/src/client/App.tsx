@@ -11,9 +11,16 @@
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
-import { createMemo, createResource, createSignal, For, Show } from "solid-js";
+import { createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { parseInput } from "../shared/input";
-import type { Task, TaskId } from "../shared/schemas";
+import {
+  type DropZone,
+  type MoveTarget,
+  type Task,
+  type TaskId,
+  ZONE_AFTER_RATIO,
+  ZONE_BEFORE_RATIO,
+} from "../shared/schemas";
 import type { surface } from "../shared/surface";
 
 type Client = ContractRouterClient<typeof surface.contract>;
@@ -25,14 +32,21 @@ const api = client.surface.tasks;
 // ── Tree derivation: flat Task[] → ordered, indented rows ─────────────
 type Row = { task: Task; depth: number };
 
-const buildRows = (tasks: Task[]): Row[] => {
-  const byParent = new Map<TaskId | null, Task[]>();
+// Parent → children adjacency map. The shared primitive behind both row
+// rendering and descendant lookups for drag-veto. One construction; two
+// callers walk it for different outputs.
+const byParentMap = (tasks: Task[]): Map<TaskId | null, Task[]> => {
+  const out = new Map<TaskId | null, Task[]>();
   for (const t of tasks) {
-    const k = t.parentId;
-    const arr = byParent.get(k) ?? [];
+    const arr = out.get(t.parentId) ?? [];
     arr.push(t);
-    byParent.set(k, arr);
+    out.set(t.parentId, arr);
   }
+  return out;
+};
+
+const buildRows = (tasks: Task[]): Row[] => {
+  const byParent = byParentMap(tasks);
   for (const arr of byParent.values()) arr.sort((a, b) => a.position - b.position);
   const out: Row[] = [];
   const walk = (parentId: TaskId | null, depth: number) => {
@@ -45,13 +59,105 @@ const buildRows = (tasks: Task[]): Row[] => {
   return out;
 };
 
+// Map a pointer's Y inside a row to a drop zone. Top quarter → before, bottom
+// quarter → after, middle half → inside (re-parent). Symmetric so the user
+// can always nudge a task one step up, one step down, or one level deeper.
+const zoneAt = (offsetY: number, height: number): DropZone => {
+  // Zero-height rows are collapsed/invisible; "inside" is the neutral
+  // fallback (no positional indicator appears on such rows anyway).
+  if (height <= 0) return "inside";
+  const ratio = offsetY / height;
+  if (ratio < ZONE_BEFORE_RATIO) return "before";
+  if (ratio > ZONE_AFTER_RATIO) return "after";
+  return "inside";
+};
+
+const descendantsOf = (tasks: Task[], rootId: TaskId): Set<TaskId> => {
+  const byParent = byParentMap(tasks);
+  const out = new Set<TaskId>();
+  const walk = (id: TaskId) => {
+    for (const c of byParent.get(id) ?? []) {
+      out.add(c.id);
+      walk(c.id);
+    }
+  };
+  walk(rootId);
+  return out;
+};
+
+// Same-parent siblings in position order, plus the task's index inside that
+// list. Keyboard reordering needs both (the "ref" sibling sits one slot away)
+// and indent needs the previous sibling; computing them together avoids
+// re-sorting the same array twice. Routes through `byParentMap` so the
+// "siblings = children of parent in position order" derivation lives in one
+// place; the `slice()` keeps the cached array unmutated for other callers.
+const siblingsOf = (
+  tasks: Task[],
+  id: TaskId,
+): { siblings: Task[]; index: number; task: Task } | null => {
+  const task = tasks.find((t) => t.id === id);
+  if (!task) return null;
+  const siblings = (byParentMap(tasks).get(task.parentId) ?? [])
+    .slice()
+    .sort((a, b) => a.position - b.position);
+  const index = siblings.findIndex((s) => s.id === id);
+  return { siblings, index, task };
+};
+
+// Keyboard intent → MoveTarget. Returning null means "no legal move from
+// this position" (already at the top sibling, already a root, etc.) so the
+// caller can no-op instead of firing a server round-trip that would just
+// re-validate and refuse.
+type KeyMove = "indent" | "outdent" | "up" | "down";
+
+const resolveKeyMove = (tasks: Task[], id: TaskId, action: KeyMove): MoveTarget | null => {
+  const sib = siblingsOf(tasks, id);
+  if (!sib) return null;
+  if (action === "outdent") {
+    return sib.task.parentId ? { kind: "after", refId: sib.task.parentId } : null;
+  }
+  if (action === "indent") {
+    const prev = sib.siblings[sib.index - 1];
+    return prev ? { kind: "inside", refId: prev.id } : null;
+  }
+  const offset = action === "up" ? -1 : 1;
+  const ref = sib.siblings[sib.index + offset];
+  return ref ? { kind: action === "up" ? "before" : "after", refId: ref.id } : null;
+};
+
+// `<For>` rebuilds the row DOM after refetch, so the focused element is lost
+// across a successful move. Refocusing by data-task-id on the next frame
+// reattaches the cursor to the same task, which is what keeps "Alt+ArrowUp"
+// chains working (press it twice in a row to move two slots up).
+const focusRowById = (id: TaskId) => {
+  requestAnimationFrame(() => {
+    const el = document.querySelector<HTMLElement>(
+      `[data-testid="task-row"][data-task-id="${CSS.escape(id)}"]`,
+    );
+    el?.focus();
+  });
+};
+
+// Drag state snapshot — id of the task being dragged plus its descendant
+// set, captured once at drag-start to seal the gesture against mid-drag
+// refetches.
+type DragSnapshot = { id: TaskId; descendants: Set<TaskId> };
+
 export function App() {
   const [tasks, { refetch }] = createResource<Task[]>(() => api.list());
   const [query, setQuery] = createSignal("");
   const [selected, setSelected] = createSignal<TaskId | null>(null);
   const [error, setError] = createSignal<string | null>(null);
+  // Solid ref to the search input. The "/" shortcut and the post-add focus
+  // path both need a stable handle to focus the element; reaching for it via
+  // `document.querySelector('[data-testid=...]')` would make the production
+  // shortcut depend on a test-instrumentation attribute.
+  let searchInputRef!: HTMLInputElement;
 
-  const rows = createMemo<Row[]>(() => buildRows(tasks() ?? []));
+  // Unwrap the resource once — callers downstream get a plain Task[] and
+  // don't need to guard against the loading/error undefined themselves.
+  const taskList = createMemo<Task[]>(() => tasks() ?? []);
+  const rows = createMemo<Row[]>(() => buildRows(taskList()));
 
   // Every mutation has the same shape: await the RPC, refetch the list,
   // surface any error. Inlining this at three call sites would force PR 2
@@ -84,19 +190,153 @@ export function App() {
     setSelected(created.id);
   };
 
-  const toggle = (id: TaskId) => {
-    void callMutation(() => api.toggle(id));
+  const toggle = async (id: TaskId) => {
+    await callMutation(() => api.toggle(id));
+    // `<For>` rebuilds the row after refetch, so the focused element is
+    // discarded mid-toggle and the user loses their cursor on the tree.
+    // Same problem `moveByKey` solves; same fix.
+    focusRowById(id);
+  };
+
+  const remove = async (id: TaskId) => {
+    await callMutation(() => api.remove(id));
+    // Clearing selection before the mutation settles would leave the user
+    // with no selection on a failed delete (the row still exists, just
+    // unselected). Clear only after callMutation flips the error signal.
+    if (!error() && selected() === id) setSelected(null);
+  };
+
+  const moveByKey = async (id: TaskId, action: KeyMove) => {
+    const target = resolveKeyMove(taskList(), id, action);
+    if (!target) return;
+    await callMutation(() => api.move({ id, target }));
+    focusRowById(id);
+  };
+
+  // Move focus to the row offset slots away in the flat tree-order view.
+  // Wraparound is intentionally not supported: the user pressing ArrowDown
+  // at the last row should land "stuck" rather than warp to the top, since
+  // wrapping makes Alt+ArrowDown's reorder semantics ambiguous later.
+  const moveSelection = (id: TaskId, offset: 1 | -1) => {
+    const rs = rows();
+    const idx = rs.findIndex((r) => r.task.id === id);
+    if (idx < 0) return;
+    const next = rs[idx + offset];
+    if (!next) return;
+    setSelected(next.task.id);
+    focusRowById(next.task.id);
   };
 
   const handleRowKeyDown = (e: KeyboardEvent, id: TaskId) => {
-    if (e.key !== " ") return;
-    e.preventDefault();
-    toggle(id);
+    if (e.key === " ") {
+      e.preventDefault();
+      void toggle(id);
+      return;
+    }
+    if (e.key === "Backspace") {
+      e.preventDefault();
+      void remove(id);
+      return;
+    }
+    // Modifier-key polarity differs between Tab and Arrow on purpose:
+    //   Tab keeps Shift through so Shift+Tab can mean outdent;
+    //   Arrow keeps Alt through because Alt+Arrow is the reorder chord.
+    // Ctrl/Meta are guarded everywhere — those are OS-level navigation
+    // chords we never want to capture.
+    if (e.key === "Tab" && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      void moveByKey(id, e.shiftKey ? "outdent" : "indent");
+      return;
+    }
+    if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      if (e.altKey) {
+        void moveByKey(id, e.key === "ArrowUp" ? "up" : "down");
+      } else {
+        moveSelection(id, e.key === "ArrowUp" ? -1 : 1);
+      }
+    }
   };
 
-  const remove = (id: TaskId) => {
-    if (selected() === id) setSelected(null);
-    void callMutation(() => api.remove(id));
+  // "/" focuses the search box from anywhere on the page, matching the
+  // muscle-memory of every command-palette-ish UI. Guarded against firing
+  // while the user is already typing in an input or contentEditable region —
+  // otherwise it would clobber a literal "/" inside a query.
+  onMount(() => {
+    const onGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "/") return;
+      const t = e.target;
+      if (
+        t instanceof HTMLInputElement ||
+        t instanceof HTMLTextAreaElement ||
+        (t instanceof HTMLElement && t.isContentEditable)
+      ) {
+        return;
+      }
+      e.preventDefault();
+      searchInputRef.focus();
+      searchInputRef.select();
+    };
+    window.addEventListener("keydown", onGlobalKeyDown);
+    onCleanup(() => window.removeEventListener("keydown", onGlobalKeyDown));
+  });
+
+  // ── Drag-and-drop reordering ────────────────────────────────────────
+  // The drag snapshot couples a task id with its descendant set, taken once
+  // at drag-start. Tying both to a single value seals the drag gesture
+  // against mid-drag refetches: a background mutation that re-reads tasks
+  // can't shift the descendant set under the user's hand. The server
+  // re-validates, but blocking invalid targets here keeps the visual
+  // indicator off them so the UX matches the outcome.
+  const [drag, setDrag] = createSignal<DragSnapshot | null>(null);
+  const [dropTarget, setDropTarget] = createSignal<{ id: TaskId; zone: DropZone } | null>(null);
+
+  const canDropOn = (rowId: TaskId): boolean => {
+    const d = drag();
+    if (!d || d.id === rowId) return false;
+    return !d.descendants.has(rowId);
+  };
+
+  const handleDragStart = (e: DragEvent, id: TaskId) => {
+    setDrag({ id, descendants: descendantsOf(taskList(), id) });
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+      // Some browsers ignore the drag if no data is attached.
+      e.dataTransfer.setData("text/plain", id);
+    }
+  };
+
+  const handleDragOver = (e: DragEvent, rowId: TaskId) => {
+    if (!canDropOn(rowId)) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const zone = zoneAt(e.clientY - rect.top, rect.height);
+    const current = dropTarget();
+    if (!current || current.id !== rowId || current.zone !== zone) {
+      setDropTarget({ id: rowId, zone });
+    }
+  };
+
+  const clearDragState = () => {
+    setDrag(null);
+    setDropTarget(null);
+  };
+
+  const handleDrop = (e: DragEvent, rowId: TaskId) => {
+    e.preventDefault();
+    // Use the zone the dragover handler already settled on. Re-deriving from
+    // a fresh getBoundingClientRect() here would let scroll/reflow between
+    // the last dragover and the drop split the indicator from the RPC.
+    const t = dropTarget();
+    const src = drag()?.id;
+    clearDragState();
+    // Guard: dragover may have last fired on a different row than where
+    // drop landed (fast cursor movement); discard if the committed target
+    // doesn't match the row that fired the drop event.
+    if (!src || !t || t.id !== rowId) return;
+    const target: MoveTarget = { kind: t.zone, refId: rowId };
+    void callMutation(() => api.move({ id: src, target }));
   };
 
   return (
@@ -116,6 +356,7 @@ export function App() {
 
       <div class="search">
         <input
+          ref={searchInputRef}
           data-testid="search-input"
           aria-label="Search or add a task"
           placeholder="Search or type + to add a task"
@@ -131,55 +372,75 @@ export function App() {
           fallback={<div class="empty">No tasks yet. Type "+ buy milk" and press Enter.</div>}
         >
           <For each={rows()}>
-            {(row) => (
-              <div
-                class="row"
-                classList={{
-                  "is-done": row.task.status === "done",
-                  selected: selected() === row.task.id,
-                }}
-                data-testid="task-row"
-                data-task-title={row.task.title}
-                data-task-status={row.task.status}
-                data-task-id={row.task.id}
-                role="treeitem"
-                aria-selected={selected() === row.task.id}
-                tabIndex={0}
-                onClick={() => setSelected(row.task.id)}
-                onFocus={() => setSelected(row.task.id)}
-                onKeyDown={(e) => handleRowKeyDown(e, row.task.id)}
-              >
-                <For each={Array.from({ length: row.depth })}>{() => <span class="indent" />}</For>
-                <button
-                  type="button"
-                  class="check"
-                  classList={{ done: row.task.status === "done" }}
-                  data-testid="task-check"
-                  aria-pressed={row.task.status === "done"}
-                  aria-label={`Mark ${row.task.title} ${
-                    row.task.status === "done" ? "not done" : "done"
-                  }`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void toggle(row.task.id);
+            {(row) => {
+              // One memo per row: reads dropTarget() once, suppresses
+              // recomputes when neither this row's id nor its zone changes.
+              const rowDropZone = createMemo((): DropZone | null => {
+                const dt = dropTarget();
+                return dt?.id === row.task.id ? dt.zone : null;
+              });
+              return (
+                <div
+                  class="row"
+                  classList={{
+                    "is-done": row.task.status === "done",
+                    selected: selected() === row.task.id,
+                    dragging: drag()?.id === row.task.id,
+                    "drop-before": rowDropZone() === "before",
+                    "drop-after": rowDropZone() === "after",
+                    "drop-inside": rowDropZone() === "inside",
                   }}
-                />
-                <span class="title">{row.task.title}</span>
-                <button
-                  type="button"
-                  class="delete"
-                  data-testid="task-delete"
-                  aria-label={`Delete ${row.task.title}`}
-                  title="Delete (also removes any sub-tasks)"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    remove(row.task.id);
-                  }}
+                  data-testid="task-row"
+                  data-task-title={row.task.title}
+                  data-task-status={row.task.status}
+                  data-task-id={row.task.id}
+                  data-task-parent-id={row.task.parentId ?? ""}
+                  role="treeitem"
+                  aria-selected={selected() === row.task.id}
+                  tabIndex={0}
+                  draggable={true}
+                  onClick={() => setSelected(row.task.id)}
+                  onFocus={() => setSelected(row.task.id)}
+                  onKeyDown={(e) => handleRowKeyDown(e, row.task.id)}
+                  onDragStart={(e) => handleDragStart(e, row.task.id)}
+                  onDragOver={(e) => handleDragOver(e, row.task.id)}
+                  onDrop={(e) => handleDrop(e, row.task.id)}
+                  onDragEnd={clearDragState}
                 >
-                  ×
-                </button>
-              </div>
-            )}
+                  <For each={Array.from({ length: row.depth })}>
+                    {() => <span class="indent" />}
+                  </For>
+                  <button
+                    type="button"
+                    class="check"
+                    classList={{ done: row.task.status === "done" }}
+                    data-testid="task-check"
+                    aria-pressed={row.task.status === "done"}
+                    aria-label={`Mark ${row.task.title} ${
+                      row.task.status === "done" ? "not done" : "done"
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void toggle(row.task.id);
+                    }}
+                  />
+                  <span class="title">{row.task.title}</span>
+                  <button
+                    type="button"
+                    class="delete"
+                    data-testid="task-delete"
+                    aria-label={`Delete ${row.task.title}`}
+                    title="Delete (also removes any sub-tasks)"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void remove(row.task.id);
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            }}
           </For>
         </Show>
       </div>
@@ -189,7 +450,18 @@ export function App() {
           <kbd>+ title</kbd> then <kbd>↵</kbd> to add
         </span>
         <span>
-          <kbd>Space</kbd> on a focused row to toggle done
+          <kbd>↑</kbd>
+          <kbd>↓</kbd> to move selection
+        </span>
+        <span>
+          <kbd>Tab</kbd> / <kbd>⇧Tab</kbd> to indent / outdent
+        </span>
+        <span>
+          <kbd>Alt</kbd>+<kbd>↑</kbd>
+          <kbd>↓</kbd> to reorder siblings
+        </span>
+        <span>
+          <kbd>Space</kbd> toggle · <kbd>⌫</kbd> delete · <kbd>/</kbd> search
         </span>
       </div>
 

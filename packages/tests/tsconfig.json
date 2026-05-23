@@ -1,10 +1,17 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": ".",
+    // rootDir broadened to the repo root so step definitions can import the
+    // wire protocol from packages/app/src/shared (DropZone, ZONE_*_RATIO).
+    "rootDir": "../..",
     "noEmit": true,
     "jsx": "preserve",
     "types": ["node"]
   },
-  "include": ["step_definitions/**/*.ts", "support/**/*.ts", "cucumber.js"]
+  "include": [
+    "step_definitions/**/*.ts",
+    "support/**/*.ts",
+    "cucumber.js",
+    "../app/src/shared/**/*.ts"
+  ]
 }

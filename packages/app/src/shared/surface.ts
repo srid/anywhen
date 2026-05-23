@@ -6,7 +6,7 @@
 
 import { defineSurface } from "@kolu/surface/define";
 import { z } from "zod";
-import { AddTaskInputSchema, TaskIdSchema, TaskSchema } from "./schemas";
+import { AddTaskInputSchema, MoveTaskInputSchema, TaskIdSchema, TaskSchema } from "./schemas";
 
 export const surface = defineSurface({
   procedures: {
@@ -22,6 +22,15 @@ export const surface = defineSurface({
       toggle: {
         input: TaskIdSchema,
         output: TaskSchema,
+      },
+      // Drag-and-drop reordering. Input carries a semantic drop target
+      // (before/after/inside refId); the server resolves it to a concrete
+      // (parentId, position) and rejects cycles. Output is void because
+      // a single moved row doesn't describe the post-move ordering — the
+      // client refetches the list, which is the canonical ordered view.
+      move: {
+        input: MoveTaskInputSchema,
+        output: z.void(),
       },
       // remove cascades to descendants via the parent_id FK's
       // `ON DELETE CASCADE` clause in schema.sql — deleting a parent

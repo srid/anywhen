@@ -46,12 +46,10 @@ typecheck: install
 biome: install
     {{ nix_shell }} biome lint .
 
-# Check formatting without modifying (Biome + nixpkgs-fmt).
-# `set working-directory := '..'` (top of this file) already cd's into the
-# project root, so the nix paths here are bare globs — adding `../` would
-# resolve them in the worktrees parent dir, silently matching nothing.
+# Check formatting without modifying (Biome + nixpkgs-fmt). nixpkgs-fmt
+# accepts a directory and recurses, so `.` covers every *.nix at any depth.
 fmt-check: install
-    {{ nix_shell }} sh -c 'biome format . && nixpkgs-fmt --check *.nix nix/**/*.nix'
+    {{ nix_shell }} sh -c 'biome format . && nixpkgs-fmt --check .'
 
 # Cucumber e2e — runs the full pipeline (server spawn, browser, scenarios).
 e2e: install
