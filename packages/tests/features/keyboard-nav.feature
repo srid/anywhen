@@ -70,6 +70,28 @@ Feature: Vim-friendly keyboard navigation for the task tree
     When I press "k" on the task titled "beta"
     Then the task titled "alpha" should be selected
 
+  Scenario: l on a focused row keeps the row focused after indenting
+    Given the app is running with a fresh database
+    When I add a task titled "parent"
+    Then the tree should contain a task titled "parent"
+    When I add a task titled "child"
+    Then the tree should contain a task titled "child"
+    When I press "l" on the task titled "child"
+    Then the task titled "child" should be a child of the task titled "parent"
+    And the task titled "child" should be focused
+
+  Scenario: h on a focused row keeps the row focused after outdenting
+    Given the app is running with a fresh database
+    When I add a task titled "parent"
+    Then the tree should contain a task titled "parent"
+    When I add a task titled "child"
+    Then the tree should contain a task titled "child"
+    When I press "l" on the task titled "child"
+    Then the task titled "child" should be a child of the task titled "parent"
+    When I press "h" on the task titled "child"
+    Then the task titled "child" should be a root task
+    And the task titled "child" should be focused
+
   Scenario: Space on a focused row keeps the row focused after toggling done
     Given the app is running with a fresh database
     When I add a task titled "stays focused"

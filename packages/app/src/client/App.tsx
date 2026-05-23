@@ -12,7 +12,7 @@
 // covers mouse, touch, and pen. Touch initiates drag via a short long-press
 // so vertical scroll on a row remains a finger-flick away.
 
-import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { matchesQuery } from "../shared/filter";
 import { normalizeQuery } from "../shared/input";
 import {
@@ -99,15 +99,6 @@ const resolveKeyMove = (tasks: Task[], id: TaskId, action: KeyMove): MoveTarget 
   return ref ? { kind: action === "up" ? "before" : "after", refId: ref.id } : null;
 };
 
-const focusRowById = (id: TaskId) => {
-  requestAnimationFrame(() => {
-    const el = document.querySelector<HTMLElement>(
-      `[data-testid="task-row"][data-task-id="${CSS.escape(id)}"]`,
-    );
-    el?.focus();
-  });
-};
-
 type DragSnapshot = { id: TaskId; descendants: Set<TaskId> };
 
 // Pointer-events drag state. A row's pointerdown stages a "pending press";
@@ -137,6 +128,13 @@ export function App() {
   });
   const [query, setQuery] = createSignal("");
   const [selected, setSelected] = createSignal<TaskId | null>(null);
+  // "Which row should hold keyboard focus" — a render-lifecycle instruction,
+  // distinct from `selected` (the logical/aria selection driving styling). A
+  // per-row `createEffect` inside the <For> below re-applies focus whenever
+  // this signal matches the row's id. Setting focusedId from a mutation
+  // handler survives the <For>'s teardown-and-rebuild when the Collection
+  // delta arrives — the new row's effect runs on mount and reads the signal.
+  const [focusedId, setFocusedId] = createSignal<TaskId | null>(null);
   const [error, setError] = createSignal<string | null>(null);
   let searchInputRef!: HTMLInputElement;
 
@@ -211,7 +209,7 @@ export function App() {
 
   const toggle = async (id: TaskId) => {
     await callMutation(() => api.toggle(id));
-    focusRowById(id);
+    setFocusedId(id);
   };
 
   const remove = async (id: TaskId) => {
@@ -223,7 +221,7 @@ export function App() {
     const target = resolveKeyMove(taskList(), id, action);
     if (!target) return;
     await callMutation(() => api.move({ id, target }));
-    focusRowById(id);
+    setFocusedId(id);
   };
 
   const moveSelection = (id: TaskId, offset: 1 | -1) => {
@@ -233,7 +231,7 @@ export function App() {
     const next = rs[idx + offset];
     if (!next) return;
     setSelected(next.task.id);
-    focusRowById(next.task.id);
+    setFocusedId(next.task.id);
   };
 
   // Vim-style row bindings, with WAI-ARIA tree-pattern aliases. Each action
@@ -488,8 +486,18 @@ export function App() {
                 const dt = dropTarget();
                 return dt?.id === row.task.id ? dt.zone : null;
               });
+              let rowEl!: HTMLDivElement;
+              // When focusedId matches this row, focus its DOM element. Runs
+              // on mount and whenever focusedId changes — so a mutation that
+              // tears down and rebuilds this row (Collection delta after
+              // toggle / move) re-establishes focus the moment the new
+              // element is bound.
+              createEffect(() => {
+                if (focusedId() === row.task.id) rowEl.focus();
+              });
               return (
                 <div
+                  ref={rowEl}
                   class="row"
                   classList={{
                     "is-done": row.task.status === "done",
