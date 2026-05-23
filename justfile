@@ -43,6 +43,10 @@ fmt: install
 fmt-check: install
     {{ nix_shell }} sh -c 'biome format . && nixpkgs-fmt --check .'
 
+# Scaffold a new Kysely migration: just new-migration <short_name>
+new-migration name: install
+    {{ nix_shell }} bun packages/app/scripts/new-migration.ts {{ name }}
+
 # Cucumber e2e tests (spawns server from source on an ephemeral port)
 test: install
     cd packages/tests && \

@@ -187,3 +187,32 @@ Then(
 Then("the search box should be focused", async function (this: AnywhenWorld) {
   await expect(this.page.locator('[data-testid="search-input"]')).toBeFocused();
 });
+
+When("I clear the search box", async function (this: AnywhenWorld) {
+  await this.page.locator('[data-testid="search-input"]').fill("");
+});
+
+Then(
+  "the matched substring {string} in the task titled {string} should be highlighted",
+  async function (this: AnywhenWorld, fragment: string, title: string) {
+    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    const mark = row.locator("mark", { hasText: fragment });
+    await expect(mark).toBeVisible();
+  },
+);
+
+Then(
+  "the task titled {string} should be dimmed",
+  async function (this: AnywhenWorld, title: string) {
+    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    await expect(row).toHaveClass(/(?:^|\s)dimmed(?:\s|$)/);
+  },
+);
+
+Then(
+  "the task titled {string} should not be dimmed",
+  async function (this: AnywhenWorld, title: string) {
+    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    await expect(row).not.toHaveClass(/(?:^|\s)dimmed(?:\s|$)/);
+  },
+);
