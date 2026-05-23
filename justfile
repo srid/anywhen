@@ -19,9 +19,11 @@ install:
     {{ nix_shell }} bun install
     {{ nix_shell }} sh -c 'mkdir -p node_modules/@kolu && rm -rf node_modules/@kolu/surface && cp -rL "$ANYWHEN_KOLU_SURFACE" node_modules/@kolu/surface && chmod -R u+w node_modules/@kolu/surface'
 
-# Run the app with auto-reload
+# Run the app with auto-reload. Seeds sample tasks into an empty DB so a
+# fresh `just dev` run shows the tree populated; a no-op against a DB that
+# already has rows.
 dev: install
-    {{ nix_shell }} bun --cwd packages/app dev
+    {{ nix_shell }} sh -c 'ANYWHEN_SEED_SAMPLE_DATA=1 bun --cwd packages/app dev'
 
 # TypeScript type checking across the workspace
 typecheck: install
