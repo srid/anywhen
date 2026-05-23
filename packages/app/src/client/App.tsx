@@ -347,10 +347,13 @@ export function App() {
     // Don't hijack clicks on action buttons inside the row.
     if (e.target instanceof Element && e.target.closest("button")) return;
     const sourceEl = e.currentTarget as HTMLElement;
-    // The drag handle is the explicit grip affordance shown on touch devices.
-    // Pressing it bypasses both the long-press timer (touch) and the movement
-    // threshold (mouse) and starts dragging immediately, so users do not have
-    // to discover the long-press timing themselves.
+    // Two-layer affordance. CSS (`@media (pointer: coarse)`) reveals the handle
+    // span only on touch / coarse-pointer devices, so a mouse user normally
+    // sees nothing to click. The JS guard below fires for ANY pointer type
+    // that lands on the handle DOM node — the node is always present, just
+    // visually hidden on fine pointers. When it fires, the press bypasses
+    // both the long-press timer (touch / pen) and the movement threshold
+    // (mouse) and begins dragging immediately.
     const fromHandle =
       e.target instanceof Element &&
       e.target.closest('[data-testid="task-drag-handle"]') !== null;
