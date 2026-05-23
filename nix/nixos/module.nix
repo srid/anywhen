@@ -30,10 +30,21 @@ in
       '';
     };
 
+    host = lib.mkOption {
+      type = lib.types.str;
+      default = "0.0.0.0";
+      example = "127.0.0.1";
+      description = ''
+        Address the HTTP server binds to. `0.0.0.0` listens on every
+        interface; set this to `127.0.0.1` when the service should only
+        be reachable through a reverse proxy on the same host.
+      '';
+    };
+
     port = lib.mkOption {
       type = lib.types.port;
       default = 7700;
-      description = "Port the HTTP server listens on (binds 0.0.0.0).";
+      description = "Port the HTTP server listens on.";
     };
 
     stateDir = lib.mkOption {
@@ -114,6 +125,7 @@ in
       after = [ "network.target" ];
 
       environment = {
+        HOST = cfg.host;
         PORT = toString cfg.port;
         ANYWHEN_STATE_DIR = cfg.stateDir;
       };
