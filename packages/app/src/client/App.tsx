@@ -352,7 +352,8 @@ export function App() {
     // threshold (mouse) and starts dragging immediately, so users do not have
     // to discover the long-press timing themselves.
     const fromHandle =
-      e.target instanceof Element && e.target.closest(".drag-handle") !== null;
+      e.target instanceof Element &&
+      e.target.closest('[data-testid="task-drag-handle"]') !== null;
     // Capture the pointer so subsequent pointermove/up fire on this row even
     // after the pointer leaves it. Mouse has no implicit capture; without
     // this, the first move out of the source row would lose the drag stream.
