@@ -24,6 +24,13 @@ const rowToTask = (r: DbTask): Task => ({
   updatedAt: r.updated_at,
 });
 
+// Initial spacing between sibling positions, also the step size when
+// appending to the end of a parent. Float midpoints can interpolate ~50
+// times between two siblings before precision collapses; values smaller
+// than that would force a rebalance scan to ship alongside the move op.
+// 100 leaves comfortable headroom and matches the gap `add()` uses for
+// new tasks so positions allocated at insert time and at move time stay
+// in the same dynamic range.
 const POSITION_GAP = 100;
 
 export const taskStore = (db: Database) => {
