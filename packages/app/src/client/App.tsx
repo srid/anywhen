@@ -236,13 +236,17 @@ export function App() {
     setEditing({ id, originalTitle: task.title, draft: task.title });
   };
 
+  // Tear down the edit session and restore keyboard focus to the row so vim
+  // navigation continues from where the user left off.
+  const closeEdit = (id: TaskId) => {
+    setEditing(null);
+    setFocusedId(id);
+  };
+
   const cancelEdit = () => {
     const e = editing();
     if (!e) return;
-    setEditing(null);
-    // Restore keyboard focus to the row the user was editing, so vim
-    // navigation continues from where they left off.
-    setFocusedId(e.id);
+    closeEdit(e.id);
   };
 
   // Commit the current draft if it's non-empty and actually changed. Trimming
@@ -261,15 +265,13 @@ export function App() {
     if (!e) return;
     const title = e.draft.trim();
     if (!title || title === e.originalTitle) {
-      setEditing(null);
-      setFocusedId(e.id);
+      closeEdit(e.id);
       return;
     }
     const result = await callMutation(() => api.edit({ id: e.id, title }));
     if (result === undefined) return;
     if (editing()?.id !== e.id) return;
-    setEditing(null);
-    setFocusedId(e.id);
+    closeEdit(e.id);
   };
 
   // Editor key handling kept adjacent to the other edit lifecycle functions
