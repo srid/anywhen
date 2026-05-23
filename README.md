@@ -16,9 +16,11 @@ A personal task manager. One search box: filter the tree, or add to it.
 > tap targets, always-visible row actions and grip handles on coarse
 > pointers) + PWA
 > (installable from the browser, with a service worker that caches the
-> app shell and serves `index.html` from cache when offline). Filter
-> atoms, tags, due dates, body, blocked-by, and the detail panel land in
-> later PRs.
+> app shell and serves `index.html` from cache when offline) + runtime
+> info footer (GitHub source link, server hostname, SQLite path — so a
+> user opening the app can see where their data lives at a glance).
+> Filter atoms, tags, due dates, body, blocked-by, and the detail panel
+> land in later PRs.
 
 ## Stack
 

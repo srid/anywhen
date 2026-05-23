@@ -12,6 +12,16 @@ import { defineSurface } from "@kolu/surface/define";
 import { z } from "zod";
 import { AddTaskInputSchema, MoveTaskInputSchema, TaskIdSchema, TaskSchema } from "./schemas";
 
+// Runtime metadata the server reports about itself — hostname of the box
+// it's running on and the absolute path of the SQLite file it's writing
+// to. Static at process boot, so a single one-shot procedure is enough;
+// the footer fetches it once on mount.
+export const RuntimeInfoSchema = z.object({
+  hostname: z.string(),
+  dbPath: z.string(),
+});
+export type RuntimeInfo = z.infer<typeof RuntimeInfoSchema>;
+
 export const surface = defineSurface({
   collections: {
     // Wire-level mutation goes through the imperative procedures below
@@ -61,6 +71,16 @@ export const surface = defineSurface({
       __test__reset: {
         input: z.void(),
         output: z.void(),
+      },
+    },
+    // Runtime info is a separate concern from tasks — different volatility
+    // (server boot vs. per-action), different consumer (footer vs. tree),
+    // no shared invariants. Keeping it in its own namespace avoids wedging
+    // an unrelated read into the tasks contract.
+    runtime: {
+      info: {
+        input: z.void(),
+        output: RuntimeInfoSchema,
       },
     },
   },
