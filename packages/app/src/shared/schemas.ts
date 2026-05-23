@@ -29,12 +29,19 @@ export const AddTaskInputSchema = z.object({
 // after / inside Y — and the server owns position allocation, so the
 // gap-allocation strategy (REAL midpoints today; could become a doubly-
 // linked list later) never leaks across the wire.
-export const DROP_ZONES = ["before", "after", "inside"] as const;
 export const MoveTargetSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("before"), refId: TaskIdSchema }),
   z.object({ kind: z.literal("after"), refId: TaskIdSchema }),
   z.object({ kind: z.literal("inside"), refId: TaskIdSchema }),
 ]);
+
+// Derived from MoveTargetSchema so the runtime set stays in sync with the
+// schema automatically — no parallel maintenance.
+export const DROP_ZONES = MoveTargetSchema.options.map((o) => o.shape.kind.value) as [
+  "before",
+  "after",
+  "inside",
+];
 
 // Pointer-Y thresholds inside a target row that pick the drop zone. Shared
 // so the e2e test computes its synthetic mouse offset from the same
