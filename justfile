@@ -50,8 +50,10 @@ new-migration name: install
 # Regenerate bun.nix from bun.lock. Run this after any change to bun.lock
 # (i.e. after `bun install`/`bun add`). CI's `bun-nix-fresh` recipe gates
 # on this file matching the lockfile so a stale bun.nix can't ship.
+# `-l bun.lock` is explicit so this stays symmetric with the CI check
+# regardless of any future change to bun2nix's default lockfile path.
 regenerate-bun-nix:
-    {{ nix_shell }} sh -c 'nix run .#bun2nix -- -o bun.nix && nixpkgs-fmt bun.nix'
+    {{ nix_shell }} sh -c 'nix run .#bun2nix -- -l bun.lock -o bun.nix && nixpkgs-fmt bun.nix'
 
 # Build the wrapped binary and print its store path.
 nix-build:
