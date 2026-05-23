@@ -11,7 +11,6 @@
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { matchesQuery } from "../shared/filter";
 import { parseInput } from "../shared/input";
-import { highlightSegments } from "./highlight";
 import {
   type DropZone,
   type MoveTarget,
@@ -21,6 +20,7 @@ import {
   ZONE_BEFORE_RATIO,
 } from "../shared/schemas";
 import { ancestorIds, descendantIds } from "../shared/tree";
+import { highlightSegments } from "./highlight";
 import { app } from "./wire";
 
 const api = app.rpc.surface.tasks;
@@ -38,36 +38,20 @@ const byParentMap = (tasks: Task[]): Map<TaskId | null, Task[]> => {
   return out;
 };
 
-const sortedTasks = (tasks: Task[]): Task[] => {
-  // Build the position-ordered, depth-first walk. The Collection delivers
-  // tasks in id order; the visual order is parent-first, then siblings by
-  // `position`. One walk, one allocation.
+// Single DFS walk: position-orders siblings, visits parent before children,
+// and records depth inline — one byParentMap, one allocation, one traversal.
+const sortedWithDepths = (tasks: Task[]): { task: Task; depth: number }[] => {
   const byParent = byParentMap(tasks);
   for (const arr of byParent.values()) arr.sort((a, b) => a.position - b.position);
-  const out: Task[] = [];
-  const walk = (parentId: TaskId | null) => {
+  const out: { task: Task; depth: number }[] = [];
+  const walk = (parentId: TaskId | null, depth: number) => {
     for (const t of byParent.get(parentId) ?? []) {
-      out.push(t);
-      walk(t.id);
+      out.push({ task: t, depth });
+      walk(t.id, depth + 1);
     }
   };
-  walk(null);
+  walk(null, 0);
   return out;
-};
-
-const depthOf = (tasks: Task[]): Map<TaskId, number> => {
-  const byId = new Map<TaskId, Task>(tasks.map((t) => [t.id, t]));
-  const depths = new Map<TaskId, number>();
-  const compute = (id: TaskId): number => {
-    const cached = depths.get(id);
-    if (cached !== undefined) return cached;
-    const t = byId.get(id);
-    const d = t?.parentId ? compute(t.parentId) + 1 : 0;
-    depths.set(id, d);
-    return d;
-  };
-  for (const t of tasks) compute(t.id);
-  return depths;
 };
 
 // Map a pointer's Y inside a row to a drop zone. Top quarter → before, bottom
@@ -155,30 +139,21 @@ export function App() {
     return parsed?.kind === "query" ? parsed.q : null;
   });
 
-  const sorted = createMemo<Task[]>(() => sortedTasks(taskList()));
+  const sorted = createMemo<{ task: Task; depth: number }[]>(() => sortedWithDepths(taskList()));
 
   const rows = createMemo<Row[]>(() => {
     const list = sorted();
-    const depths = depthOf(list);
     const q = filterQuery();
     if (!q) {
-      return list.map((task) => ({
-        task,
-        depth: depths.get(task.id) ?? 0,
-        dimmed: false,
-      }));
+      return list.map(({ task, depth }) => ({ task, depth, dimmed: false }));
     }
-    const byId = new Map<TaskId, Task>(list.map((t) => [t.id, t]));
+    const byId = new Map<TaskId, Task>(list.map(({ task: t }) => [t.id, t]));
     const matched = new Set<TaskId>();
-    for (const t of list) if (matchesQuery(t.title, q)) matched.add(t.id);
+    for (const { task: t } of list) if (matchesQuery(t.title, q)) matched.add(t.id);
     const ancestors = ancestorIds(matched, (id) => byId.get(id)?.parentId ?? null);
     return list
-      .filter((t) => matched.has(t.id) || ancestors.has(t.id))
-      .map((task) => ({
-        task,
-        depth: depths.get(task.id) ?? 0,
-        dimmed: !matched.has(task.id),
-      }));
+      .filter(({ task: t }) => matched.has(t.id) || ancestors.has(t.id))
+      .map(({ task, depth }) => ({ task, depth, dimmed: !matched.has(task.id) }));
   });
 
   const callMutation = async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
@@ -292,9 +267,7 @@ export function App() {
   const handleDragStart = (e: DragEvent, id: TaskId) => {
     const tasks = taskList();
     const byParent = byParentMap(tasks);
-    const descendants = descendantIds(id, (tid) =>
-      (byParent.get(tid) ?? []).map((c) => c.id),
-    );
+    const descendants = descendantIds(id, (tid) => (byParent.get(tid) ?? []).map((c) => c.id));
     setDrag({ id, descendants });
     if (e.dataTransfer) {
       e.dataTransfer.effectAllowed = "move";
