@@ -71,6 +71,31 @@
       #   services.anywhen.package = pkgs.anywhen;  # see README
       nixosModules.default = import ./nix/nixos/module.nix;
 
+      # `nixosModules.incus` — the "deploy as an incus-pet container"
+      # contract consumed by srid/nixos-config's incus-pet CLI
+      # (modules/nixos/linux/incus/incus-pet/). The CLI synthesises a
+      # marshaling flake that imports the in-tree container essentials
+      # module alongside this one and runs `nixos-rebuild --target-host`
+      # against the container. Port `8080` is the fixed inside-container
+      # convention; the host-side `<listen-ip>:<host-port>` is chosen at
+      # deploy time and recorded in container metadata.
+      nixosModules.incus = { config, lib, pkgs, ... }: {
+        imports = [ self.nixosModules.default ];
+
+        incus.container = {
+          enable = true;
+          hostname = lib.mkDefault "anywhen";
+        };
+        system.stateVersion = "25.05";
+
+        services.anywhen = {
+          enable = true;
+          package = lib.mkDefault self.packages.${pkgs.stdenv.hostPlatform.system}.default;
+          host = lib.mkDefault "0.0.0.0";
+          port = 8080; # fixed by the incus-pet contract
+        };
+      };
+
       # `nix fmt` — format *.nix files only. JS/TS/CSS/JSON go through Biome
       # via `just fmt`; pulling Biome into the flake formatter would require
       # writing a `treefmt` wrapper for two formatters, which isn't worth the
