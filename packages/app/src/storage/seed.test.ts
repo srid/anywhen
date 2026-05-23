@@ -13,7 +13,7 @@ const freshStateDir = () => {
 };
 
 test("seedSampleData populates an empty database", async () => {
-  const db = await openDb(freshStateDir());
+  const { db } = await openDb(freshStateDir());
   onTestFinished(() => db.destroy());
   const store = taskStore(db);
 
@@ -34,7 +34,7 @@ test("seedSampleData populates an empty database", async () => {
 });
 
 test("seedSampleData is idempotent — does not duplicate when tasks already exist", async () => {
-  const db = await openDb(freshStateDir());
+  const { db } = await openDb(freshStateDir());
   onTestFinished(() => db.destroy());
   const store = taskStore(db);
 

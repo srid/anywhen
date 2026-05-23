@@ -14,15 +14,21 @@ import type { Database } from "./schema";
 
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), "migrations");
 
+// The SQLite filename inside `stateDir`. Private to this module — callers
+// that need the absolute path receive it from `openDb`'s return value, so
+// no other site reconstructs `<stateDir>/anywhen.db`.
+const DB_FILENAME = "anywhen.db";
+
 /**
  * Open the app DB at `<stateDir>/anywhen.db` and apply any pending
- * migrations before returning. Async (vs. the old sync openDb) because
- * the Migrator awaits the FileMigrationProvider; the returned handle is
- * fully ready for queries — no further migration step needed.
+ * migrations before returning. Returns the Kysely handle alongside the
+ * resolved DB path so callers (e.g. the runtime-info footer) don't
+ * independently reconstruct the same join.
  */
-export async function openDb(stateDir: string): Promise<Kysely<Database>> {
+export async function openDb(stateDir: string): Promise<{ db: Kysely<Database>; dbPath: string }> {
   mkdirSync(stateDir, { recursive: true });
-  const sqlite = new BunDatabase(join(stateDir, "anywhen.db"));
+  const dbPath = join(stateDir, DB_FILENAME);
+  const sqlite = new BunDatabase(dbPath);
   sqlite.exec("PRAGMA journal_mode = WAL;");
   sqlite.exec("PRAGMA foreign_keys = ON;");
 
@@ -47,7 +53,7 @@ export async function openDb(stateDir: string): Promise<Kysely<Database>> {
     throw error instanceof Error ? error : new Error(String(error));
   }
 
-  return db;
+  return { db, dbPath };
 }
 
 /** Resolve `ANYWHEN_STATE_DIR` from the environment and ensure it exists. */
@@ -58,6 +64,6 @@ export function resolveStateDir(): string {
       "ANYWHEN_STATE_DIR is not set. The dev shell exports it; under nix run it's set by the wrapper.",
     );
   }
-  mkdirSync(dirname(join(fromEnv, "anywhen.db")), { recursive: true });
+  mkdirSync(dirname(join(fromEnv, DB_FILENAME)), { recursive: true });
   return fromEnv;
 }

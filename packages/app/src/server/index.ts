@@ -9,7 +9,7 @@
 // path and the build call is skipped.
 
 import { hostname } from "node:os";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { RPCHandler as WsRPCHandler } from "@orpc/server/bun-ws";
 import { RPCHandler } from "@orpc/server/fetch";
 import type { ServerWebSocket } from "bun";
@@ -20,8 +20,7 @@ import { buildClient, pwaHeadersFor } from "./build";
 import { buildRouter } from "./router";
 
 const stateDir = resolveStateDir();
-const dbPath = join(stateDir, "anywhen.db");
-const db = await openDb(stateDir);
+const { db, dbPath } = await openDb(stateDir);
 const store = taskStore(db);
 // Opt-in sample data for `just dev`. The recipe sets the env var; cucumber
 // does not, so e2e scenarios still start from an empty DB. seedSampleData is
