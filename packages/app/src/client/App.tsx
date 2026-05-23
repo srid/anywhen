@@ -251,6 +251,11 @@ export function App() {
   // tapping outside an accidentally-cleared input. On a failed mutation we
   // keep the editor open with the draft intact: tearing down would discard
   // the user's typing, leaving no path back to the input.
+  //
+  // The post-await teardown is gated on `editing()?.id === e.id` — without
+  // that check, a stale commit (e.g. a blur fired while the mutation was
+  // in flight, then the user opened a fresh edit on a different row) would
+  // wipe the new session.
   const commitEdit = async () => {
     const e = editing();
     if (!e) return;
@@ -262,6 +267,7 @@ export function App() {
     }
     const result = await callMutation(() => api.edit({ id: e.id, title }));
     if (result === undefined) return;
+    if (editing()?.id !== e.id) return;
     setEditing(null);
     setFocusedId(e.id);
   };
