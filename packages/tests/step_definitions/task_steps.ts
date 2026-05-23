@@ -144,28 +144,31 @@ When(
     const dx = targetBox.x + targetBox.width / 2;
     const dy = targetBox.y + targetBox.height * ZONE_CENTRE[where];
     const cdp = await this.context.newCDPSession(this.page);
-    await cdp.send("Input.dispatchTouchEvent", {
-      type: "touchStart",
-      touchPoints: [{ x: sx, y: sy, id: 1 }],
-    });
-    // Wait past the long-press window (DRAG_LONGPRESS_MS = 350 in App.tsx).
-    await new Promise((r) => setTimeout(r, 450));
-    await cdp.send("Input.dispatchTouchEvent", {
-      type: "touchMove",
-      touchPoints: [{ x: dx, y: dy, id: 1 }],
-    });
-    // A second move lets the dropTarget signal settle on the final zone
-    // before the touchend fires — mirrors the two-step pattern in the mouse
-    // drag step above.
-    await cdp.send("Input.dispatchTouchEvent", {
-      type: "touchMove",
-      touchPoints: [{ x: dx, y: dy, id: 1 }],
-    });
-    await cdp.send("Input.dispatchTouchEvent", {
-      type: "touchEnd",
-      touchPoints: [],
-    });
-    await cdp.detach();
+    try {
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [{ x: sx, y: sy, id: 1 }],
+      });
+      // Wait past the long-press window (DRAG_LONGPRESS_MS = 350 in App.tsx).
+      await this.page.waitForTimeout(450);
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ x: dx, y: dy, id: 1 }],
+      });
+      // A second move lets the dropTarget signal settle on the final zone
+      // before the touchend fires — mirrors the two-step pattern in the mouse
+      // drag step above.
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ x: dx, y: dy, id: 1 }],
+      });
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      });
+    } finally {
+      await cdp.detach();
+    }
   },
 );
 
@@ -191,7 +194,9 @@ When(
     // then to the precise drop zone. The intermediate steps trigger the
     // dragstart / dragenter / dragover sequence that headless Chromium
     // skips when mousedown and mouseup share a frame.
-    await this.page.mouse.move(dropX, targetBox.y + targetBox.height / 2, { steps: 10 });
+    await this.page.mouse.move(dropX, targetBox.y + targetBox.height / 2, {
+      steps: 10,
+    });
     await this.page.mouse.move(dropX, dropY, { steps: 5 });
     await this.page.mouse.up();
   },
