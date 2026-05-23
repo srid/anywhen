@@ -14,18 +14,15 @@ Feature: Mobile UX — touch input on a phone-sized viewport
   Scenario: reorder siblings by long-press touch drag
     Given the app is running with a fresh database
     When I add a task titled "first"
-    Then the tree should contain a task titled "first"
-    When I add a task titled "second"
-    Then the tree should contain a task titled "second"
-    And the tasks should appear in order: "first", "second"
+    And I add a task titled "second"
+    Then the tasks should appear in order: "first", "second"
     When I touch-drag the task titled "second" before the task titled "first"
     Then the tasks should appear in order: "second", "first"
 
   Scenario: nest a task by long-press touch drag into the middle of another
     Given the app is running with a fresh database
     When I add a task titled "parent"
-    Then the tree should contain a task titled "parent"
-    When I add a task titled "leaf"
+    And I add a task titled "leaf"
     Then the tree should contain a task titled "leaf"
     When I touch-drag the task titled "leaf" inside the task titled "parent"
     Then the task titled "leaf" should be a child of the task titled "parent"
