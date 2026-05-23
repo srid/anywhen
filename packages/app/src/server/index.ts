@@ -33,20 +33,15 @@ const port = Number(process.env.PORT ?? 7700);
 // Either "use this pre-built dist" (production / `nix run`) or "build into
 // this writable path" (dev / cucumber). The env var is the sole adapter;
 // the rest of the server treats `dist.path` uniformly.
-type DistMode = { kind: "prebuilt"; path: string } | { kind: "build"; path: string };
-
-function resolveDistMode(): DistMode {
-  const prebuilt = process.env.ANYWHEN_DIST_DIR;
-  if (prebuilt) return { kind: "prebuilt", path: prebuilt };
-  return { kind: "build", path: resolve(import.meta.dirname, "..", "..", "dist") };
-}
-
-const dist = resolveDistMode();
+const distEnv = process.env.ANYWHEN_DIST_DIR;
+const dist = distEnv
+  ? { kind: "prebuilt" as const, path: distEnv }
+  : { kind: "build" as const, path: resolve(import.meta.dirname, "..", "..", "dist") };
 if (dist.kind === "build") {
   await buildClient(dist.path);
 } else {
   // Fail loud at startup if the wrapper points at a directory missing the
-  // built shell — without this assertion, `Bun.file` on a missing path
+  // built dist — without this assertion, `Bun.file` on a missing path
   // returns a zero-byte BunFile and the SPA fallback (below) would serve
   // 200 OK with an empty body instead of a clear error.
   if (!(await Bun.file(resolve(dist.path, "index.html")).exists())) {
