@@ -5,14 +5,16 @@ A personal task manager. One search box: filter the tree, or add to it.
 > **Status**: scaffold + add a task (press `↵` in the search box, or tap
 > the Add button) + view the tree + toggle done + delete (with cascade
 > to descendants) + reorder via pointer drag — works for mouse, pen, and
-> touch (long-press to enter drag mode) — top edge = drop before, bottom
-> edge = drop after, middle = nest as child + keyboard navigation (`↑`/`↓`
-> moves selection, `Tab`/`⇧Tab` indents/outdents, `Alt`+`↑`/`↓` reorders
-> siblings, `⌫` deletes the focused row, `Space` toggles done, `/` focuses
-> the search box) + live filter (type a query — matches highlight in their
+> touch (long-press anywhere on a row, or press the grip handle on the
+> left edge for an instant drag) — top edge = drop before, bottom
+> edge = drop after, middle = nest as child + vim-friendly keyboard
+> navigation (`j`/`k` moves selection, `l`/`h` indents/outdents, `⇧J`/`⇧K`
+> reorders siblings, `x` deletes the focused row, `Space` toggles done,
+> `/` focuses the search box) + live filter (type a query — matches highlight in their
 > own row, ancestors stay visible but dimmed so the path to a match is
 > intact) + mobile-friendly layout (responsive media queries, touch-sized
-> tap targets, always-visible row actions on coarse pointers) + PWA
+> tap targets, always-visible row actions and grip handles on coarse
+> pointers) + PWA
 > (installable from the browser, with a service worker that caches the
 > app shell and serves `index.html` from cache when offline). Filter
 > atoms, tags, due dates, body, blocked-by, and the detail panel land in
@@ -66,6 +68,14 @@ shell defaults `ANYWHEN_STATE_DIR` to `./state` (gitignored), so `just dev`
 runs without extra setup. Cucumber overrides with a per-run `mktemp` dir
 (see `packages/tests/support/hooks.ts`) so production and test paths stay
 distinct.
+
+`just dev` boots with sample tasks (a small nested tree, a couple marked
+done) so a first run isn't an empty screen. The seed is gated by
+`ANYWHEN_SEED_SAMPLE_DATA=1` (set by the `dev` recipe; not set by `just
+test`) and is a no-op once any tasks exist — re-running `just dev`
+against a populated DB never clobbers user data. To start blank, delete
+`./state/anywhen.db` and unset the env var, or just clear the tasks via
+the UI.
 
 Schema evolution: every change ships as a new `.ts` file under
 `packages/app/src/storage/migrations/`. `openDb` applies pending migrations

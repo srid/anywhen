@@ -12,10 +12,11 @@
 // covers mouse, touch, and pen. Touch initiates drag via a short long-press
 // so vertical scroll on a row remains a finger-flick away.
 
-import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { matchesQuery } from "../shared/filter";
 import { normalizeQuery } from "../shared/input";
 import {
+  DRAG_LONGPRESS_MS,
   type DropZone,
   type MoveTarget,
   type Task,
@@ -99,15 +100,6 @@ const resolveKeyMove = (tasks: Task[], id: TaskId, action: KeyMove): MoveTarget 
   return ref ? { kind: action === "up" ? "before" : "after", refId: ref.id } : null;
 };
 
-const focusRowById = (id: TaskId) => {
-  requestAnimationFrame(() => {
-    const el = document.querySelector<HTMLElement>(
-      `[data-testid="task-row"][data-task-id="${CSS.escape(id)}"]`,
-    );
-    el?.focus();
-  });
-};
-
 type DragSnapshot = { id: TaskId; descendants: Set<TaskId> };
 
 // Pointer-events drag state. A row's pointerdown stages a "pending press";
@@ -124,9 +116,6 @@ type PendingPress = {
 // Distance the pointer must travel before a mouse press becomes a drag. Below
 // this threshold the press is treated as a click (select / focus).
 const DRAG_MOVE_THRESHOLD = 5;
-// Touch presses need a hold to disambiguate "I want to scroll the list" from
-// "I want to drag this row". 350ms is the iOS-ish window.
-const DRAG_LONGPRESS_MS = 350;
 
 export function App() {
   // Live subscription to the tasks Collection. `notes.keys()` is a reactive
@@ -137,6 +126,13 @@ export function App() {
   });
   const [query, setQuery] = createSignal("");
   const [selected, setSelected] = createSignal<TaskId | null>(null);
+  // "Which row should hold keyboard focus" — a render-lifecycle instruction,
+  // distinct from `selected` (the logical/aria selection driving styling). A
+  // per-row `createEffect` inside the <For> below re-applies focus whenever
+  // this signal matches the row's id. Setting focusedId from a mutation
+  // handler survives the <For>'s teardown-and-rebuild when the Collection
+  // delta arrives — the new row's effect runs on mount and reads the signal.
+  const [focusedId, setFocusedId] = createSignal<TaskId | null>(null);
   const [error, setError] = createSignal<string | null>(null);
   let searchInputRef!: HTMLInputElement;
 
@@ -211,7 +207,7 @@ export function App() {
 
   const toggle = async (id: TaskId) => {
     await callMutation(() => api.toggle(id));
-    focusRowById(id);
+    setFocusedId(id);
   };
 
   const remove = async (id: TaskId) => {
@@ -223,7 +219,7 @@ export function App() {
     const target = resolveKeyMove(taskList(), id, action);
     if (!target) return;
     await callMutation(() => api.move({ id, target }));
-    focusRowById(id);
+    setFocusedId(id);
   };
 
   const moveSelection = (id: TaskId, offset: 1 | -1) => {
@@ -233,32 +229,59 @@ export function App() {
     const next = rs[idx + offset];
     if (!next) return;
     setSelected(next.task.id);
-    focusRowById(next.task.id);
+    setFocusedId(next.task.id);
+  };
+
+  // Vim-style row bindings, with WAI-ARIA tree-pattern aliases. Each action
+  // lists its vim primary first; ArrowUp/Down + Tab/Shift+Tab + Backspace
+  // are the ARIA-required aliases (the tree/treeitem roles on the rows are
+  // a contract screen-reader users navigate by), and Alt+ArrowUp/Down stay
+  // as the legacy reorder aliases.
+  //
+  // Ctrl/Meta chords cede to the browser. Alt is consumed only by the
+  // ArrowUp/Down reorder aliases, so plain Alt+x or Alt+j fall through to
+  // the browser unchanged.
+  //
+  // Composite key "Shift+Tab" is encoded as the lookup key so the Tab and
+  // Shift+Tab cases don't need a nested conditional inside the handler.
+  const ROW_KEY_ACTIONS: Record<string, (id: TaskId) => void> = {
+    " ": (id) => void toggle(id),
+    // vim primary  │  ARIA alias
+    x: (id) => void remove(id),
+    Backspace: (id) => void remove(id),
+    j: (id) => moveSelection(id, 1),
+    ArrowDown: (id) => moveSelection(id, 1),
+    k: (id) => moveSelection(id, -1),
+    ArrowUp: (id) => moveSelection(id, -1),
+    J: (id) => void moveByKey(id, "down"),
+    K: (id) => void moveByKey(id, "up"),
+    l: (id) => void moveByKey(id, "indent"),
+    Tab: (id) => void moveByKey(id, "indent"),
+    h: (id) => void moveByKey(id, "outdent"),
+    "Shift+Tab": (id) => void moveByKey(id, "outdent"),
   };
 
   const handleRowKeyDown = (e: KeyboardEvent, id: TaskId) => {
-    if (e.key === " ") {
-      e.preventDefault();
-      void toggle(id);
-      return;
-    }
-    if (e.key === "Backspace") {
-      e.preventDefault();
-      void remove(id);
-      return;
-    }
-    if (e.key === "Tab" && !e.altKey && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      void moveByKey(id, e.shiftKey ? "outdent" : "indent");
-      return;
-    }
-    if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      if (e.altKey) {
-        void moveByKey(id, e.key === "ArrowUp" ? "up" : "down");
-      } else {
-        moveSelection(id, e.key === "ArrowUp" ? -1 : 1);
+    if (e.ctrlKey || e.metaKey) return;
+
+    // Alt is consumed only by the legacy ArrowUp/Down reorder aliases; any
+    // other alt-chord falls through to the browser unchanged.
+    if (e.altKey) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        void moveByKey(id, "down");
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        void moveByKey(id, "up");
       }
+      return;
+    }
+
+    const key = e.shiftKey && e.key === "Tab" ? "Shift+Tab" : e.key;
+    const action = ROW_KEY_ACTIONS[key];
+    if (action) {
+      e.preventDefault();
+      action(id);
     }
   };
 
@@ -322,6 +345,15 @@ export function App() {
     // Don't hijack clicks on action buttons inside the row.
     if (e.target instanceof Element && e.target.closest("button")) return;
     const sourceEl = e.currentTarget as HTMLElement;
+    // Two-layer affordance. CSS (`@media (pointer: coarse)`) reveals the handle
+    // span only on touch / coarse-pointer devices, so a mouse user normally
+    // sees nothing to click. The JS guard below fires for ANY pointer type
+    // that lands on the handle DOM node — the node is always present, just
+    // visually hidden on fine pointers. When it fires, the press bypasses
+    // both the long-press timer (touch / pen) and the movement threshold
+    // (mouse) and begins dragging immediately.
+    const fromHandle =
+      e.target instanceof Element && e.target.closest('[data-testid="task-drag-handle"]') !== null;
     // Capture the pointer so subsequent pointermove/up fire on this row even
     // after the pointer leaves it. Mouse has no implicit capture; without
     // this, the first move out of the source row would lose the drag stream.
@@ -337,6 +369,13 @@ export function App() {
     // the first long-press timer fires, which would otherwise orphan the old
     // timer until it expires).
     clearPendingPress();
+    if (fromHandle) {
+      beginDrag(id);
+      return;
+    }
+    // Only stage pendingPress for the paths that actually consume it — the
+    // mouse-threshold check in handleRowPointerMove and the long-press timer
+    // below. The handle path above bypasses both and short-circuits here.
     pendingPress = {
       id,
       startX: e.clientX,
@@ -509,8 +548,18 @@ export function App() {
                 const dt = dropTarget();
                 return dt?.id === row.task.id ? dt.zone : null;
               });
+              let rowEl!: HTMLDivElement;
+              // When focusedId matches this row, focus its DOM element. Runs
+              // on mount and whenever focusedId changes — so a mutation that
+              // tears down and rebuilds this row (Collection delta after
+              // toggle / move) re-establishes focus the moment the new
+              // element is bound.
+              createEffect(() => {
+                if (focusedId() === row.task.id) rowEl.focus();
+              });
               return (
                 <div
+                  ref={rowEl}
                   class="row"
                   classList={{
                     "is-done": row.task.status === "done",
@@ -541,6 +590,16 @@ export function App() {
                   <For each={Array.from({ length: row.depth })}>
                     {() => <span class="indent" />}
                   </For>
+                  <span class="drag-handle" data-testid="task-drag-handle" aria-hidden="true">
+                    <svg viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
+                      <circle cx="2.5" cy="3" r="1.2" />
+                      <circle cx="7.5" cy="3" r="1.2" />
+                      <circle cx="2.5" cy="8" r="1.2" />
+                      <circle cx="7.5" cy="8" r="1.2" />
+                      <circle cx="2.5" cy="13" r="1.2" />
+                      <circle cx="7.5" cy="13" r="1.2" />
+                    </svg>
+                  </span>
                   <button
                     type="button"
                     class="check"
@@ -585,18 +644,18 @@ export function App() {
           <kbd>↵</kbd> to add the typed task
         </span>
         <span>
-          <kbd>↑</kbd>
-          <kbd>↓</kbd> to move selection
+          <kbd>j</kbd>
+          <kbd>k</kbd> to move selection
         </span>
         <span>
-          <kbd>Tab</kbd> / <kbd>⇧Tab</kbd> to indent / outdent
+          <kbd>l</kbd> / <kbd>h</kbd> to indent / outdent
         </span>
         <span>
-          <kbd>Alt</kbd>+<kbd>↑</kbd>
-          <kbd>↓</kbd> to reorder siblings
+          <kbd>⇧J</kbd>
+          <kbd>⇧K</kbd> to reorder siblings
         </span>
         <span>
-          <kbd>Space</kbd> toggle · <kbd>⌫</kbd> delete · <kbd>/</kbd> search
+          <kbd>Space</kbd> toggle · <kbd>x</kbd> delete · <kbd>/</kbd> search
         </span>
       </div>
 
