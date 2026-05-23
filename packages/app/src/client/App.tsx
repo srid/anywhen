@@ -154,7 +154,10 @@ export function App() {
   // shortcut depend on a test-instrumentation attribute.
   let searchInputRef!: HTMLInputElement;
 
-  const rows = createMemo<Row[]>(() => buildRows(tasks() ?? []));
+  // Unwrap the resource once — callers downstream get a plain Task[] and
+  // don't need to guard against the loading/error undefined themselves.
+  const taskList = createMemo<Task[]>(() => tasks() ?? []);
+  const rows = createMemo<Row[]>(() => buildRows(taskList()));
 
   // Every mutation has the same shape: await the RPC, refetch the list,
   // surface any error. Inlining this at three call sites would force PR 2
@@ -200,7 +203,7 @@ export function App() {
   };
 
   const moveByKey = async (id: TaskId, action: KeyMove) => {
-    const target = resolveKeyMove(tasks() ?? [], id, action);
+    const target = resolveKeyMove(taskList(), id, action);
     if (!target) return;
     await callMutation(() => api.move({ id, target }));
     focusRowById(id);
@@ -291,7 +294,7 @@ export function App() {
   };
 
   const handleDragStart = (e: DragEvent, id: TaskId) => {
-    setDrag({ id, descendants: descendantsOf(tasks() ?? [], id) });
+    setDrag({ id, descendants: descendantsOf(taskList(), id) });
     if (e.dataTransfer) {
       e.dataTransfer.effectAllowed = "move";
       // Some browsers ignore the drag if no data is attached.
