@@ -8,11 +8,11 @@
 // so each verb's side effects fan out as Collection deltas without a
 // parallel `store.X + bus.publish` path.
 
-import { implement } from "@orpc/server";
 import { implementSurface, publisherChannel } from "@kolu/surface/server";
 import { MemoryPublisher } from "@orpc/experimental-publisher/memory";
-import { surface } from "../shared/surface";
+import { implement } from "@orpc/server";
 import type { TaskId } from "../shared/schemas";
+import { surface } from "../shared/surface";
 import { descendantIds } from "../shared/tree";
 import type { TaskStore } from "../storage/tasks";
 
@@ -60,13 +60,12 @@ export function buildRouter(store: TaskStore) {
           ctx.collections.tasks.upsert(task.id, task);
           return task;
         },
-        // `move` rewrites parent_id / position. Re-read the moved row
-        // and publish it as an upsert so subscribers see the new
-        // parent / order without a separate "moved" channel.
+        // `move` rewrites parent_id / position. `store.move` returns the
+        // updated row, so we publish directly without a second `listMap()`
+        // round-trip.
         move: async ({ input, ctx }) => {
-          store.move(input);
-          const next = store.listMap().get(input.id);
-          if (next) ctx.collections.tasks.upsert(input.id, next);
+          const next = store.move(input);
+          ctx.collections.tasks.upsert(input.id, next);
         },
         // FK cascade removes descendants in SQL; mirror the same fan-out
         // through the Collection so each descendant's key drops off the

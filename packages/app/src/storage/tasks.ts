@@ -113,7 +113,9 @@ export const taskStore = (db: Database) => {
     // Rejects: moving into self, or any move that would make an ancestor
     // become its own descendant. Dropping a task adjacent to itself is
     // permitted and resolves to an idempotent position update.
-    move(input: MoveTaskInput): void {
+    // Returns the moved task so the router can publish an upsert delta
+    // without a second `listMap()` round-trip.
+    move(input: MoveTaskInput): Task {
       const { id, target } = input;
       const task = getStmt.get(id);
       if (!task) throw new Error(`Task ${id} not found`);
@@ -145,6 +147,9 @@ export const taskStore = (db: Database) => {
       }
 
       movePositionStmt.run(newParentId, newPosition, new Date().toISOString(), id);
+      const updated = getStmt.get(id);
+      if (!updated) throw new Error(`Task ${id} disappeared after move`);
+      return rowToTask(updated);
     },
 
     toggle(id: TaskId): Task {
