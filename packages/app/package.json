@@ -10,10 +10,12 @@
   "dependencies": {
     "@babel/core": "^7.25.0",
     "@babel/preset-typescript": "^7.25.0",
+    "@meck93/kysely-bun-sqlite": "^0.2.16",
     "@orpc/client": "^1.13.13",
     "@orpc/contract": "^1.13.13",
     "@orpc/server": "^1.13.13",
     "babel-preset-solid": "^1.9.0",
+    "kysely": "^0.28.11",
     "solid-js": "^1.9.0",
     "zod": "^4.3.6"
   },

@@ -33,8 +33,8 @@ export const surface = defineSurface({
         output: z.void(),
       },
       // remove cascades to descendants via the parent_id FK's
-      // `ON DELETE CASCADE` clause in schema.sql — deleting a parent
-      // removes its entire subtree atomically.
+      // `ON DELETE CASCADE` clause in the init migration — deleting a
+      // parent removes its entire subtree atomically.
       remove: {
         input: TaskIdSchema,
         output: z.void(),

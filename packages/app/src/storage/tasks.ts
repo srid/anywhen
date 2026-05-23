@@ -1,18 +1,15 @@
-import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
+import type { Kysely, Selectable } from "kysely";
+import type { Database } from "./schema";
 import type { MoveTaskInput, Task, TaskId } from "../shared/schemas";
 
-// Row type stays internal to storage/. Domain `Task` (camelCase ISO strings)
-// is what crosses the module boundary; SQLite snake_case never leaks.
-type DbTask = {
-  id: string;
-  parent_id: string | null;
-  title: string;
-  status: "todo" | "done";
-  position: number;
-  created_at: string;
-  updated_at: string;
-};
+// Row type derives from Kysely's `Selectable<TasksTable>` so the SELECT
+// shape stays in lockstep with the schema interface — adding a column in
+// schema.ts (and a migration) updates this type for free. The domain
+// `Task` (camelCase ISO strings) is what crosses out of storage/;
+// `rowToTask` is the explicit boundary. No CamelCasePlugin: the mapping
+// stays visible at one site.
+type DbTask = Selectable<Database["tasks"]>;
 
 const rowToTask = (r: DbTask): Task => ({
   id: r.id,
@@ -33,47 +30,39 @@ const rowToTask = (r: DbTask): Task => ({
 // in the same dynamic range.
 const POSITION_GAP = 100;
 
-export const taskStore = (db: Database) => {
-  const listStmt = db.query<DbTask, []>("SELECT * FROM tasks ORDER BY position ASC");
-  const getStmt = db.query<DbTask, [TaskId]>("SELECT * FROM tasks WHERE id = ?");
-  const maxPositionStmt = db.query<{ max_pos: number | null }, [TaskId | null]>(
-    "SELECT MAX(position) AS max_pos FROM tasks WHERE parent_id IS ?",
-  );
-  const insertStmt = db.query(
-    "INSERT INTO tasks (id, parent_id, title, status, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-  );
-  const setStatusStmt = db.query("UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?");
-  const removeStmt = db.query("DELETE FROM tasks WHERE id = ?");
-  const movePositionStmt = db.query(
-    "UPDATE tasks SET parent_id = ?, position = ?, updated_at = ? WHERE id = ?",
-  );
-
-  // Sibling immediately before/after `position` within `parentId`, excluding
-  // `excludeId` (the task being moved — otherwise reordering within the same
-  // parent picks itself as its own neighbor).
-  const prevSiblingStmt = db.query<{ position: number }, [TaskId | null, number, TaskId]>(
-    "SELECT position FROM tasks WHERE parent_id IS ? AND position < ? AND id != ? ORDER BY position DESC LIMIT 1",
-  );
-  const nextSiblingStmt = db.query<{ position: number }, [TaskId | null, number, TaskId]>(
-    "SELECT position FROM tasks WHERE parent_id IS ? AND position > ? AND id != ? ORDER BY position ASC LIMIT 1",
-  );
-  const maxChildPositionStmt = db.query<{ max_pos: number | null }, [TaskId, TaskId]>(
-    "SELECT MAX(position) AS max_pos FROM tasks WHERE parent_id IS ? AND id != ?",
-  );
-
+export const taskStore = (db: Kysely<Database>) => {
   return {
-    list(): Task[] {
-      return listStmt.all().map(rowToTask);
+    async list(): Promise<Task[]> {
+      const rows = await db.selectFrom("tasks").selectAll().orderBy("position", "asc").execute();
+      return rows.map(rowToTask);
     },
 
-    add(input: { title: string; parentId: TaskId | null }): Task {
+    async add(input: { title: string; parentId: TaskId | null }): Promise<Task> {
       const id = randomUUID();
       const now = new Date().toISOString();
-      const { max_pos } = maxPositionStmt.get(input.parentId) ?? { max_pos: null };
-      const position = (max_pos ?? 0) + POSITION_GAP;
-      insertStmt.run(id, input.parentId, input.title, "todo", position, now, now);
-      const row = getStmt.get(id);
-      if (!row) throw new Error(`Failed to read back inserted task ${id}`);
+      const maxRow = await db
+        .selectFrom("tasks")
+        .select((eb) => eb.fn.max<number | null>("position").as("max_pos"))
+        .where((eb) =>
+          input.parentId === null
+            ? eb("parent_id", "is", null)
+            : eb("parent_id", "=", input.parentId),
+        )
+        .executeTakeFirst();
+      const position = (maxRow?.max_pos ?? 0) + POSITION_GAP;
+      const row = await db
+        .insertInto("tasks")
+        .values({
+          id,
+          parent_id: input.parentId,
+          title: input.title,
+          status: "todo",
+          position,
+          created_at: now,
+          updated_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
       return rowToTask(row);
     },
 
@@ -83,11 +72,15 @@ export const taskStore = (db: Database) => {
     // Rejects: moving into self, or any move that would make an ancestor
     // become its own descendant. Dropping a task adjacent to itself is
     // permitted and resolves to an idempotent position update.
-    move(input: MoveTaskInput): void {
+    async move(input: MoveTaskInput): Promise<void> {
       const { id, target } = input;
-      const task = getStmt.get(id);
+      const task = await db.selectFrom("tasks").selectAll().where("id", "=", id).executeTakeFirst();
       if (!task) throw new Error(`Task ${id} not found`);
-      const ref = getStmt.get(target.refId);
+      const ref = await db
+        .selectFrom("tasks")
+        .selectAll()
+        .where("id", "=", target.refId)
+        .executeTakeFirst();
       if (!ref) throw new Error(`Task ${target.refId} not found`);
       if (id === target.refId) throw new Error("Cannot move a task relative to itself");
 
@@ -98,47 +91,96 @@ export const taskStore = (db: Database) => {
       let cursor: string | null = newParentId;
       while (cursor) {
         if (cursor === id) throw new Error(`Cannot move task ${id} into its own subtree`);
-        const parent = getStmt.get(cursor);
+        const parent = await db
+          .selectFrom("tasks")
+          .select("parent_id")
+          .where("id", "=", cursor)
+          .executeTakeFirst();
         cursor = parent ? parent.parent_id : null;
       }
 
       let newPosition: number;
       if (target.kind === "inside") {
-        const { max_pos } = maxChildPositionStmt.get(ref.id, id) ?? { max_pos: null };
-        newPosition = (max_pos ?? 0) + POSITION_GAP;
+        const maxChild = await db
+          .selectFrom("tasks")
+          .select((eb) => eb.fn.max<number | null>("position").as("max_pos"))
+          .where("parent_id", "=", ref.id)
+          .where("id", "!=", id)
+          .executeTakeFirst();
+        newPosition = (maxChild?.max_pos ?? 0) + POSITION_GAP;
       } else if (target.kind === "before") {
-        const prev = prevSiblingStmt.get(ref.parent_id, ref.position, id);
+        const prev = await db
+          .selectFrom("tasks")
+          .select("position")
+          .where((eb) =>
+            ref.parent_id === null
+              ? eb("parent_id", "is", null)
+              : eb("parent_id", "=", ref.parent_id),
+          )
+          .where("position", "<", ref.position)
+          .where("id", "!=", id)
+          .orderBy("position", "desc")
+          .limit(1)
+          .executeTakeFirst();
         newPosition = prev ? (prev.position + ref.position) / 2 : ref.position - POSITION_GAP;
       } else {
-        const next = nextSiblingStmt.get(ref.parent_id, ref.position, id);
+        const next = await db
+          .selectFrom("tasks")
+          .select("position")
+          .where((eb) =>
+            ref.parent_id === null
+              ? eb("parent_id", "is", null)
+              : eb("parent_id", "=", ref.parent_id),
+          )
+          .where("position", ">", ref.position)
+          .where("id", "!=", id)
+          .orderBy("position", "asc")
+          .limit(1)
+          .executeTakeFirst();
         newPosition = next ? (ref.position + next.position) / 2 : ref.position + POSITION_GAP;
       }
 
-      movePositionStmt.run(newParentId, newPosition, new Date().toISOString(), id);
+      await db
+        .updateTable("tasks")
+        .set({
+          parent_id: newParentId,
+          position: newPosition,
+          updated_at: new Date().toISOString(),
+        })
+        .where("id", "=", id)
+        .execute();
     },
 
-    toggle(id: TaskId): Task {
-      const current = getStmt.get(id);
+    async toggle(id: TaskId): Promise<Task> {
+      const current = await db
+        .selectFrom("tasks")
+        .selectAll()
+        .where("id", "=", id)
+        .executeTakeFirst();
       if (!current) throw new Error(`Task ${id} not found`);
       const next = current.status === "todo" ? "done" : "todo";
-      setStatusStmt.run(next, new Date().toISOString(), id);
-      const updated = getStmt.get(id);
-      if (!updated) throw new Error(`Task ${id} disappeared after update`);
+      const updated = await db
+        .updateTable("tasks")
+        .set({ status: next, updated_at: new Date().toISOString() })
+        .where("id", "=", id)
+        .returningAll()
+        .executeTakeFirstOrThrow();
       return rowToTask(updated);
     },
 
-    // Descendants cascade via the parent_id FK ON DELETE CASCADE
-    // (schema.sql). Missing ids are a no-op — the UI may double-fire on
-    // optimistic delete + refetch and the second call should not throw.
-    remove(id: TaskId): void {
-      removeStmt.run(id);
+    // Descendants cascade via the parent_id FK ON DELETE CASCADE (set up
+    // in the init migration). Missing ids are a no-op — the UI may
+    // double-fire on optimistic delete + refetch and the second call
+    // should not throw.
+    async remove(id: TaskId): Promise<void> {
+      await db.deleteFrom("tasks").where("id", "=", id).execute();
     },
 
     // Test-only: drop every row. Called by cucumber's "Given the app is
     // running with a fresh database" so multiple scenarios can share one
     // server process without state bleed.
-    reset(): void {
-      db.exec("DELETE FROM tasks");
+    async reset(): Promise<void> {
+      await db.deleteFrom("tasks").execute();
     },
   };
 };

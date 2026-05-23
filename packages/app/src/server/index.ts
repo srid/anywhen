@@ -23,7 +23,7 @@ import { taskStore } from "../storage/tasks";
 import { buildRouter } from "./router";
 
 const stateDir = resolveStateDir();
-const db = openDb(stateDir);
+const db = await openDb(stateDir);
 const store = taskStore(db);
 const router = buildRouter(store);
 const httpHandler = new RPCHandler(router);
