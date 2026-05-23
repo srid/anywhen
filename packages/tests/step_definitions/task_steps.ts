@@ -174,9 +174,11 @@ Then(
   },
 );
 
-// The drag handle is display:none on fine pointers and revealed by the
-// @media (pointer: coarse) rule. Asserting toBeVisible() exercises the
-// same code path that determines real-world visibility on touch devices.
+// The drag handle is display:none on fine pointers and shown as display:flex
+// by the @media (pointer: coarse) rule. Unlike the delete button (which uses
+// opacity — invisible to toBeVisible), display:none IS detected by
+// toBeVisible(), so this assertion correctly mirrors real-world touch
+// visibility.
 Then(
   "the drag handle on the task titled {string} should be visible",
   async function (this: AnywhenWorld, title: string) {
