@@ -138,26 +138,24 @@ export function App() {
   };
 
   // ── Drag-and-drop reordering ────────────────────────────────────────
-  // The dragged task plus a memoised set of its descendants — both used to
-  // veto invalid drops (onto self or into own subtree) before the server
-  // sees them. The server also rejects, but blocking here keeps the
-  // visual indicator off illegal targets so the UX matches the outcome.
-  const [draggedId, setDraggedId] = createSignal<TaskId | null>(null);
+  // The drag snapshot couples a task id with its descendant set, taken once
+  // at drag-start. Tying both to a single value seals the drag gesture
+  // against mid-drag refetches: a background mutation that re-reads tasks
+  // can't shift the descendant set under the user's hand. The server
+  // re-validates, but blocking invalid targets here keeps the visual
+  // indicator off them so the UX matches the outcome.
+  type DragSnapshot = { id: TaskId; descendants: Set<TaskId> };
+  const [drag, setDrag] = createSignal<DragSnapshot | null>(null);
   const [dropTarget, setDropTarget] = createSignal<{ id: TaskId; zone: DropZone } | null>(null);
-  const draggedDescendants = createMemo<Set<TaskId>>(() => {
-    const id = draggedId();
-    if (!id) return new Set();
-    return descendantsOf(tasks() ?? [], id);
-  });
 
   const canDropOn = (rowId: TaskId): boolean => {
-    const src = draggedId();
-    if (!src || src === rowId) return false;
-    return !draggedDescendants().has(rowId);
+    const d = drag();
+    if (!d || d.id === rowId) return false;
+    return !d.descendants.has(rowId);
   };
 
   const handleDragStart = (e: DragEvent, id: TaskId) => {
-    setDraggedId(id);
+    setDrag({ id, descendants: descendantsOf(tasks() ?? [], id) });
     if (e.dataTransfer) {
       e.dataTransfer.effectAllowed = "move";
       // Some browsers ignore the drag if no data is attached.
@@ -178,7 +176,7 @@ export function App() {
   };
 
   const clearDragState = () => {
-    setDraggedId(null);
+    setDrag(null);
     setDropTarget(null);
   };
 
@@ -190,7 +188,7 @@ export function App() {
     e.preventDefault();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const zone = zoneAt(e.clientY - rect.top, rect.height);
-    const src = draggedId();
+    const src = drag()?.id;
     clearDragState();
     if (!src) return;
     const target: MoveTarget = { kind: zone, refId: rowId };
@@ -235,7 +233,7 @@ export function App() {
                 classList={{
                   "is-done": row.task.status === "done",
                   selected: selected() === row.task.id,
-                  dragging: draggedId() === row.task.id,
+                  dragging: drag()?.id === row.task.id,
                   "drop-before":
                     dropTarget()?.id === row.task.id && dropTarget()?.zone === "before",
                   "drop-after": dropTarget()?.id === row.task.id && dropTarget()?.zone === "after",
