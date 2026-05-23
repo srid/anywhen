@@ -152,10 +152,12 @@ export const taskStore = (db: Kysely<Database>) => {
           newPosition = (maxChild?.max_pos ?? 0) + POSITION_GAP;
         } else if (target.kind === "before") {
           const prev = await nearestSibling(trx, ref.parent_id, ref.position, id, "before");
-          newPosition = prev !== undefined ? (prev + ref.position) / 2 : ref.position - POSITION_GAP;
+          newPosition =
+            prev !== undefined ? (prev + ref.position) / 2 : ref.position - POSITION_GAP;
         } else {
           const next = await nearestSibling(trx, ref.parent_id, ref.position, id, "after");
-          newPosition = next !== undefined ? (ref.position + next) / 2 : ref.position + POSITION_GAP;
+          newPosition =
+            next !== undefined ? (ref.position + next) / 2 : ref.position + POSITION_GAP;
         }
 
         await trx
