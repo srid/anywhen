@@ -1,6 +1,18 @@
+<!--
+  anywhen brand mark — "all time is now". Concentric rings (eternity)
+  with a bright center dot (the eternal present). The maskable variant
+  in icon-maskable.svg is this same composition scaled to ~0.80× so
+  every element fits inside the W3C maskable safe-zone (content radius
+  ≤204 on a 512×512 canvas). Edit both files together — divergence is
+  only visible post-install, when the OS picks one or the other.
+-->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>anywhen — all time is now</title>
   <rect width="512" height="512" rx="96" fill="#0f0f10"/>
-  <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"
-        font-family="ui-sans-serif, system-ui, -apple-system, sans-serif"
-        font-size="320" font-weight="700" fill="#f4f4f5">a</text>
+  <g fill="none" stroke="#f4f4f5" stroke-linecap="round">
+    <circle cx="256" cy="256" r="200" stroke-width="6" opacity="0.22"/>
+    <circle cx="256" cy="256" r="140" stroke-width="8" opacity="0.52"/>
+    <circle cx="256" cy="256" r="82" stroke-width="10" opacity="0.85"/>
+  </g>
+  <circle cx="256" cy="256" r="28" fill="#f4f4f5"/>
 </svg>
