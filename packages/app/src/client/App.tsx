@@ -236,53 +236,69 @@ export function App() {
     focusRowById(next.task.id);
   };
 
-  // Vim-style row bindings. Ctrl / Meta / Alt chords are left to the browser
-  // so OS- and app-level shortcuts (back/forward, devtools, etc.) keep
-  // working when a row has focus.
+  // Vim-style row bindings, with WAI-ARIA tree-pattern aliases. Each action
+  // lists its vim primary first; ArrowUp/Down + Tab/Shift+Tab + Backspace
+  // are the ARIA-required aliases (the tree/treeitem roles on the rows are
+  // a contract screen-reader users navigate by), and Alt+ArrowUp/Down stay
+  // as the legacy reorder aliases.
+  //
+  // Ctrl/Meta chords cede to the browser. Alt is consumed only by the
+  // ArrowUp/Down reorder aliases, so plain Alt+x or Alt+j fall through to
+  // the browser unchanged.
   const handleRowKeyDown = (e: KeyboardEvent, id: TaskId) => {
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.key === " ") {
-      e.preventDefault();
-      void toggle(id);
+    if (e.ctrlKey || e.metaKey) return;
+
+    if (e.altKey) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        void moveByKey(id, "down");
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        void moveByKey(id, "up");
+      }
       return;
     }
-    if (e.key === "x") {
-      e.preventDefault();
-      void remove(id);
-      return;
-    }
-    // Shift+j/k → uppercase J/K → move row among siblings.
-    // Plain j/k → move selection within visible rows.
-    if (e.key === "j") {
-      e.preventDefault();
-      moveSelection(id, 1);
-      return;
-    }
-    if (e.key === "k") {
-      e.preventDefault();
-      moveSelection(id, -1);
-      return;
-    }
-    if (e.key === "J") {
-      e.preventDefault();
-      void moveByKey(id, "down");
-      return;
-    }
-    if (e.key === "K") {
-      e.preventDefault();
-      void moveByKey(id, "up");
-      return;
-    }
-    // h/l mirror vim's left/right: l indents (one level deeper), h outdents.
-    if (e.key === "l") {
-      e.preventDefault();
-      void moveByKey(id, "indent");
-      return;
-    }
-    if (e.key === "h") {
-      e.preventDefault();
-      void moveByKey(id, "outdent");
-      return;
+
+    switch (e.key) {
+      case " ":
+        e.preventDefault();
+        void toggle(id);
+        return;
+      case "x":
+      case "Backspace":
+        e.preventDefault();
+        void remove(id);
+        return;
+      case "j":
+      case "ArrowDown":
+        e.preventDefault();
+        moveSelection(id, 1);
+        return;
+      case "k":
+      case "ArrowUp":
+        e.preventDefault();
+        moveSelection(id, -1);
+        return;
+      case "J":
+        e.preventDefault();
+        void moveByKey(id, "down");
+        return;
+      case "K":
+        e.preventDefault();
+        void moveByKey(id, "up");
+        return;
+      case "l":
+        e.preventDefault();
+        void moveByKey(id, "indent");
+        return;
+      case "h":
+        e.preventDefault();
+        void moveByKey(id, "outdent");
+        return;
+      case "Tab":
+        e.preventDefault();
+        void moveByKey(id, e.shiftKey ? "outdent" : "indent");
+        return;
     }
   };
 
