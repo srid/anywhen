@@ -132,9 +132,12 @@ export function App() {
     toggle(id);
   };
 
-  const remove = (id: TaskId) => {
-    if (selected() === id) setSelected(null);
-    void callMutation(() => api.remove(id));
+  const remove = async (id: TaskId) => {
+    await callMutation(() => api.remove(id));
+    // Clearing selection before the mutation settles would leave the user
+    // with no selection on a failed delete (the row still exists, just
+    // unselected). Clear only after callMutation flips the error signal.
+    if (!error() && selected() === id) setSelected(null);
   };
 
   // ── Drag-and-drop reordering ────────────────────────────────────────
