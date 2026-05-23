@@ -177,10 +177,14 @@ export function App() {
     const parsed = parseInput(query());
     if (!parsed || parsed.kind !== "create") return;
     e.preventDefault();
-    const created = await callMutation(() => api.add({ title: parsed.title, parentId: null }));
-    if (!created) return;
+    // Clear the input synchronously before the await so subsequent keystrokes
+    // aren't clobbered by a late `setQuery("")` after the mutation resolves.
+    // The earlier ordering raced with rapid "+ title ↵" sequences — the user's
+    // second `+ title` could land in the box, then the first add's resolution
+    // would erase it before its Enter ran.
     setQuery("");
-    setSelected(created.id);
+    const created = await callMutation(() => api.add({ title: parsed.title, parentId: null }));
+    if (created) setSelected(created.id);
   };
 
   const toggle = async (id: TaskId) => {
