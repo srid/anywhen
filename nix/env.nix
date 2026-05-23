@@ -1,27 +1,34 @@
-# Shared env vars consumed by the anywhen build, the devShell, and the wrapper.
+# Env vars exported by this module for the dev shell and the build
+# derivation (and re-used by NixOS modules consuming the app).
 #
-# The canonical anywhen env-var surface:
+# This file holds only vars whose value is a Nix-store path; other
+# anywhen env vars are set closer to their consumer (because they
+# depend on runtime values: a port, a user, an XDG dir, an ephemeral
+# tmpdir). The full anywhen env-var surface — for grepping — is:
 #
-#   ANYWHEN_KOLU_SURFACE  — set here (shell + build). /nix/store path to
-#                           the @kolu/surface source. Hydrated into
-#                           node_modules/@kolu/surface by shellHook and
-#                           by the anywhen derivation's
-#                           postBunNodeModulesInstallPhase.
+#   ANYWHEN_KOLU_SURFACE  — set HERE (shell + build).
+#                           /nix/store path to the @kolu/surface
+#                           source. Hydrated into
+#                           node_modules/@kolu/surface by
+#                           scripts/hydrate-kolu-surface.sh.
 #
-#   ANYWHEN_STATE_DIR     — wrapper-only (see default.nix `anywhen`).
-#                           Defaults to $XDG_DATA_HOME/anywhen under
-#                           `nix run`. shell.nix's shellHook defaults
-#                           it to $repo/state for `just dev`. Cucumber
-#                           overrides per-scenario.
+#   ANYWHEN_STATE_DIR     — set in shell.nix (shellHook defaults it
+#                           to $repo/state), default.nix (the
+#                           `anywhen` wrapper defaults it to
+#                           $XDG_DATA_HOME/anywhen), and per-scenario
+#                           in packages/tests/support/hooks.ts.
+#                           Read by resolveStateDir() in
+#                           packages/app/src/storage/db.ts.
 #
-#   ANYWHEN_DIST_DIR      — wrapper-only (see default.nix `anywhenBin`).
-#                           /nix/store path to the pre-built client tree.
-#                           If unset (dev path), `build.ts` is invoked
-#                           at server startup.
+#   ANYWHEN_DIST_DIR      — set in default.nix (the `anywhenBin`
+#                           wrapper points it at the in-store dist
+#                           tree). Read by resolveDistMode() in
+#                           packages/app/src/server/index.ts.
+#                           Unset = dev path (buildClient at boot).
 #
-#   ANYWHEN_TEST_BIN      — e2e shell only (see flake.nix
-#                           `devShells.e2e`). Path to the wrapped
-#                           anywhen binary the cucumber harness spawns.
+#   ANYWHEN_TEST_BIN      — set in flake.nix (devShells.e2e). Path
+#                           to the wrapped anywhen binary the
+#                           cucumber harness spawns.
 { pkgs }:
 {
   ANYWHEN_KOLU_SURFACE = pkgs.anywhen-kolu-surface;
