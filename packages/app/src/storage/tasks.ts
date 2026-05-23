@@ -18,6 +18,28 @@ const whereParentIs =
   (eb: ExpressionBuilder<Database, "tasks">): Expression<SqlBool> =>
     parentId === null ? eb("parent_id", "is", null) : eb("parent_id", "=", parentId);
 
+// Returns the position of the nearest sibling in direction `dir` relative to
+// `refPosition` within the same parent, excluding `excludeId`. Used by move()
+// to compute the float midpoint for before/after placements.
+async function nearestSibling(
+  trx: Kysely<Database>,
+  parentId: TaskId | null,
+  refPosition: number,
+  excludeId: TaskId,
+  dir: "before" | "after",
+): Promise<number | undefined> {
+  const row = await trx
+    .selectFrom("tasks")
+    .select("position")
+    .where(whereParentIs(parentId))
+    .where("position", dir === "before" ? "<" : ">", refPosition)
+    .where("id", "!=", excludeId)
+    .orderBy("position", dir === "before" ? "desc" : "asc")
+    .limit(1)
+    .executeTakeFirst();
+  return row?.position;
+}
+
 const rowToTask = (r: DbTask): Task => ({
   id: r.id,
   parentId: r.parent_id,
@@ -129,27 +151,11 @@ export const taskStore = (db: Kysely<Database>) => {
             .executeTakeFirst();
           newPosition = (maxChild?.max_pos ?? 0) + POSITION_GAP;
         } else if (target.kind === "before") {
-          const prev = await trx
-            .selectFrom("tasks")
-            .select("position")
-            .where(whereParentIs(ref.parent_id))
-            .where("position", "<", ref.position)
-            .where("id", "!=", id)
-            .orderBy("position", "desc")
-            .limit(1)
-            .executeTakeFirst();
-          newPosition = prev ? (prev.position + ref.position) / 2 : ref.position - POSITION_GAP;
+          const prev = await nearestSibling(trx, ref.parent_id, ref.position, id, "before");
+          newPosition = prev !== undefined ? (prev + ref.position) / 2 : ref.position - POSITION_GAP;
         } else {
-          const next = await trx
-            .selectFrom("tasks")
-            .select("position")
-            .where(whereParentIs(ref.parent_id))
-            .where("position", ">", ref.position)
-            .where("id", "!=", id)
-            .orderBy("position", "asc")
-            .limit(1)
-            .executeTakeFirst();
-          newPosition = next ? (ref.position + next.position) / 2 : ref.position + POSITION_GAP;
+          const next = await nearestSibling(trx, ref.parent_id, ref.position, id, "after");
+          newPosition = next !== undefined ? (ref.position + next) / 2 : ref.position + POSITION_GAP;
         }
 
         await trx
