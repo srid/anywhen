@@ -32,14 +32,21 @@ const api = client.surface.tasks;
 // ── Tree derivation: flat Task[] → ordered, indented rows ─────────────
 type Row = { task: Task; depth: number };
 
-const buildRows = (tasks: Task[]): Row[] => {
-  const byParent = new Map<TaskId | null, Task[]>();
+// Parent → children adjacency map. The shared primitive behind both row
+// rendering and descendant lookups for drag-veto. One construction; two
+// callers walk it for different outputs.
+const byParentMap = (tasks: Task[]): Map<TaskId | null, Task[]> => {
+  const out = new Map<TaskId | null, Task[]>();
   for (const t of tasks) {
-    const k = t.parentId;
-    const arr = byParent.get(k) ?? [];
+    const arr = out.get(t.parentId) ?? [];
     arr.push(t);
-    byParent.set(k, arr);
+    out.set(t.parentId, arr);
   }
+  return out;
+};
+
+const buildRows = (tasks: Task[]): Row[] => {
+  const byParent = byParentMap(tasks);
   for (const arr of byParent.values()) arr.sort((a, b) => a.position - b.position);
   const out: Row[] = [];
   const walk = (parentId: TaskId | null, depth: number) => {
@@ -64,12 +71,7 @@ const zoneAt = (offsetY: number, height: number): DropZone => {
 };
 
 const descendantsOf = (tasks: Task[], rootId: TaskId): Set<TaskId> => {
-  const byParent = new Map<TaskId | null, Task[]>();
-  for (const t of tasks) {
-    const arr = byParent.get(t.parentId) ?? [];
-    arr.push(t);
-    byParent.set(t.parentId, arr);
-  }
+  const byParent = byParentMap(tasks);
   const out = new Set<TaskId>();
   const walk = (id: TaskId) => {
     for (const c of byParent.get(id) ?? []) {
