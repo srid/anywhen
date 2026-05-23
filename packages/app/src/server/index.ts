@@ -11,14 +11,10 @@
 // `plugins` array directly, so we drive the build ourselves.
 
 import { resolve } from "node:path";
-import { transformAsync } from "@babel/core";
-// @ts-expect-error - babel preset types are loose
-import babelTypeScript from "@babel/preset-typescript";
 import { RPCHandler as WsRPCHandler } from "@orpc/server/bun-ws";
 import { RPCHandler } from "@orpc/server/fetch";
-// @ts-expect-error - babel preset types are loose
-import babelSolid from "babel-preset-solid";
-import type { BunPlugin, ServerWebSocket } from "bun";
+import type { ServerWebSocket } from "bun";
+import { buildClient } from "../build-client";
 import { openDb, resolveStateDir } from "../storage/db";
 import { taskStore } from "../storage/tasks";
 import { buildRouter } from "./router";
@@ -35,46 +31,26 @@ const httpHandler = new RPCHandler(router);
 const wsHandler = new WsRPCHandler(router);
 
 const port = Number(process.env.PORT ?? 7700);
-
-// Solid JSX transform. babel-preset-solid emits the compiled-template
-// runtime (template/insert/createComponent) so signals drive DOM updates;
-// the typescript preset strips type annotations first.
-const solidJsxPlugin: BunPlugin = {
-  name: "anywhen-solid",
-  setup(build) {
-    build.onLoad({ filter: /\.(?:js|ts)x$/ }, async (args) => {
-      const code = await Bun.file(args.path).text();
-      const result = await transformAsync(code, {
-        filename: args.path,
-        presets: [
-          [babelSolid, {}],
-          [babelTypeScript, {}],
-        ],
-      });
-      if (!result?.code) throw new Error(`Babel transform produced no output for ${args.path}`);
-      return { contents: result.code, loader: "js" };
-    });
-  },
-};
+// `hostname` accepts an IP (`0.0.0.0` for all interfaces) or a name Bun
+// resolves at boot. Default to all interfaces so `just dev` is reachable
+// from other devices on the LAN; the NixOS module wires this from
+// `services.anywhen.host`.
+const hostname = process.env.HOST ?? "0.0.0.0";
 
 const CLIENT_DIR = resolve(import.meta.dirname, "..", "client");
-const DIST_DIR = resolve(import.meta.dirname, "..", "..", "dist");
-
-const buildResult = await Bun.build({
-  entrypoints: [resolve(CLIENT_DIR, "index.html")],
-  outdir: DIST_DIR,
-  target: "browser",
-  minify: false,
-  plugins: [solidJsxPlugin],
-});
-
-if (!buildResult.success) {
-  for (const msg of buildResult.logs) console.error(msg);
-  throw new Error("Client build failed");
+// When ANYWHEN_DIST_DIR is set, the caller (typically the Nix package's
+// wrapper) has pre-built the client bundle at that path — skip the
+// runtime build so we don't try to write into the read-only Nix store.
+// Unset (the dev shell path) keeps the existing behavior: build into
+// packages/app/dist at startup.
+const DIST_DIR = process.env.ANYWHEN_DIST_DIR ?? resolve(import.meta.dirname, "..", "..", "dist");
+if (!process.env.ANYWHEN_DIST_DIR) {
+  await buildClient({ clientDir: CLIENT_DIR, outDir: DIST_DIR });
 }
 
 const server = Bun.serve({
   port,
+  hostname,
   async fetch(req, srv) {
     const url = new URL(req.url);
     const path = url.pathname;
@@ -120,6 +96,6 @@ const server = Bun.serve({
   },
 });
 
-console.log(`anywhen listening on http://localhost:${server.port}`);
+console.log(`anywhen listening on http://${server.hostname}:${server.port}`);
 console.log(`  state dir: ${stateDir}`);
 console.log(`  dist dir:  ${DIST_DIR}`);
