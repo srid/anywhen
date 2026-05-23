@@ -185,4 +185,5 @@ export const taskStore = (db: Kysely<Database>) => {
   };
 };
 
+/** Public storage interface for the tasks domain; consumed by `router.ts`. */
 export type TaskStore = ReturnType<typeof taskStore>;

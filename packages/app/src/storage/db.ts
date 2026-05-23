@@ -14,6 +14,12 @@ import type { Database } from "./schema";
 
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), "migrations");
 
+/**
+ * Open the app DB at `<stateDir>/anywhen.db` and apply any pending
+ * migrations before returning. Async (vs. the old sync openDb) because
+ * the Migrator awaits the FileMigrationProvider; the returned handle is
+ * fully ready for queries — no further migration step needed.
+ */
 export async function openDb(stateDir: string): Promise<Kysely<Database>> {
   mkdirSync(stateDir, { recursive: true });
   const sqlite = new BunDatabase(join(stateDir, "anywhen.db"));
@@ -44,6 +50,7 @@ export async function openDb(stateDir: string): Promise<Kysely<Database>> {
   return db;
 }
 
+/** Resolve `ANYWHEN_STATE_DIR` from the environment and ensure it exists. */
 export function resolveStateDir(): string {
   const fromEnv = process.env.ANYWHEN_STATE_DIR;
   if (!fromEnv) {

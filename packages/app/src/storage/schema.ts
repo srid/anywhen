@@ -9,10 +9,12 @@
 
 import type { TaskStatus } from "../shared/schemas";
 
+/** Kysely DB type map — table name → row interface. New tables get an entry here. */
 export interface Database {
   tasks: TasksTable;
 }
 
+/** Row shape for `tasks`. Keys are snake_case so they match the SQL columns directly. */
 export interface TasksTable {
   id: string;
   parent_id: string | null;
