@@ -80,9 +80,9 @@ export const taskStore = (db: Database) => {
     // Reorder by semantic drop target. `before`/`after` make the task a
     // sibling of refId; `inside` makes it the last child. Server resolves
     // the (parentId, position) so clients never compute float midpoints.
-    // Rejects: moving into self, dropping a task adjacent to itself
-    // (degenerate no-op), or any move that would make an ancestor become
-    // its own descendant.
+    // Rejects: moving into self, or any move that would make an ancestor
+    // become its own descendant. Dropping a task adjacent to itself is
+    // permitted and resolves to an idempotent position update.
     move(input: MoveTaskInput): void {
       const { id, target } = input;
       const task = getStmt.get(id);
