@@ -60,16 +60,26 @@ const solidJsxPlugin: BunPlugin = {
 const CLIENT_DIR = resolve(import.meta.dirname, "..", "client");
 const DIST_DIR = resolve(import.meta.dirname, "..", "..", "dist");
 
-// PWA-specific response headers. Bun.file infers MIME from extension and gets
-// .js / .svg right, but `.webmanifest` is non-standard so set it explicitly.
-// Service-Worker-Allowed widens the SW's controllable scope; not strictly
-// required when the SW sits at the root, but harmless and future-proof.
-const staticHeaders = (path: string): HeadersInit | undefined => {
-  if (path === "/manifest.webmanifest") return { "Content-Type": "application/manifest+json" };
-  if (path === "/service-worker.js")
-    return { "Content-Type": "application/javascript", "Service-Worker-Allowed": "/" };
-  return undefined;
-};
+// Single source of truth for PWA assets that bypass Bun.build's HTML-import
+// bundler. Each entry drives two things: the post-build copy from CLIENT_DIR
+// into DIST_DIR, and any per-path response-header overrides at serve time
+// (Bun.file infers MIME from extension and gets .js / .svg right, but
+// `.webmanifest` is non-standard so set it explicitly; Service-Worker-Allowed
+// widens the SW's controllable scope — not strictly required when the SW
+// sits at the root, but harmless and future-proof). Adding a new PWA asset
+// = one row here.
+type PwaFile = { name: string; headers?: HeadersInit };
+const PWA_FILES: readonly PwaFile[] = [
+  {
+    name: "service-worker.js",
+    headers: { "Content-Type": "application/javascript", "Service-Worker-Allowed": "/" },
+  },
+  { name: "manifest.webmanifest", headers: { "Content-Type": "application/manifest+json" } },
+  { name: "icon.svg" },
+  { name: "icon-maskable.svg" },
+];
+const pwaHeadersFor = (path: string): HeadersInit | undefined =>
+  PWA_FILES.find((f) => path === `/${f.name}`)?.headers;
 
 const buildResult = await Bun.build({
   entrypoints: [resolve(CLIENT_DIR, "index.html")],
@@ -84,13 +94,11 @@ if (!buildResult.success) {
   throw new Error("Client build failed");
 }
 
-// PWA assets bypass Bun.build's HTML-import bundler — the service worker is
-// fetched at a fixed scope-root path by the browser (no module graph), and
-// the manifest/icons want stable filenames the manifest can reference. Copy
-// each from CLIENT_DIR into DIST_DIR after the build so static serving (and
-// the SW's cache.addAll(APP_SHELL)) finds them at predictable URLs.
-const PWA_ASSETS = ["service-worker.js", "manifest.webmanifest", "icon.svg", "icon-maskable.svg"];
-for (const name of PWA_ASSETS) {
+// Copy each PWA asset from CLIENT_DIR into DIST_DIR so static serving (and
+// the SW's `cache.addAll(APP_SHELL)`) finds them at predictable URLs. The
+// SW must live at a fixed scope-root path; the manifest references icons by
+// stable name.
+for (const { name } of PWA_FILES) {
   await Bun.write(resolve(DIST_DIR, name), Bun.file(resolve(CLIENT_DIR, name)));
 }
 
@@ -125,7 +133,7 @@ const server = Bun.serve({
     if (!filePath.startsWith(DIST_DIR)) return new Response("Forbidden", { status: 403 });
 
     const file = Bun.file(filePath);
-    if (await file.exists()) return new Response(file, { headers: staticHeaders(path) });
+    if (await file.exists()) return new Response(file, { headers: pwaHeadersFor(path) });
 
     // SPA fallback — any unknown path serves index.html so client-side
     // routing (if introduced later) doesn't 404 on direct navigation.

@@ -4,6 +4,11 @@
 // /index.html for navigations) when the network is unavailable. RPC traffic
 // is always network-only.
 
+// APP_SHELL precaches the stable-path resources needed to render an offline
+// shell. The authoritative list of PWA assets the server publishes lives in
+// `PWA_FILES` in packages/app/src/server/index.ts; APP_SHELL is the subset
+// the browser must have on hand for an offline first paint (omitting e.g.
+// the maskable icon and the SW itself).
 const CACHE = "anywhen-v1";
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon.svg"];
 
