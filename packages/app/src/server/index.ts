@@ -13,6 +13,7 @@ import { RPCHandler as WsRPCHandler } from "@orpc/server/bun-ws";
 import { RPCHandler } from "@orpc/server/fetch";
 import type { ServerWebSocket } from "bun";
 import { openDb, resolveStateDir } from "../storage/db";
+import { seedSampleData } from "../storage/seed";
 import { taskStore } from "../storage/tasks";
 import { buildClient, pwaHeadersFor } from "./build";
 import { buildRouter } from "./router";
@@ -20,6 +21,13 @@ import { buildRouter } from "./router";
 const stateDir = resolveStateDir();
 const db = await openDb(stateDir);
 const store = taskStore(db);
+// Opt-in sample data for `just dev`. The recipe sets the env var; cucumber
+// does not, so e2e scenarios still start from an empty DB. seedSampleData is
+// itself a no-op once any tasks exist, so repeated `just dev` runs against a
+// populated DB never clobber user data.
+if (process.env.ANYWHEN_SEED_SAMPLE_DATA === "1") {
+  await seedSampleData(store);
+}
 // Cache mirrors `tasks` for the Collection's synchronous `readAll`. Seeded
 // once from SQL at boot; mutated by procedure handlers via the framework's
 // `ctx.collections.tasks.{upsert,remove}` fan-out (see `router.ts`).
