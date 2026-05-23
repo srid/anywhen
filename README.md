@@ -2,8 +2,8 @@
 
 A personal task manager. One search box: filter the tree, or add to it.
 
-> **Status**: scaffold + add a task (`⌘`/`Ctrl`+`↵` from the search box, or
-> tap the Add button) + view the tree + toggle done + delete (with cascade
+> **Status**: scaffold + add a task (press `↵` in the search box, or tap
+> the Add button) + view the tree + toggle done + delete (with cascade
 > to descendants) + reorder via pointer drag — works for mouse, pen, and
 > touch (long-press to enter drag mode) — top edge = drop before, bottom
 > edge = drop after, middle = nest as child + keyboard navigation (`↑`/`↓`

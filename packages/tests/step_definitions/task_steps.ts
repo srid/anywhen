@@ -42,12 +42,12 @@ When("I press Enter in the search box", async function (this: AnywhenWorld) {
   await this.page.locator('[data-testid="search-input"]').press("Enter");
 });
 
-// Type a title + commit with Cmd/Ctrl+Enter. Used everywhere a scenario needs
-// to seed a task — collapses the old "type '+ X' then press Enter" pair.
+// Type a title + commit with Enter. Used everywhere a scenario needs to seed
+// a task — collapses the old "type '+ X' then press Enter" pair.
 When("I add a task titled {string}", async function (this: AnywhenWorld, title: string) {
   const input = this.page.locator('[data-testid="search-input"]');
   await input.fill(title);
-  await input.press("ControlOrMeta+Enter");
+  await input.press("Enter");
 });
 
 When("I click the add button", async function (this: AnywhenWorld) {

@@ -128,17 +128,6 @@ const DRAG_MOVE_THRESHOLD = 5;
 // "I want to drag this row". 350ms is the iOS-ish window.
 const DRAG_LONGPRESS_MS = 350;
 
-// Mac desktop only — iOS devices match /Mac/ in the UA but lack a Cmd key, so
-// the hint should read "Ctrl" there. `navigator.platform` is deprecated; the
-// userAgent contains "Mac OS X" on macOS and "iPhone"/"iPad"/"iPod" on iOS.
-// Evaluated once at module load; UA never changes during a session.
-const CMD_LABEL =
-  typeof navigator !== "undefined" &&
-  /Mac/.test(navigator.userAgent) &&
-  !/iPhone|iPad|iPod/.test(navigator.userAgent)
-    ? "⌘"
-    : "Ctrl";
-
 export function App() {
   // Live subscription to the tasks Collection. `notes.keys()` is a reactive
   // accessor; `notes.byKey(id)?.()` is the per-row value, undefined until
@@ -213,9 +202,9 @@ export function App() {
 
   const handleSearchKeyDown = async (e: KeyboardEvent) => {
     if (e.key !== "Enter") return;
-    // Cmd+Enter (Mac) or Ctrl+Enter (everywhere else) → create. Plain Enter
-    // is a no-op since the live filter is already applied as the user types.
-    if (!e.metaKey && !e.ctrlKey) return;
+    // Enter commits the current input as a new task — same action as the
+    // visible Add button, just the keyboard path. The live filter already
+    // applied as the user typed, so Enter has no other meaning here.
     e.preventDefault();
     await createFromInput();
   };
@@ -446,8 +435,8 @@ export function App() {
           type="button"
           class="add-btn"
           data-testid="add-button"
-          aria-label={`Add task (${CMD_LABEL}+Enter)`}
-          title={`Add task (${CMD_LABEL}+Enter)`}
+          aria-label="Add task (Enter)"
+          title="Add task (Enter)"
           disabled={!activeQuery()}
           onClick={() => void createFromInput()}
         >
@@ -461,8 +450,8 @@ export function App() {
           fallback={
             <div class="empty">
               {activeQuery()
-                ? `No tasks match "${activeQuery()}". Press ${CMD_LABEL}+Enter to add it.`
-                : `No tasks yet. Type a title and press ${CMD_LABEL}+Enter (or tap Add).`}
+                ? `No tasks match "${activeQuery()}". Press Enter to add it.`
+                : "No tasks yet. Type a title and press Enter (or tap Add)."}
             </div>
           }
         >
@@ -545,7 +534,7 @@ export function App() {
 
       <div class="hint">
         <span>
-          <kbd>{CMD_LABEL}</kbd>+<kbd>↵</kbd> to add the typed task
+          <kbd>↵</kbd> to add the typed task
         </span>
         <span>
           <kbd>↑</kbd>

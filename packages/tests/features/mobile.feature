@@ -2,8 +2,9 @@
 Feature: Mobile UX — touch input on a phone-sized viewport
   Scenarios tagged @mobile run in a touch-enabled, 390x844 viewport
   (the iPhone 12/13/14 size). The Add button is the primary creation
-  affordance since there's no Cmd-Enter on a touchscreen. Long-pressing
-  a row enters drag mode so quick finger flicks remain scroll, not drag.
+  affordance on touch (no on-screen Enter key prompt to commit titles
+  in mobile keyboards). Long-pressing a row enters drag mode so quick
+  finger flicks remain scroll, not drag.
 
   Scenario: add a task by tapping the Add button on mobile
     Given the app is running with a fresh database
