@@ -11,7 +11,7 @@
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
-import { createMemo, createResource, createSignal, For, Show } from "solid-js";
+import { createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { parseInput } from "../shared/input";
 import {
   type DropZone,
@@ -85,6 +85,57 @@ const descendantsOf = (tasks: Task[], rootId: TaskId): Set<TaskId> => {
   return out;
 };
 
+// Same-parent siblings in position order, plus the task's index inside that
+// list. Keyboard reordering needs both (the "ref" sibling sits one slot away)
+// and indent needs the previous sibling; computing them together avoids
+// re-sorting the same array twice.
+const siblingsOf = (
+  tasks: Task[],
+  id: TaskId,
+): { siblings: Task[]; index: number; task: Task } | null => {
+  const task = tasks.find((t) => t.id === id);
+  if (!task) return null;
+  const siblings = tasks
+    .filter((t) => t.parentId === task.parentId)
+    .sort((a, b) => a.position - b.position);
+  const index = siblings.findIndex((s) => s.id === id);
+  return { siblings, index, task };
+};
+
+// Keyboard intent → MoveTarget. Returning null means "no legal move from
+// this position" (already at the top sibling, already a root, etc.) so the
+// caller can no-op instead of firing a server round-trip that would just
+// re-validate and refuse.
+type KeyMove = "indent" | "outdent" | "up" | "down";
+
+const resolveKeyMove = (tasks: Task[], id: TaskId, action: KeyMove): MoveTarget | null => {
+  const sib = siblingsOf(tasks, id);
+  if (!sib) return null;
+  if (action === "outdent") {
+    return sib.task.parentId ? { kind: "after", refId: sib.task.parentId } : null;
+  }
+  if (action === "indent") {
+    const prev = sib.siblings[sib.index - 1];
+    return prev ? { kind: "inside", refId: prev.id } : null;
+  }
+  const dir = action === "up" ? -1 : 1;
+  const ref = sib.siblings[sib.index + dir];
+  return ref ? { kind: dir < 0 ? "before" : "after", refId: ref.id } : null;
+};
+
+// `<For>` rebuilds the row DOM after refetch, so the focused element is lost
+// across a successful move. Refocusing by data-task-id on the next frame
+// reattaches the cursor to the same task, which is what keeps "Alt+ArrowUp"
+// chains working (press it twice in a row to move two slots up).
+const focusRowById = (id: TaskId) => {
+  requestAnimationFrame(() => {
+    const el = document.querySelector<HTMLElement>(
+      `[data-testid="task-row"][data-task-id="${CSS.escape(id)}"]`,
+    );
+    el?.focus();
+  });
+};
+
 // Drag state snapshot — id of the task being dragged plus its descendant
 // set, captured once at drag-start to seal the gesture against mid-drag
 // refetches.
@@ -133,12 +184,6 @@ export function App() {
     void callMutation(() => api.toggle(id));
   };
 
-  const handleRowKeyDown = (e: KeyboardEvent, id: TaskId) => {
-    if (e.key !== " ") return;
-    e.preventDefault();
-    toggle(id);
-  };
-
   const remove = async (id: TaskId) => {
     await callMutation(() => api.remove(id));
     // Clearing selection before the mutation settles would leave the user
@@ -146,6 +191,83 @@ export function App() {
     // unselected). Clear only after callMutation flips the error signal.
     if (!error() && selected() === id) setSelected(null);
   };
+
+  const moveByKey = async (id: TaskId, action: KeyMove) => {
+    const target = resolveKeyMove(tasks() ?? [], id, action);
+    if (!target) return;
+    await callMutation(() => api.move({ id, target }));
+    focusRowById(id);
+  };
+
+  // Move focus to the row offset slots away in the flat tree-order view.
+  // Wraparound is intentionally not supported: the user pressing ArrowDown
+  // at the last row should land "stuck" rather than warp to the top, since
+  // wrapping makes Alt+ArrowDown's reorder semantics ambiguous later.
+  const moveSelection = (id: TaskId, offset: 1 | -1) => {
+    const rs = rows();
+    const idx = rs.findIndex((r) => r.task.id === id);
+    if (idx < 0) return;
+    const next = rs[idx + offset];
+    if (!next) return;
+    setSelected(next.task.id);
+    focusRowById(next.task.id);
+  };
+
+  const handleRowKeyDown = (e: KeyboardEvent, id: TaskId) => {
+    if (e.key === " ") {
+      e.preventDefault();
+      toggle(id);
+      return;
+    }
+    if (e.key === "Backspace") {
+      e.preventDefault();
+      void remove(id);
+      return;
+    }
+    if (e.key === "Tab" && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      void moveByKey(id, e.shiftKey ? "outdent" : "indent");
+      return;
+    }
+    if (e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        e.preventDefault();
+        void moveByKey(id, e.key === "ArrowUp" ? "up" : "down");
+      }
+      return;
+    }
+    if (!e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        e.preventDefault();
+        moveSelection(id, e.key === "ArrowUp" ? -1 : 1);
+      }
+    }
+  };
+
+  // "/" focuses the search box from anywhere on the page, matching the
+  // muscle-memory of every command-palette-ish UI. Guarded against firing
+  // while the user is already typing in an input or contentEditable region —
+  // otherwise it would clobber a literal "/" inside a query.
+  onMount(() => {
+    const onGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "/") return;
+      const t = e.target;
+      if (
+        t instanceof HTMLInputElement ||
+        t instanceof HTMLTextAreaElement ||
+        (t instanceof HTMLElement && t.isContentEditable)
+      ) {
+        return;
+      }
+      const input = document.querySelector<HTMLInputElement>('[data-testid="search-input"]');
+      if (!input) return;
+      e.preventDefault();
+      input.focus();
+      input.select();
+    };
+    window.addEventListener("keydown", onGlobalKeyDown);
+    onCleanup(() => window.removeEventListener("keydown", onGlobalKeyDown));
+  });
 
   // ── Drag-and-drop reordering ────────────────────────────────────────
   // The drag snapshot couples a task id with its descendant set, taken once
@@ -315,7 +437,18 @@ export function App() {
           <kbd>+ title</kbd> then <kbd>↵</kbd> to add
         </span>
         <span>
-          <kbd>Space</kbd> on a focused row to toggle done
+          <kbd>↑</kbd>
+          <kbd>↓</kbd> to move selection
+        </span>
+        <span>
+          <kbd>Tab</kbd> / <kbd>⇧Tab</kbd> to indent / outdent
+        </span>
+        <span>
+          <kbd>Alt</kbd>+<kbd>↑</kbd>
+          <kbd>↓</kbd> to reorder siblings
+        </span>
+        <span>
+          <kbd>Space</kbd> toggle · <kbd>⌫</kbd> delete · <kbd>/</kbd> search
         </span>
       </div>
 

@@ -5,8 +5,11 @@ A personal task manager. One search box: filter the tree, or add to it.
 > **Status**: scaffold + add a task (`+ title` in the search box) + view the
 > tree + toggle done + delete (with cascade to descendants) + drag a row to
 > reorder siblings or change its parent (top edge = drop before, bottom edge
-> = drop after, middle = nest as child). Search, filter atoms, tags, due
-> dates, body, blocked-by, and the detail panel land in later PRs.
+> = drop after, middle = nest as child) + keyboard navigation (`↑`/`↓`
+> moves selection, `Tab`/`⇧Tab` indents/outdents, `Alt`+`↑`/`↓` reorders
+> siblings, `⌫` deletes the focused row, `Space` toggles done, `/` focuses
+> the search box). Search, filter atoms, tags, due dates, body, blocked-by,
+> and the detail panel land in later PRs.
 
 ## Stack
 
