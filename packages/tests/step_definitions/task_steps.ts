@@ -11,6 +11,15 @@ import type { AnywhenWorld } from "../support/world";
 const isDropZone = (value: string): value is DropZone =>
   (DROP_ZONES as readonly string[]).includes(value);
 
+// Row-relative Y for the centre of each drop zone — derived from the same
+// ratios the UI's zoneAt() reads. One module-scoped table so a future
+// threshold tweak in App.tsx moves both the mouse and touch step in lockstep.
+const ZONE_CENTRE: Record<DropZone, number> = {
+  before: ZONE_BEFORE_RATIO / 2,
+  inside: (ZONE_BEFORE_RATIO + ZONE_AFTER_RATIO) / 2,
+  after: (ZONE_AFTER_RATIO + 1) / 2,
+};
+
 Given("the app is running with a fresh database", async function (this: AnywhenWorld) {
   // BeforeAll spawned one server with a temp ANYWHEN_STATE_DIR; scenarios
   // share it. Reset the tasks table via the surface's __test__reset verb
@@ -130,15 +139,10 @@ When(
     const sourceBox = await sourceRow.boundingBox();
     const targetBox = await targetRow.boundingBox();
     if (!sourceBox || !targetBox) throw new Error("Could not measure rows for touch-drag");
-    const zoneCentre: Record<DropZone, number> = {
-      before: ZONE_BEFORE_RATIO / 2,
-      inside: (ZONE_BEFORE_RATIO + ZONE_AFTER_RATIO) / 2,
-      after: (ZONE_AFTER_RATIO + 1) / 2,
-    };
     const sx = sourceBox.x + sourceBox.width / 2;
     const sy = sourceBox.y + sourceBox.height / 2;
     const dx = targetBox.x + targetBox.width / 2;
-    const dy = targetBox.y + targetBox.height * zoneCentre[where];
+    const dy = targetBox.y + targetBox.height * ZONE_CENTRE[where];
     const cdp = await this.context.newCDPSession(this.page);
     await cdp.send("Input.dispatchTouchEvent", {
       type: "touchStart",
@@ -176,15 +180,7 @@ When(
     const sourceBox = await sourceRow.boundingBox();
     const targetBox = await targetRow.boundingBox();
     if (!sourceBox || !targetBox) throw new Error("Could not measure rows for drag");
-    // Land in the middle of the chosen zone. The zone boundaries come from
-    // ZONE_BEFORE_RATIO / ZONE_AFTER_RATIO so a threshold tweak in App.tsx
-    // moves the test along with it.
-    const zoneCentre: Record<DropZone, number> = {
-      before: ZONE_BEFORE_RATIO / 2,
-      inside: (ZONE_BEFORE_RATIO + ZONE_AFTER_RATIO) / 2,
-      after: (ZONE_AFTER_RATIO + 1) / 2,
-    };
-    const dropY = targetBox.y + targetBox.height * zoneCentre[where];
+    const dropY = targetBox.y + targetBox.height * ZONE_CENTRE[where];
     const dropX = targetBox.x + targetBox.width / 2;
     await this.page.mouse.move(
       sourceBox.x + sourceBox.width / 2,
