@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Kysely, Selectable } from "kysely";
+import type { Expression, ExpressionBuilder, Kysely, Selectable, SqlBool } from "kysely";
 import type { Database } from "./schema";
 import type { MoveTaskInput, Task, TaskId } from "../shared/schemas";
 
@@ -10,6 +10,13 @@ import type { MoveTaskInput, Task, TaskId } from "../shared/schemas";
 // `rowToTask` is the explicit boundary. No CamelCasePlugin: the mapping
 // stays visible at one site.
 type DbTask = Selectable<Database["tasks"]>;
+
+// Kysely requires 'is' (not '=') for null comparisons; this helper
+// centralises the switch so call-sites read as plain English.
+const whereParentIs =
+  (parentId: TaskId | null) =>
+  (eb: ExpressionBuilder<Database, "tasks">): Expression<SqlBool> =>
+    parentId === null ? eb("parent_id", "is", null) : eb("parent_id", "=", parentId);
 
 const rowToTask = (r: DbTask): Task => ({
   id: r.id,
@@ -49,11 +56,7 @@ export const taskStore = (db: Kysely<Database>) => {
         const maxRow = await trx
           .selectFrom("tasks")
           .select((eb) => eb.fn.max<number | null>("position").as("max_pos"))
-          .where((eb) =>
-            input.parentId === null
-              ? eb("parent_id", "is", null)
-              : eb("parent_id", "=", input.parentId),
-          )
+          .where(whereParentIs(input.parentId))
           .executeTakeFirst();
         const position = (maxRow?.max_pos ?? 0) + POSITION_GAP;
         const row = await trx
@@ -129,11 +132,7 @@ export const taskStore = (db: Kysely<Database>) => {
           const prev = await trx
             .selectFrom("tasks")
             .select("position")
-            .where((eb) =>
-              ref.parent_id === null
-                ? eb("parent_id", "is", null)
-                : eb("parent_id", "=", ref.parent_id),
-            )
+            .where(whereParentIs(ref.parent_id))
             .where("position", "<", ref.position)
             .where("id", "!=", id)
             .orderBy("position", "desc")
@@ -144,11 +143,7 @@ export const taskStore = (db: Kysely<Database>) => {
           const next = await trx
             .selectFrom("tasks")
             .select("position")
-            .where((eb) =>
-              ref.parent_id === null
-                ? eb("parent_id", "is", null)
-                : eb("parent_id", "=", ref.parent_id),
-            )
+            .where(whereParentIs(ref.parent_id))
             .where("position", ">", ref.position)
             .where("id", "!=", id)
             .orderBy("position", "asc")
