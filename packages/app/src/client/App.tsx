@@ -298,6 +298,10 @@ export function App() {
     const tasks = taskList();
     const byParent = byParentMap(tasks);
     const descendants = descendantIds(id, (tid) => (byParent.get(tid) ?? []).map((c) => c.id));
+    // Pending-press and active-drag are mutually exclusive states. Clearing
+    // here makes the invariant structural rather than relying on the
+    // pointerup handler to eventually null both.
+    clearPendingPress();
     setDrag({ id, descendants });
   };
 
