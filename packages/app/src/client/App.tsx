@@ -237,67 +237,75 @@ export function App() {
           fallback={<div class="empty">No tasks yet. Type "+ buy milk" and press Enter.</div>}
         >
           <For each={rows()}>
-            {(row) => (
-              <div
-                class="row"
-                classList={{
-                  "is-done": row.task.status === "done",
-                  selected: selected() === row.task.id,
-                  dragging: drag()?.id === row.task.id,
-                  "drop-before":
-                    dropTarget()?.id === row.task.id && dropTarget()?.zone === "before",
-                  "drop-after": dropTarget()?.id === row.task.id && dropTarget()?.zone === "after",
-                  "drop-inside":
-                    dropTarget()?.id === row.task.id && dropTarget()?.zone === "inside",
-                }}
-                data-testid="task-row"
-                data-task-title={row.task.title}
-                data-task-status={row.task.status}
-                data-task-id={row.task.id}
-                data-task-parent-id={row.task.parentId ?? ""}
-                role="treeitem"
-                aria-selected={selected() === row.task.id}
-                tabIndex={0}
-                draggable={true}
-                onClick={() => setSelected(row.task.id)}
-                onFocus={() => setSelected(row.task.id)}
-                onKeyDown={(e) => handleRowKeyDown(e, row.task.id)}
-                onDragStart={(e) => handleDragStart(e, row.task.id)}
-                onDragOver={(e) => handleDragOver(e, row.task.id)}
-                onDrop={(e) => handleDrop(e, row.task.id)}
-                onDragEnd={clearDragState}
-              >
-                <For each={Array.from({ length: row.depth })}>{() => <span class="indent" />}</For>
-                <button
-                  type="button"
-                  class="check"
-                  classList={{ done: row.task.status === "done" }}
-                  data-testid="task-check"
-                  aria-pressed={row.task.status === "done"}
-                  aria-label={`Mark ${row.task.title} ${
-                    row.task.status === "done" ? "not done" : "done"
-                  }`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void toggle(row.task.id);
+            {(row) => {
+              // One memo per row: reads dropTarget() once, suppresses
+              // recomputes when neither this row's id nor its zone changes.
+              const rowDropZone = createMemo((): DropZone | null => {
+                const dt = dropTarget();
+                return dt?.id === row.task.id ? dt.zone : null;
+              });
+              return (
+                <div
+                  class="row"
+                  classList={{
+                    "is-done": row.task.status === "done",
+                    selected: selected() === row.task.id,
+                    dragging: drag()?.id === row.task.id,
+                    "drop-before": rowDropZone() === "before",
+                    "drop-after": rowDropZone() === "after",
+                    "drop-inside": rowDropZone() === "inside",
                   }}
-                />
-                <span class="title">{row.task.title}</span>
-                <button
-                  type="button"
-                  class="delete"
-                  data-testid="task-delete"
-                  aria-label={`Delete ${row.task.title}`}
-                  title="Delete (also removes any sub-tasks)"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void remove(row.task.id);
-                  }}
+                  data-testid="task-row"
+                  data-task-title={row.task.title}
+                  data-task-status={row.task.status}
+                  data-task-id={row.task.id}
+                  data-task-parent-id={row.task.parentId ?? ""}
+                  role="treeitem"
+                  aria-selected={selected() === row.task.id}
+                  tabIndex={0}
+                  draggable={true}
+                  onClick={() => setSelected(row.task.id)}
+                  onFocus={() => setSelected(row.task.id)}
+                  onKeyDown={(e) => handleRowKeyDown(e, row.task.id)}
+                  onDragStart={(e) => handleDragStart(e, row.task.id)}
+                  onDragOver={(e) => handleDragOver(e, row.task.id)}
+                  onDrop={(e) => handleDrop(e, row.task.id)}
+                  onDragEnd={clearDragState}
                 >
-                  ×
-                </button>
-              </div>
-            )}
+                  <For each={Array.from({ length: row.depth })}>
+                    {() => <span class="indent" />}
+                  </For>
+                  <button
+                    type="button"
+                    class="check"
+                    classList={{ done: row.task.status === "done" }}
+                    data-testid="task-check"
+                    aria-pressed={row.task.status === "done"}
+                    aria-label={`Mark ${row.task.title} ${
+                      row.task.status === "done" ? "not done" : "done"
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void toggle(row.task.id);
+                    }}
+                  />
+                  <span class="title">{row.task.title}</span>
+                  <button
+                    type="button"
+                    class="delete"
+                    data-testid="task-delete"
+                    aria-label={`Delete ${row.task.title}`}
+                    title="Delete (also removes any sub-tasks)"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void remove(row.task.id);
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            }}
           </For>
         </Show>
       </div>
