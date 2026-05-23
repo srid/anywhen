@@ -20,3 +20,7 @@ result-*
 
 # Local app state
 /state/
+
+
+# APM dependencies
+apm_modules/

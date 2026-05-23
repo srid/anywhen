@@ -1,10 +1,20 @@
 lockfile_version: '1'
-generated_at: '2026-05-22T21:17:47.269403+00:00'
-apm_version: 0.14.1
+generated_at: '2026-05-23T16:47:42.692266+00:00'
+apm_version: 0.14.2
 dependencies:
+- repo_url: anthropics/claude-code
+  host: github.com
+  resolved_commit: 39e853e4074d90f27afdfb7ea601e0fc378bd0c5
+  resolved_ref: main
+  virtual_path: plugins/frontend-design/skills/frontend-design
+  is_virtual: true
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/frontend-design
+  content_hash: sha256:e8118284a6365753790d44bb2758a6032b3af27fa84696428d9233f2be0f4e78
 - repo_url: juspay/justci
   host: github.com
-  resolved_commit: 172c86e92560e3889cb1e880bc0f8fa3b5973b6b
+  resolved_commit: 163026cbe269349020b1342163d77462f8975b3c
   resolved_ref: main
   package_type: apm_package
   deployed_files:
@@ -12,7 +22,7 @@ dependencies:
   - .claude/skills/ci
   deployed_file_hashes:
     .claude/rules/workflow.md: sha256:babf61cdd29cfc8f03b3d20f17b4bf13ef5f173dc05640bc83c505dca4b42010
-  content_hash: sha256:844ff355651a612ba41b065a98afc1ffb8d04981ecd67e005ed21040e27e5c8a
+  content_hash: sha256:8cb8e2fddee6967e1d41ac5fc6d0616155fd5d7cafe95340c338d84d971655a0
 - repo_url: srid/agency
   host: github.com
   resolved_commit: a19e96686ea20ad02e2869334f426e024565c703
@@ -36,5 +46,5 @@ dependencies:
     .claude/agents/hickey.md: sha256:10d9a4350a85752dc6658af8e0efb3d8be41803a2b6c73464e3d5b7a840435ad
     .claude/agents/lowy.md: sha256:05aff7f6a91149a42c1fb9a3ca382a6f77bc39ac8a8d45436d443dd3349fb11e
     .claude/hooks/agency/scripts/do-stop-guard.sh: sha256:cb033f86c15ffd3d09d8e4b74a61f55a70def4cc4131cc013b7368a2d23f3f33
-    .claude/rules/apm-sources.md: sha256:65640c481c347cc4edf50603f784d0b448b6395acc43419a4f8ad0c53de2db4b
-  content_hash: sha256:7f348e282c4bd2820e44bab3abf349ed31f3a5c7c66d78e51e9e6eedf317be4f
+    .claude/rules/apm-sources.md: sha256:0d34f182279b93803855bd7f7b27a57e7cf3117ce4291d31a46294c629ee75d5
+  content_hash: sha256:b4c49cbb5308a43ac20ae76f7dfa77f56a102b13625c6cc6313f801c104359ca
