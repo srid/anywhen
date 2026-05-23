@@ -11,15 +11,14 @@
 // `plugins` array directly, so we drive the build ourselves.
 
 import { resolve } from "node:path";
-import type { ServerWebSocket } from "bun";
-import { RPCHandler as WsRPCHandler } from "@orpc/server/bun-ws";
-import { RPCHandler } from "@orpc/server/fetch";
 import { transformAsync } from "@babel/core";
 // @ts-expect-error - babel preset types are loose
 import babelTypeScript from "@babel/preset-typescript";
+import { RPCHandler as WsRPCHandler } from "@orpc/server/bun-ws";
+import { RPCHandler } from "@orpc/server/fetch";
 // @ts-expect-error - babel preset types are loose
 import babelSolid from "babel-preset-solid";
-import type { BunPlugin } from "bun";
+import type { BunPlugin, ServerWebSocket } from "bun";
 import { openDb, resolveStateDir } from "../storage/db";
 import { taskStore } from "../storage/tasks";
 import { buildRouter } from "./router";

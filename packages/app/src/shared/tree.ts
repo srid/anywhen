@@ -14,10 +14,7 @@
 // Walk upward from each id in `seeds`, collecting every ancestor reachable
 // via `parentOf`. Skips seeds themselves; stops cleanly on cycles (a node
 // already in the accumulator short-circuits its branch).
-export const ancestorIds = <Id>(
-  seeds: Iterable<Id>,
-  parentOf: (id: Id) => Id | null,
-): Set<Id> => {
+export const ancestorIds = <Id>(seeds: Iterable<Id>, parentOf: (id: Id) => Id | null): Set<Id> => {
   const out = new Set<Id>();
   for (const seed of seeds) {
     let cursor = parentOf(seed);
@@ -31,10 +28,7 @@ export const ancestorIds = <Id>(
 
 // Walk downward from `rootId`, collecting every descendant reachable via
 // `childrenOf`. Excludes the root itself.
-export const descendantIds = <Id>(
-  rootId: Id,
-  childrenOf: (id: Id) => Iterable<Id>,
-): Set<Id> => {
+export const descendantIds = <Id>(rootId: Id, childrenOf: (id: Id) => Iterable<Id>): Set<Id> => {
   const out = new Set<Id>();
   const walk = (id: Id): void => {
     for (const child of childrenOf(id)) {
