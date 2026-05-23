@@ -1,6 +1,15 @@
 import { Given, When, Then } from "@cucumber/cucumber";
 import { expect } from "@playwright/test";
+import {
+  DROP_ZONES,
+  type DropZone,
+  ZONE_AFTER_RATIO,
+  ZONE_BEFORE_RATIO,
+} from "../../app/src/shared/schemas";
 import type { AnywhenWorld } from "../support/world";
+
+const isDropZone = (value: string): value is DropZone =>
+  (DROP_ZONES as readonly string[]).includes(value);
 
 Given("the app is running with a fresh database", async function (this: AnywhenWorld) {
   // BeforeAll spawned one server with a temp ANYWHEN_STATE_DIR; scenarios
@@ -74,20 +83,23 @@ Then(
 When(
   "I drag the task titled {string} {word} the task titled {string}",
   async function (this: AnywhenWorld, source: string, where: string, target: string) {
-    if (where !== "before" && where !== "after" && where !== "inside") {
-      throw new Error(`Unknown drop zone: ${where} (expected before, after, or inside)`);
+    if (!isDropZone(where)) {
+      throw new Error(`Unknown drop zone: ${where} (expected ${DROP_ZONES.join(", ")})`);
     }
     const sourceRow = this.page.locator(`[data-testid="task-row"][data-task-title="${source}"]`);
     const targetRow = this.page.locator(`[data-testid="task-row"][data-task-title="${target}"]`);
     const sourceBox = await sourceRow.boundingBox();
     const targetBox = await targetRow.boundingBox();
     if (!sourceBox || !targetBox) throw new Error("Could not measure rows for drag");
-    const dropY =
-      where === "before"
-        ? targetBox.y + 2
-        : where === "after"
-          ? targetBox.y + targetBox.height - 2
-          : targetBox.y + targetBox.height / 2;
+    // Land in the middle of the chosen zone. The zone boundaries come from
+    // ZONE_BEFORE_RATIO / ZONE_AFTER_RATIO so a threshold tweak in App.tsx
+    // moves the test along with it.
+    const zoneCentre: Record<DropZone, number> = {
+      before: ZONE_BEFORE_RATIO / 2,
+      inside: (ZONE_BEFORE_RATIO + ZONE_AFTER_RATIO) / 2,
+      after: (ZONE_AFTER_RATIO + 1) / 2,
+    };
+    const dropY = targetBox.y + targetBox.height * zoneCentre[where];
     const dropX = targetBox.x + targetBox.width / 2;
     await this.page.mouse.move(
       sourceBox.x + sourceBox.width / 2,

@@ -13,7 +13,14 @@ import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
 import { createMemo, createResource, createSignal, For, Show } from "solid-js";
 import { parseInput } from "../shared/input";
-import type { MoveTarget, Task, TaskId } from "../shared/schemas";
+import {
+  type DropZone,
+  type MoveTarget,
+  type Task,
+  type TaskId,
+  ZONE_AFTER_RATIO,
+  ZONE_BEFORE_RATIO,
+} from "../shared/schemas";
 import type { surface } from "../shared/surface";
 
 type Client = ContractRouterClient<typeof surface.contract>;
@@ -45,16 +52,14 @@ const buildRows = (tasks: Task[]): Row[] => {
   return out;
 };
 
-type DropZone = "before" | "after" | "inside";
-
 // Map a pointer's Y inside a row to a drop zone. Top quarter → before, bottom
 // quarter → after, middle half → inside (re-parent). Symmetric so the user
 // can always nudge a task one step up, one step down, or one level deeper.
 const zoneAt = (offsetY: number, height: number): DropZone => {
   if (height <= 0) return "inside";
   const ratio = offsetY / height;
-  if (ratio < 0.25) return "before";
-  if (ratio > 0.75) return "after";
+  if (ratio < ZONE_BEFORE_RATIO) return "before";
+  if (ratio > ZONE_AFTER_RATIO) return "after";
   return "inside";
 };
 
