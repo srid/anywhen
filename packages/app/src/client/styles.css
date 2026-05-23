@@ -1,5 +1,5 @@
 /* anywhen — editorial-horological paper UI.
-   Warm cream paper, deep coffee ink, single burnished-gold accent.
+   Porcelain-blush paper, near-black plum ink, single raspberry accent.
    The brand mark (concentric rings + center dot) recurs in the
    header colophon, the meridian rule, the search marker, and the
    row checkboxes — every element nods at "all time is now". */
@@ -7,28 +7,28 @@
 @import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&display=swap");
 
 :root {
-  /* Paper */
-  --paper: #f4ede0;
-  --paper-deep: #ebe1ce;
-  --paper-card: #fbf6ec;
+  /* Paper — porcelain blush: a hint of rose, never a flood */
+  --paper: #faf2f5;
+  --paper-deep: #f1e2e8;
+  --paper-card: #fef8fa;
 
-  /* Ink */
-  --ink: #1f1810;
-  --ink-soft: #3a2f22;
-  --muted: #82735a;
+  /* Ink — near-black with a faint plum cast, sized to carry body copy */
+  --ink: #120710;
+  --ink-soft: #2c1a24;
+  --muted: #76586a;
 
   /* Hairlines */
-  --rule: #b89f76;
-  --rule-soft: #d6c5a6;
+  --rule: #d4adbe;
+  --rule-soft: #ecd6df;
 
-  /* Single accent — burnished brass */
-  --accent: #a8773c;
-  --accent-deep: #8c5e2c;
-  --accent-soft: rgba(168, 119, 60, 0.14);
-  --mark-bg: rgba(212, 175, 85, 0.32);
+  /* Single accent — raspberry rose */
+  --accent: #c43d6e;
+  --accent-deep: #9d2c54;
+  --accent-soft: rgba(196, 61, 110, 0.1);
+  --mark-bg: rgba(228, 124, 167, 0.28);
 
-  /* Paper grain — warm sepia speckle. Encoded inline to avoid an asset. */
-  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.16  0 0 0 0 0.13  0 0 0 0 0.09  0 0 0 0.045 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  /* Paper grain — dark plum speckle, very low alpha. Encoded inline to avoid an asset. */
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.1  0 0 0 0 0.05  0 0 0 0 0.08  0 0 0 0.04 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 
   /* Semantic */
   --done: #6a8557;
@@ -41,23 +41,23 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #15110b;
-    --paper-deep: #1f1812;
-    --paper-card: #1a1410;
+    --paper: #150b10;
+    --paper-deep: #1f1218;
+    --paper-card: #1a0f15;
 
-    --ink: #f0e6d3;
-    --ink-soft: #d2c4a8;
-    --muted: #998767;
+    --ink: #f1dce5;
+    --ink-soft: #d6b4c2;
+    --muted: #98768a;
 
-    --rule: #5a4a32;
-    --rule-soft: #382c1d;
+    --rule: #5a3344;
+    --rule-soft: #381e2a;
 
-    --accent: #d4a26a;
-    --accent-deep: #b88550;
-    --accent-soft: rgba(212, 162, 106, 0.16);
-    --mark-bg: rgba(212, 162, 106, 0.28);
+    --accent: #e88aac;
+    --accent-deep: #c4678a;
+    --accent-soft: rgba(232, 138, 172, 0.16);
+    --mark-bg: rgba(232, 138, 172, 0.28);
 
-    --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.94  0 0 0 0 0.9  0 0 0 0 0.82  0 0 0 0.035 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.94  0 0 0 0 0.82  0 0 0 0 0.88  0 0 0 0.035 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 
     --done: #8aa276;
     --danger: #c66b5e;
@@ -72,14 +72,14 @@ html,
 body {
   margin: 0;
   background-color: var(--paper);
-  /* Paper grain over a warm cream vignette. Fixed attachment makes the
+  /* Paper grain over a blush rose vignette. Fixed attachment makes the
      grain feel like the texture of the sheet itself, not a scrolling layer. */
   background-image:
     radial-gradient(120% 80% at 50% 0%, rgba(255, 255, 255, 0.5), transparent 60%), var(--grain);
   background-attachment: fixed;
   background-repeat: no-repeat, repeat;
   color: var(--ink);
-  font: 400 16px / 1.6 var(--font-serif);
+  font: 400 17.5px / 1.6 var(--font-serif);
   font-variation-settings: "opsz" 14;
   font-feature-settings: "kern", "liga", "calt";
   -webkit-text-size-adjust: 100%;
@@ -91,7 +91,7 @@ body {
   html,
   body {
     background-image:
-      radial-gradient(120% 80% at 50% 0%, rgba(220, 190, 140, 0.06), transparent 60%), var(--grain);
+      radial-gradient(120% 80% at 50% 0%, rgba(220, 140, 175, 0.06), transparent 60%), var(--grain);
   }
 }
 
@@ -149,7 +149,7 @@ h1 .dot {
 .tagline {
   margin: 0 0 36px;
   color: var(--muted);
-  font: italic 400 15px / 1.55 var(--font-serif);
+  font: italic 400 16.5px / 1.55 var(--font-serif);
   font-variation-settings: "opsz" 18;
   letter-spacing: 0.005em;
 }
@@ -177,8 +177,8 @@ h1 .dot {
   border-radius: 4px;
   margin: 0 0 28px;
   box-shadow:
-    0 1px 0 rgba(31, 24, 16, 0.03),
-    0 18px 36px -28px rgba(31, 24, 16, 0.25);
+    0 1px 0 rgba(18, 7, 16, 0.03),
+    0 18px 36px -28px rgba(18, 7, 16, 0.25);
   transition:
     border-color 0.2s ease,
     box-shadow 0.25s ease;
@@ -187,8 +187,8 @@ h1 .dot {
 .search:focus-within {
   border-color: var(--accent);
   box-shadow:
-    0 1px 0 rgba(31, 24, 16, 0.03),
-    0 22px 42px -28px rgba(31, 24, 16, 0.3),
+    0 1px 0 rgba(18, 7, 16, 0.03),
+    0 22px 42px -28px rgba(18, 7, 16, 0.3),
     0 0 0 3px var(--accent-soft);
 }
 
@@ -241,7 +241,7 @@ h1 .dot {
   color: var(--ink);
   min-width: 0;
   padding: 2px 0;
-  font: 400 17px / 1.4 var(--font-serif);
+  font: 400 19px / 1.4 var(--font-serif);
   font-variation-settings: "opsz" 24;
   letter-spacing: 0.002em;
 }
@@ -259,7 +259,7 @@ h1 .dot {
   border: 1px solid var(--accent);
   background: var(--accent);
   color: var(--paper-card);
-  font: 500 14px / 1 var(--font-serif);
+  font: 500 15px / 1 var(--font-serif);
   font-variation-settings:
     "opsz" 14,
     "wght" 500;
@@ -297,7 +297,7 @@ h1 .dot {
 /* ── Tree ──────────────────────────────────────────────────────────── */
 
 .tree {
-  font: 400 15.5px / 1.55 var(--font-serif);
+  font: 400 17px / 1.55 var(--font-serif);
   font-variation-settings: "opsz" 16;
 }
 
@@ -421,7 +421,7 @@ h1 .dot {
   color: var(--ink);
   font-variation-settings:
     "opsz" 16,
-    "wght" 400;
+    "wght" 450;
 }
 
 .title mark {
@@ -485,7 +485,7 @@ h1 .dot {
 
 .empty {
   color: var(--muted);
-  font: italic 400 14.5px / 1.6 var(--font-serif);
+  font: italic 400 16px / 1.6 var(--font-serif);
   font-variation-settings: "opsz" 18;
   padding: 28px 4px;
   text-align: center;
@@ -499,7 +499,7 @@ h1 .dot {
   padding: 9px 14px;
   border-radius: 3px;
   margin-bottom: 14px;
-  font: italic 400 13.5px / 1.5 var(--font-serif);
+  font: italic 400 14.5px / 1.5 var(--font-serif);
   font-variation-settings: "opsz" 14;
 }
 
@@ -508,7 +508,7 @@ h1 .dot {
   padding-top: 16px;
   border-top: 1px solid var(--rule-soft);
   color: var(--muted);
-  font: 400 12.5px / 1.5 var(--font-serif);
+  font: 400 13.5px / 1.5 var(--font-serif);
   font-variation-settings: "opsz" 12;
   display: flex;
   gap: 20px;
@@ -521,7 +521,7 @@ h1 .dot {
   border-bottom-width: 2px;
   border-radius: 3px;
   padding: 1px 6px;
-  font: 500 11.5px / 1 var(--font-mono);
+  font: 500 12.5px / 1 var(--font-mono);
   color: var(--ink-soft);
 }
 
@@ -530,7 +530,7 @@ h1 .dot {
   padding-top: 16px;
   border-top: 1px solid var(--rule-soft);
   color: var(--muted);
-  font: italic 400 12.5px / 1.6 var(--font-serif);
+  font: italic 400 13.5px / 1.6 var(--font-serif);
   font-variation-settings: "opsz" 14;
   text-align: center;
   letter-spacing: 0.01em;
@@ -653,16 +653,16 @@ h1 .dot {
     margin: 14px 0 4px;
   }
   .tagline {
-    font-size: 13.5px;
+    font-size: 15px;
     margin-bottom: 24px;
   }
   .search {
     padding: 12px 12px 12px 44px;
     /* Prevent iOS auto-zoom on focus; 16px is the documented threshold. */
-    font-size: 16px;
+    font-size: 17px;
   }
   .search input {
-    font-size: 16px;
+    font-size: 17px;
   }
   .search-mark {
     left: 14px;
@@ -675,6 +675,6 @@ h1 .dot {
   .hint {
     flex-direction: column;
     gap: 7px;
-    font-size: 12px;
+    font-size: 13px;
   }
 }
