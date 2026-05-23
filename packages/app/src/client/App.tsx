@@ -3,14 +3,18 @@
 // stream — snapshot-then-deltas semantics keep the UI eventually consistent
 // without an explicit refetch after each mutation.
 //
-// The search box does double duty: `+ title` adds a task (Enter), a plain
-// query narrows the tree as you type (live filter). The matcher lives in
-// shared/filter.ts so a future server-side delta evaluation imports the
-// same function.
+// The search box is a single concept: typing filters the tree live. Creating
+// a task is a separate action — Cmd/Ctrl+Enter from the keyboard, or the
+// visible Add button (works the same on desktop and touch). The input grammar
+// no longer overloads "+ prefix" with two meanings.
+//
+// Drag-to-reorder uses Pointer Events (not HTML5 DnD) so the same code path
+// covers mouse, touch, and pen. Touch initiates drag via a short long-press
+// so vertical scroll on a row remains a finger-flick away.
 
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { matchesQuery } from "../shared/filter";
-import { parseInput } from "../shared/input";
+import { normalizeQuery } from "../shared/input";
 import {
   type DropZone,
   type MoveTarget,
@@ -106,6 +110,16 @@ const focusRowById = (id: TaskId) => {
 
 type DragSnapshot = { id: TaskId; descendants: Set<TaskId> };
 
+// Distance the pointer must travel before a mouse press becomes a drag. Below
+// this threshold the press is treated as a click (select / focus).
+const DRAG_MOVE_THRESHOLD = 5;
+// Touch presses need a hold to disambiguate "I want to scroll the list" from
+// "I want to drag this row". 350ms is the iOS-ish window.
+const DRAG_LONGPRESS_MS = 350;
+
+const isMacPlatform = (): boolean =>
+  typeof navigator !== "undefined" && /Mac|iPhone|iPod|iPad/.test(navigator.platform);
+
 export function App() {
   // Live subscription to the tasks Collection. `notes.keys()` is a reactive
   // accessor; `notes.byKey(id)?.()` is the per-row value, undefined until
@@ -131,13 +145,8 @@ export function App() {
     return tasks;
   });
 
-  // The filter is on for non-empty plain queries. `+ title` (the create
-  // arm) leaves the tree unfiltered so users see what they're typing as
-  // they're composing a new task title.
-  const filterQuery = createMemo<string | null>(() => {
-    const parsed = parseInput(query());
-    return parsed?.kind === "query" ? parsed.q : null;
-  });
+  const trimmedQuery = createMemo<string>(() => normalizeQuery(query()));
+  const filterQuery = createMemo<string | null>(() => trimmedQuery() || null);
 
   const sorted = createMemo<{ task: Task; depth: number }[]>(() => sortedWithDepths(taskList()));
 
@@ -167,24 +176,23 @@ export function App() {
     }
   };
 
-  const handleKeyDown = async (e: KeyboardEvent) => {
-    if (e.key !== "Enter") return;
-    // Query arm: filter is already applied live; Enter is a no-op so the
-    // input keeps focus and the user can refine their query. Reading
-    // `filterQuery()` here keeps `parseInput` callers down to one — the
-    // create arm below — instead of re-parsing the signal a second time.
-    if (filterQuery() !== null) return;
-    const parsed = parseInput(query());
-    if (!parsed || parsed.kind !== "create") return;
-    e.preventDefault();
+  const createFromInput = async () => {
+    const title = trimmedQuery();
+    if (!title) return;
     // Clear the input synchronously before the await so subsequent keystrokes
     // aren't clobbered by a late `setQuery("")` after the mutation resolves.
-    // The earlier ordering raced with rapid "+ title ↵" sequences — the user's
-    // second `+ title` could land in the box, then the first add's resolution
-    // would erase it before its Enter ran.
     setQuery("");
-    const created = await callMutation(() => api.add({ title: parsed.title, parentId: null }));
+    const created = await callMutation(() => api.add({ title, parentId: null }));
     if (created) setSelected(created.id);
+  };
+
+  const handleSearchKeyDown = async (e: KeyboardEvent) => {
+    if (e.key !== "Enter") return;
+    // Cmd+Enter (Mac) or Ctrl+Enter (everywhere else) → create. Plain Enter
+    // is a no-op since the live filter is already applied as the user types.
+    if (!e.metaKey && !e.ctrlKey) return;
+    e.preventDefault();
+    await createFromInput();
   };
 
   const toggle = async (id: TaskId) => {
@@ -262,33 +270,34 @@ export function App() {
   const [drag, setDrag] = createSignal<DragSnapshot | null>(null);
   const [dropTarget, setDropTarget] = createSignal<{ id: TaskId; zone: DropZone } | null>(null);
 
+  // Pointer-events drag state. A row's pointerdown stages a "pending press";
+  // the drag commits only when the user moves past DRAG_MOVE_THRESHOLD (mouse)
+  // or holds for DRAG_LONGPRESS_MS without moving (touch / pen).
+  type PendingPress = {
+    id: TaskId;
+    startX: number;
+    startY: number;
+    pointerType: string;
+    longPressTimer?: ReturnType<typeof setTimeout>;
+  };
+  let pendingPress: PendingPress | null = null;
+
   const canDropOn = (rowId: TaskId): boolean => {
     const d = drag();
     if (!d || d.id === rowId) return false;
     return !d.descendants.has(rowId);
   };
 
-  const handleDragStart = (e: DragEvent, id: TaskId) => {
+  const beginDrag = (id: TaskId) => {
     const tasks = taskList();
     const byParent = byParentMap(tasks);
     const descendants = descendantIds(id, (tid) => (byParent.get(tid) ?? []).map((c) => c.id));
     setDrag({ id, descendants });
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", id);
-    }
   };
 
-  const handleDragOver = (e: DragEvent, rowId: TaskId) => {
-    if (!canDropOn(rowId)) return;
-    e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const zone = zoneAt(e.clientY - rect.top, rect.height);
-    const current = dropTarget();
-    if (!current || current.id !== rowId || current.zone !== zone) {
-      setDropTarget({ id: rowId, zone });
-    }
+  const clearPendingPress = () => {
+    if (pendingPress?.longPressTimer) clearTimeout(pendingPress.longPressTimer);
+    pendingPress = null;
   };
 
   const clearDragState = () => {
@@ -296,15 +305,91 @@ export function App() {
     setDropTarget(null);
   };
 
-  const handleDrop = (e: DragEvent, rowId: TaskId) => {
+  const handleRowPointerDown = (e: PointerEvent, id: TaskId) => {
+    // Ignore right/middle clicks and modifier-key chords (those navigate).
+    if (e.button !== 0) return;
+    // Don't hijack clicks on action buttons inside the row.
+    if (e.target instanceof Element && e.target.closest("button")) return;
+    const sourceEl = e.currentTarget as HTMLElement;
+    // Capture the pointer so subsequent pointermove/up fire on this row even
+    // after the pointer leaves it. Mouse has no implicit capture; without
+    // this, the first move out of the source row would lose the drag stream.
+    try {
+      sourceEl.setPointerCapture(e.pointerId);
+    } catch {
+      // Some headless environments reject capture for released pointers;
+      // the drag falls back to whatever element happens to be under the pointer.
+    }
+    pendingPress = {
+      id,
+      startX: e.clientX,
+      startY: e.clientY,
+      pointerType: e.pointerType,
+    };
+    if (e.pointerType === "touch" || e.pointerType === "pen") {
+      const press = pendingPress;
+      press.longPressTimer = setTimeout(() => {
+        if (pendingPress === press) beginDrag(id);
+      }, DRAG_LONGPRESS_MS);
+    }
+  };
+
+  const handleRowPointerMove = (e: PointerEvent, id: TaskId) => {
+    if (!drag()) {
+      if (!pendingPress) return;
+      const dx = e.clientX - pendingPress.startX;
+      const dy = e.clientY - pendingPress.startY;
+      const movedEnough = Math.hypot(dx, dy) > DRAG_MOVE_THRESHOLD;
+      if (!movedEnough) return;
+      if (pendingPress.pointerType === "mouse") {
+        beginDrag(id);
+      } else {
+        // Touch moved before the long-press fired → user is scrolling, not
+        // dragging. Cancel the pending press and let native scroll happen.
+        clearPendingPress();
+        return;
+      }
+    }
+    // Active drag: hit-test the row visually under the pointer.
     e.preventDefault();
-    const t = dropTarget();
+    const hit = document.elementFromPoint(e.clientX, e.clientY);
+    const rowEl =
+      hit instanceof Element
+        ? (hit.closest('[data-testid="task-row"]') as HTMLElement | null)
+        : null;
+    if (!rowEl) {
+      setDropTarget(null);
+      return;
+    }
+    const targetId = rowEl.getAttribute("data-task-id") as TaskId | null;
+    if (!targetId || !canDropOn(targetId)) {
+      setDropTarget(null);
+      return;
+    }
+    const rect = rowEl.getBoundingClientRect();
+    const zone = zoneAt(e.clientY - rect.top, rect.height);
+    const current = dropTarget();
+    if (!current || current.id !== targetId || current.zone !== zone) {
+      setDropTarget({ id: targetId, zone });
+    }
+  };
+
+  const handleRowPointerUp = (e: PointerEvent) => {
     const src = drag()?.id;
+    const t = dropTarget();
+    clearPendingPress();
     clearDragState();
-    if (!src || !t || t.id !== rowId) return;
-    const target: MoveTarget = { kind: t.zone, refId: rowId };
+    if (!src || !t) return;
+    const target: MoveTarget = { kind: t.zone, refId: t.id };
     void callMutation(() => api.move({ id: src, target }));
   };
+
+  const handleRowPointerCancel = (_e: PointerEvent) => {
+    clearPendingPress();
+    clearDragState();
+  };
+
+  const cmdLabel = createMemo(() => (isMacPlatform() ? "⌘" : "Ctrl"));
 
   return (
     <main>
@@ -326,11 +411,23 @@ export function App() {
           ref={searchInputRef}
           data-testid="search-input"
           aria-label="Search or add a task"
-          placeholder="Search or type + to add a task"
+          placeholder="Search tasks…"
           value={query()}
           onInput={(e) => setQuery(e.currentTarget.value)}
-          onKeyDown={handleKeyDown}
+          onKeyDown={handleSearchKeyDown}
+          enterkeyhint="search"
         />
+        <button
+          type="button"
+          class="add-btn"
+          data-testid="add-button"
+          aria-label={`Add task (${cmdLabel()}+Enter)`}
+          title={`Add task (${cmdLabel()}+Enter)`}
+          disabled={!trimmedQuery()}
+          onClick={() => void createFromInput()}
+        >
+          Add
+        </button>
       </div>
 
       <div class="tree" data-testid="task-tree" role="tree" aria-label="Tasks">
@@ -339,8 +436,8 @@ export function App() {
           fallback={
             <div class="empty">
               {filterQuery()
-                ? `No tasks match "${filterQuery()}".`
-                : 'No tasks yet. Type "+ buy milk" and press Enter.'}
+                ? `No tasks match "${filterQuery()}". Press ${cmdLabel()}+Enter to add it.`
+                : `No tasks yet. Type a title and press ${cmdLabel()}+Enter (or tap Add).`}
             </div>
           }
         >
@@ -370,14 +467,13 @@ export function App() {
                   role="treeitem"
                   aria-selected={selected() === row.task.id}
                   tabIndex={0}
-                  draggable={true}
                   onClick={() => setSelected(row.task.id)}
                   onFocus={() => setSelected(row.task.id)}
                   onKeyDown={(e) => handleRowKeyDown(e, row.task.id)}
-                  onDragStart={(e) => handleDragStart(e, row.task.id)}
-                  onDragOver={(e) => handleDragOver(e, row.task.id)}
-                  onDrop={(e) => handleDrop(e, row.task.id)}
-                  onDragEnd={clearDragState}
+                  onPointerDown={(e) => handleRowPointerDown(e, row.task.id)}
+                  onPointerMove={(e) => handleRowPointerMove(e, row.task.id)}
+                  onPointerUp={handleRowPointerUp}
+                  onPointerCancel={handleRowPointerCancel}
                 >
                   <For each={Array.from({ length: row.depth })}>
                     {() => <span class="indent" />}
@@ -423,7 +519,7 @@ export function App() {
 
       <div class="hint">
         <span>
-          <kbd>+ title</kbd> then <kbd>↵</kbd> to add
+          <kbd>{cmdLabel()}</kbd>+<kbd>↵</kbd> to add the typed task
         </span>
         <span>
           <kbd>↑</kbd>

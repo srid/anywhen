@@ -33,6 +33,18 @@ When("I press Enter in the search box", async function (this: AnywhenWorld) {
   await this.page.locator('[data-testid="search-input"]').press("Enter");
 });
 
+// Type a title + commit with Cmd/Ctrl+Enter. Used everywhere a scenario needs
+// to seed a task — collapses the old "type '+ X' then press Enter" pair.
+When("I add a task titled {string}", async function (this: AnywhenWorld, title: string) {
+  const input = this.page.locator('[data-testid="search-input"]');
+  await input.fill(title);
+  await input.press("ControlOrMeta+Enter");
+});
+
+When("I click the add button", async function (this: AnywhenWorld) {
+  await this.page.locator('[data-testid="add-button"]').click();
+});
+
 When(
   "I click the checkbox on the task titled {string}",
   async function (this: AnywhenWorld, title: string) {
@@ -80,6 +92,56 @@ Then(
 // raw mouse API with `steps` to force interpolated moves, landing the final
 // position inside the target row's before / inside / after zone (matching
 // the 25% / 75% split in client/App.tsx → zoneAt).
+// Touch-driven reorder: long-press on the source row, then touchmove to the
+// target's drop zone. Dispatched via CDP because Playwright doesn't expose a
+// high-level touch-drag API — synthesized PointerEvents wouldn't be trusted
+// and would skip the browser's pointer-capture path.
+When(
+  "I touch-drag the task titled {string} {word} the task titled {string}",
+  async function (this: AnywhenWorld, source: string, where: string, target: string) {
+    if (!isDropZone(where)) {
+      throw new Error(`Unknown drop zone: ${where} (expected ${DROP_ZONES.join(", ")})`);
+    }
+    const sourceRow = this.page.locator(`[data-testid="task-row"][data-task-title="${source}"]`);
+    const targetRow = this.page.locator(`[data-testid="task-row"][data-task-title="${target}"]`);
+    const sourceBox = await sourceRow.boundingBox();
+    const targetBox = await targetRow.boundingBox();
+    if (!sourceBox || !targetBox) throw new Error("Could not measure rows for touch-drag");
+    const zoneCentre: Record<DropZone, number> = {
+      before: ZONE_BEFORE_RATIO / 2,
+      inside: (ZONE_BEFORE_RATIO + ZONE_AFTER_RATIO) / 2,
+      after: (ZONE_AFTER_RATIO + 1) / 2,
+    };
+    const sx = sourceBox.x + sourceBox.width / 2;
+    const sy = sourceBox.y + sourceBox.height / 2;
+    const dx = targetBox.x + targetBox.width / 2;
+    const dy = targetBox.y + targetBox.height * zoneCentre[where];
+    const cdp = await this.context.newCDPSession(this.page);
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x: sx, y: sy, id: 1 }],
+    });
+    // Wait past the long-press window (DRAG_LONGPRESS_MS = 350 in App.tsx).
+    await new Promise((r) => setTimeout(r, 450));
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: dx, y: dy, id: 1 }],
+    });
+    // A second move lets the dropTarget signal settle on the final zone
+    // before the touchend fires — mirrors the two-step pattern in the mouse
+    // drag step above.
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: dx, y: dy, id: 1 }],
+    });
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+    await cdp.detach();
+  },
+);
+
 When(
   "I drag the task titled {string} {word} the task titled {string}",
   async function (this: AnywhenWorld, source: string, where: string, target: string) {

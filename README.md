@@ -2,16 +2,19 @@
 
 A personal task manager. One search box: filter the tree, or add to it.
 
-> **Status**: scaffold + add a task (`+ title` in the search box) + view the
-> tree + toggle done + delete (with cascade to descendants) + drag a row to
-> reorder siblings or change its parent (top edge = drop before, bottom edge
-> = drop after, middle = nest as child) + keyboard navigation (`↑`/`↓`
+> **Status**: scaffold + add a task (`⌘`/`Ctrl`+`↵` from the search box, or
+> tap the Add button) + view the tree + toggle done + delete (with cascade
+> to descendants) + reorder via pointer drag — works for mouse, pen, and
+> touch (long-press to enter drag mode) — top edge = drop before, bottom
+> edge = drop after, middle = nest as child + keyboard navigation (`↑`/`↓`
 > moves selection, `Tab`/`⇧Tab` indents/outdents, `Alt`+`↑`/`↓` reorders
 > siblings, `⌫` deletes the focused row, `Space` toggles done, `/` focuses
-> the search box) + live filter (type a query into the search box — matches
-> highlight in their own row, ancestors stay visible but dimmed so the path
-> to a match is intact). Filter atoms, tags, due dates, body, blocked-by,
-> and the detail panel land in later PRs.
+> the search box) + live filter (type a query — matches highlight in their
+> own row, ancestors stay visible but dimmed so the path to a match is
+> intact) + mobile-friendly layout (responsive media queries, touch-sized
+> tap targets, always-visible row actions on coarse pointers). Filter
+> atoms, tags, due dates, body, blocked-by, and the detail panel land in
+> later PRs.
 
 ## Stack
 
