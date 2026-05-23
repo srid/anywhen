@@ -1,14 +1,17 @@
 // Lifecycle for the cucumber run.
 //
-// BeforeAll: pick an ephemeral port, mktemp a per-run state dir, spawn the
-//   bun server with ANYWHEN_STATE_DIR pointing at it, wait for /api/health.
+// BeforeAll: pick an ephemeral port, mktemp a per-run state dir, spawn
+//   $ANYWHEN_BIN (the Nix-built `bin/anywhen` wrapper) with HOST/PORT/
+//   ANYWHEN_STATE_DIR pointing at the test sandbox, wait for /api/health.
 // Before:    open a fresh Playwright page on the server's URL.
 // After:     close the page; on failure dump a screenshot to reports/.
 // AfterAll:  close the browser and kill the server.
 //
-// Mirrors the shape of kolu-master/packages/tests/support/hooks.ts but at
-// the scale of a single feature — no agent mocks, no PTY whitelist, just
-// enough to drive the search box and assert the tree.
+// E2E spawns the production binary (not `bun src/...`) so the cucumber
+// run exercises the closure that ships — pre-built client `dist/`, frozen
+// `node_modules`, and the wrapper that sets ANYWHEN_DIST_DIR. The just
+// recipe builds `nix build .#anywhen` and exports ANYWHEN_BIN before
+// invoking cucumber-js. Mirrors the shape of kolu's e2e hook.
 
 import { AfterAll, Before, BeforeAll, After, Status } from "@cucumber/cucumber";
 import type { ITestCaseHookParameter } from "@cucumber/cucumber";
@@ -21,7 +24,18 @@ import { chromium } from "playwright";
 import type { AnywhenWorld } from "./world";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..", "..", "..");
-const SERVER_ENTRY = join(REPO_ROOT, "packages/app/src/server/index.ts");
+// Spawn the Nix-built anywhen binary (set by `just test` after a
+// `nix build .#anywhen`) so e2e exercises the production closure —
+// pre-built client `dist/`, frozen `node_modules`, and the wrapper that
+// pins ANYWHEN_DIST_DIR. Running `bun src/server/index.ts` from source
+// would build the client at startup against the dev tree, which is a
+// different code path than what ships.
+const ANYWHEN_BIN = process.env.ANYWHEN_BIN;
+if (!ANYWHEN_BIN) {
+  throw new Error(
+    "ANYWHEN_BIN is not set. Run e2e via `just test` (which builds the Nix package and points ANYWHEN_BIN at $out/bin/anywhen) instead of invoking cucumber-js directly.",
+  );
+}
 
 let serverProcess: ChildProcess | undefined;
 let serverUrl: string;
@@ -47,11 +61,11 @@ BeforeAll({ timeout: 30_000 }, async () => {
   stateDir = mkdtempSync(join(tmpdir(), "anywhen-test-"));
   serverUrl = `http://127.0.0.1:${port}`;
 
-  serverProcess = spawn("bun", [SERVER_ENTRY], {
-    cwd: REPO_ROOT,
+  serverProcess = spawn(ANYWHEN_BIN, [], {
     stdio: "pipe",
     env: {
       ...process.env,
+      HOST: "127.0.0.1",
       PORT: String(port),
       ANYWHEN_STATE_DIR: stateDir,
     },

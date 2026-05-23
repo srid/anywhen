@@ -47,10 +47,14 @@ fmt-check: install
 new-migration name: install
     {{ nix_shell }} bun packages/app/scripts/new-migration.ts {{ name }}
 
-# Cucumber e2e tests (spawns server from source on an ephemeral port)
+# Cucumber e2e tests — builds the Nix `anywhen` package and points the
+# cucumber hook at its `bin/anywhen` wrapper, so each scenario runs
+# against the production closure (pre-built client `dist/`, frozen
+# `node_modules`) rather than `bun src/server/index.ts` from the dev tree.
 test: install
+    ANYWHEN_BIN=$({{ nix_shell }} nix build .#anywhen --no-link --print-out-paths --accept-flake-config)/bin/anywhen && \
     cd packages/tests && \
-      CUCUMBER_PARALLEL={{ cucumber_parallel }} {{ nix_shell_e2e }} \
+      ANYWHEN_BIN=$ANYWHEN_BIN CUCUMBER_PARALLEL={{ cucumber_parallel }} {{ nix_shell_e2e }} \
         node --import tsx ../../node_modules/@cucumber/cucumber/bin/cucumber-js --profile ui
 
 # Remove all gitignored files (node_modules, build artifacts, etc.)
