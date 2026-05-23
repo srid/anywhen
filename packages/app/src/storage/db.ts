@@ -34,17 +34,13 @@ export async function openDb(stateDir: string): Promise<Kysely<Database>> {
     }),
   });
 
-  const { error, results } = await migrator.migrateToLatest();
+  const { error } = await migrator.migrateToLatest();
   if (error) {
     // Migrator returns the error rather than throwing; surface it so a
     // bad migration on startup fails loudly rather than producing a Kysely
     // instance pointing at a half-migrated DB.
     throw error instanceof Error ? error : new Error(String(error));
   }
-  // results is set whenever the migrator ran; treat the unset case as a
-  // configuration bug (provider returned nothing) rather than silent success.
-  if (!results)
-    throw new Error("Kysely migrator returned no results — check FileMigrationProvider config");
 
   return db;
 }
