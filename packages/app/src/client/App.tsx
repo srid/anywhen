@@ -407,10 +407,51 @@ export function App() {
 
   return (
     <main>
-      <h1>
-        anywhen<span class="dot">.</span>
-      </h1>
-      <p class="tagline">A personal task manager. One search box: filter the tree, or add to it.</p>
+      <header class="brand">
+        <svg class="brand-mark" viewBox="0 0 100 100" aria-hidden="true">
+          <g fill="none" stroke="currentColor" stroke-linecap="round">
+            <circle cx="50" cy="50" r="40" stroke-width="1.6" opacity="0.22" />
+            <circle cx="50" cy="50" r="28" stroke-width="2" opacity="0.55" />
+            <circle cx="50" cy="50" r="16" stroke-width="2.4" opacity="0.88" />
+          </g>
+          <circle cx="50" cy="50" r="6" fill="currentColor" />
+        </svg>
+        <h1>
+          anywhen<span class="dot">.</span>
+        </h1>
+      </header>
+
+      <svg class="meridian" viewBox="0 0 240 12" preserveAspectRatio="none" aria-hidden="true">
+        <line
+          x1="0"
+          y1="6"
+          x2="240"
+          y2="6"
+          stroke="currentColor"
+          stroke-width="0.5"
+          opacity="0.5"
+        />
+        <For each={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]}>
+          {(i) => {
+            const major = i % 3 === 0;
+            return (
+              <line
+                x1={i * 20}
+                x2={i * 20}
+                y1={major ? 2 : 4}
+                y2={major ? 10 : 8}
+                stroke="currentColor"
+                stroke-width={major ? 0.8 : 0.5}
+                opacity={major ? 0.7 : 0.4}
+              />
+            );
+          }}
+        </For>
+      </svg>
+
+      <p class="tagline">
+        A personal task manager. <em>One search box</em>: filter the tree, or add to it.
+      </p>
 
       <Show when={error()}>
         {(msg) => (
@@ -421,6 +462,13 @@ export function App() {
       </Show>
 
       <div class="search">
+        <svg class="search-mark" viewBox="0 0 24 24" aria-hidden="true">
+          <g fill="none" stroke="currentColor" stroke-linecap="round">
+            <circle cx="12" cy="12" r="9" stroke-width="1" opacity="0.3" />
+            <circle cx="12" cy="12" r="6" stroke-width="1.3" opacity="0.6" />
+          </g>
+          <circle cx="12" cy="12" r="2.5" fill="currentColor" />
+        </svg>
         <input
           ref={searchInputRef}
           data-testid="search-input"

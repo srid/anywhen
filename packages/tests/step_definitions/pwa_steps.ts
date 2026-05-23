@@ -20,5 +20,8 @@ Then(
 
 Then("the page head has a meta tag {string}", async function (this: AnywhenWorld, name: string) {
   const locator = this.page.locator(`head meta[name="${name}"]`);
-  await expect(locator).toHaveCount(1);
+  // ≥1 — names like `theme-color` repeat with `media` queries for adaptive
+  // light/dark chrome (the W3C-recommended pattern). The step asserts
+  // presence, not uniqueness, so use first()/toBeAttached().
+  await expect(locator.first()).toBeAttached();
 });
