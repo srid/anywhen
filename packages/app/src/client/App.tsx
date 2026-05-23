@@ -179,14 +179,31 @@ export function App() {
       }));
   });
 
-  const callMutation = async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
+  // Two variants so the "success clears the error toast" policy applies
+  // only where it makes sense — to user-initiated *writes* whose success
+  // implies the prior failure is resolved. A successful read (export)
+  // shouldn't silently erase an unrelated error the user is still looking
+  // at, so callQuery captures failures but does not touch a stale toast.
+  const captureError = (err: unknown): undefined => {
+    setError(err instanceof Error ? err.message : String(err));
+    return undefined;
+  };
+
+  const callWrite = async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
     try {
       const result = await fn();
       setError(null);
       return result;
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      return undefined;
+      return captureError(err);
+    }
+  };
+
+  const callQuery = async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
+    try {
+      return await fn();
+    } catch (err) {
+      return captureError(err);
     }
   };
 
@@ -196,7 +213,7 @@ export function App() {
     // Clear the input synchronously before the await so subsequent keystrokes
     // aren't clobbered by a late `setQuery("")` after the mutation resolves.
     setQuery("");
-    const created = await callMutation(() => api.add({ title, parentId: null }));
+    const created = await callWrite(() => api.add({ title, parentId: null }));
     if (created) setSelected(created.id);
   };
 
@@ -210,19 +227,19 @@ export function App() {
   };
 
   const toggle = async (id: TaskId) => {
-    await callMutation(() => api.toggle(id));
+    await callWrite(() => api.toggle(id));
     setFocusedId(id);
   };
 
   const remove = async (id: TaskId) => {
-    await callMutation(() => api.remove(id));
+    await callWrite(() => api.remove(id));
     if (!error() && selected() === id) setSelected(null);
   };
 
   const moveByKey = async (id: TaskId, action: KeyMove) => {
     const target = resolveKeyMove(taskList(), id, action);
     if (!target) return;
-    await callMutation(() => api.move({ id, target }));
+    await callWrite(() => api.move({ id, target }));
     setFocusedId(id);
   };
 
@@ -298,7 +315,7 @@ export function App() {
   };
 
   const exportTasks = async () => {
-    const backup = await callMutation(() => api.export());
+    const backup = await callQuery(() => api.export());
     if (!backup) return;
     const json = JSON.stringify(backup, null, 2);
     const blob = new Blob([json], { type: "application/json" });
@@ -334,7 +351,7 @@ export function App() {
     if (!window.confirm(`Replace all current tasks with ${count} from ${file.name}?`)) {
       return;
     }
-    await callMutation(() => api.import(validated.data));
+    await callWrite(() => api.import(validated.data));
   };
 
   const handleImportChange = async (e: Event) => {
@@ -481,7 +498,7 @@ export function App() {
     clearDragState();
     if (!src || !t) return;
     const target: MoveTarget = { kind: t.zone, refId: t.id };
-    void callMutation(() => api.move({ id: src, target }));
+    void callWrite(() => api.move({ id: src, target }));
   };
 
   const handleRowPointerCancel = () => {
