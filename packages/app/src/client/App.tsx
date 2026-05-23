@@ -120,9 +120,9 @@ const resolveKeyMove = (tasks: Task[], id: TaskId, action: KeyMove): MoveTarget 
     const prev = sib.siblings[sib.index - 1];
     return prev ? { kind: "inside", refId: prev.id } : null;
   }
-  const dir = action === "up" ? -1 : 1;
-  const ref = sib.siblings[sib.index + dir];
-  return ref ? { kind: dir < 0 ? "before" : "after", refId: ref.id } : null;
+  const offset = action === "up" ? -1 : 1;
+  const ref = sib.siblings[sib.index + offset];
+  return ref ? { kind: action === "up" ? "before" : "after", refId: ref.id } : null;
 };
 
 // `<For>` rebuilds the row DOM after refetch, so the focused element is lost
