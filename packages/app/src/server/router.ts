@@ -20,7 +20,7 @@
 import { implementSurface, publisherChannel } from "@kolu/surface/server";
 import { MemoryPublisher } from "@orpc/experimental-publisher/memory";
 import { implement } from "@orpc/server";
-import type { Task, TaskId } from "../shared/schemas";
+import { BACKUP_VERSION, type Task, type TaskId } from "../shared/schemas";
 import { type RuntimeInfo, surface } from "../shared/surface";
 import { descendantIds } from "../shared/tree";
 import type { TaskStore } from "../storage/tasks";
@@ -89,6 +89,37 @@ export function buildRouter(store: TaskStore, cache: Map<TaskId, Task>, runtimeI
           await store.remove(input);
           ctx.collections.tasks.remove(input);
           for (const id of descendants) ctx.collections.tasks.remove(id);
+        },
+        // Snapshot the current task set wrapped in a versioned envelope.
+        // Reads from the cache (already the live SQL view via the
+        // Collection deps) so export is a single in-memory pass — no
+        // separate SELECT against the store.
+        export: async ({ ctx }) => {
+          const tasks = [...ctx.collections.tasks.readAll().values()];
+          return {
+            version: BACKUP_VERSION,
+            exportedAt: new Date().toISOString(),
+            tasks,
+          };
+        },
+        // Replace every current task with the imported set. SQL is wiped
+        // and rewritten in one transaction (`store.replaceAll`); the
+        // cache fan-out then mirrors the same swap onto the Collection
+        // so subscribers see one tear-down + rebuild rather than a
+        // per-row diff. Remove stale keys before upserting new ones so
+        // an id that disappears from the import isn't briefly orphaned
+        // alongside its replacement.
+        //
+        // Snap `oldKeys` *before* the SQL mutation: the cache and SQL
+        // must live in the same epoch when the snapshot is taken, or a
+        // future read-through path would let the cache shift under us
+        // across the await boundary.
+        import: async ({ input, ctx }) => {
+          const oldKeys = [...ctx.collections.tasks.readAll().keys()];
+          await store.replaceAll(input.tasks);
+          const newKeys = new Set(input.tasks.map((t) => t.id));
+          for (const k of oldKeys) if (!newKeys.has(k)) ctx.collections.tasks.remove(k);
+          for (const t of input.tasks) ctx.collections.tasks.upsert(t.id, t);
         },
         // Wipe via the Collection's ctx so the keys bus publishes the
         // post-reset empty set and each per-key subscriber sees its

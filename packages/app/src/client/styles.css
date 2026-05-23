@@ -525,6 +525,49 @@ h1 .dot {
   color: var(--ink-soft);
 }
 
+.backup {
+  margin-top: 24px;
+  color: var(--muted);
+  font: 400 12.5px / 1.5 var(--font-serif);
+  font-variation-settings: "opsz" 12;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.backup-label {
+  font-style: italic;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: 10.5px;
+  color: var(--ink-soft);
+}
+
+.backup-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  border-bottom: 1px dotted currentColor;
+}
+
+.backup-btn:hover,
+.backup-btn:focus {
+  border-bottom-style: solid;
+  outline: none;
+}
+
+.backup-sep {
+  color: var(--rule-soft);
+}
+
+.backup-file {
+  display: none;
+}
+
 .runtime {
   margin-top: 44px;
   padding-top: 16px;
@@ -615,6 +658,7 @@ h1 .dot {
 .search,
 .tree,
 .hint,
+.backup,
 .runtime {
   animation: rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
@@ -640,8 +684,11 @@ h1 .dot {
 .hint {
   animation-delay: 0.44s;
 }
+.backup {
+  animation-delay: 0.5s;
+}
 .runtime {
-  animation-delay: 0.52s;
+  animation-delay: 0.58s;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -652,6 +699,7 @@ h1 .dot {
   .search,
   .tree,
   .hint,
+  .backup,
   .runtime {
     animation: none;
   }

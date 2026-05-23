@@ -8,7 +8,7 @@
 // `nix run` the wrapper sets `ANYWHEN_DIST_DIR` to a pre-built /nix/store
 // path and the build call is skipped.
 
-import { hostname } from "node:os";
+import { hostname as osHostname } from "node:os";
 import { resolve } from "node:path";
 import { RPCHandler as WsRPCHandler } from "@orpc/server/bun-ws";
 import { RPCHandler } from "@orpc/server/fetch";
@@ -33,11 +33,12 @@ if (process.env.ANYWHEN_SEED_SAMPLE_DATA === "1") {
 // once from SQL at boot; mutated by procedure handlers via the framework's
 // `ctx.collections.tasks.{upsert,remove}` fan-out (see `router.ts`).
 const cache = await store.listMap();
-const router = buildRouter(store, cache, { hostname: hostname(), dbPath });
+const router = buildRouter(store, cache, { hostname: osHostname(), dbPath });
 const httpHandler = new RPCHandler(router);
 const wsHandler = new WsRPCHandler(router);
 
 const port = Number(process.env.PORT ?? 7700);
+const hostname = process.env.HOST;
 
 // Either "use this pre-built dist" (production / `nix run`) or "build into
 // this writable path" (dev / cucumber). The env var is the sole adapter;
@@ -62,6 +63,7 @@ const DIST_DIR = dist.path;
 
 const server = Bun.serve({
   port,
+  hostname,
   async fetch(req, srv) {
     const url = new URL(req.url);
     const path = url.pathname;
@@ -110,6 +112,6 @@ const server = Bun.serve({
   },
 });
 
-console.log(`anywhen listening on http://localhost:${server.port}`);
+console.log(`anywhen listening on http://${server.hostname}:${server.port}`);
 console.log(`  state dir: ${stateDir}`);
 console.log(`  dist dir:  ${DIST_DIR} (${dist.kind})`);

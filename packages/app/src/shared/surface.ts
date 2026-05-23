@@ -10,7 +10,13 @@
 
 import { defineSurface } from "@kolu/surface/define";
 import { z } from "zod";
-import { AddTaskInputSchema, MoveTaskInputSchema, TaskIdSchema, TaskSchema } from "./schemas";
+import {
+  AddTaskInputSchema,
+  BackupSchema,
+  MoveTaskInputSchema,
+  TaskIdSchema,
+  TaskSchema,
+} from "./schemas";
 
 // Runtime metadata the server reports about itself — hostname of the box
 // it's running on and the absolute path of the SQLite file it's writing
@@ -61,6 +67,23 @@ export const surface = defineSurface({
       // id so the keys bus publishes once per descendant.
       remove: {
         input: TaskIdSchema,
+        output: z.void(),
+      },
+      // Backup envelope export — returns the full task set wrapped in a
+      // versioned envelope. The client serialises to JSON and triggers a
+      // browser download; downstream (Dropbox, git, anything) is a file-
+      // system concern outside the wire's scope.
+      export: {
+        input: z.void(),
+        output: BackupSchema,
+      },
+      // Restore from a backup envelope. Wipe-and-replace semantics: the
+      // server validates the version, drops every current row, and writes
+      // the import set verbatim (same ids, positions, timestamps). The
+      // client guards with a confirm() before invoking — once this lands,
+      // pre-import state is gone.
+      import: {
+        input: BackupSchema,
         output: z.void(),
       },
       // Test-only: wipe all tasks. Lets cucumber scenarios share one

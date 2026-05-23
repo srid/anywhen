@@ -25,6 +25,7 @@ import {
 import { matchesQuery } from "../shared/filter";
 import { normalizeQuery } from "../shared/input";
 import {
+  BackupSchema,
   DRAG_LONGPRESS_MS,
   type DropZone,
   type MoveTarget,
@@ -129,6 +130,14 @@ type PendingPress = {
 // this threshold the press is treated as a click (select / focus).
 const DRAG_MOVE_THRESHOLD = 5;
 
+// Backup filename uses the local date — Dropbox-friendly, sorts well,
+// and matches the unit the user thinks in ("today's backup").
+const backupFilename = (): string => {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `anywhen-backup-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.json`;
+};
+
 export function App() {
   // Live subscription to the tasks Collection. `notes.keys()` is a reactive
   // accessor; `notes.byKey(id)?.()` is the per-row value, undefined until
@@ -157,6 +166,7 @@ export function App() {
     if (err) console.error("[runtime] info fetch failed:", err);
   });
   let searchInputRef!: HTMLInputElement;
+  let importInputRef!: HTMLInputElement;
 
   // Reconstruct the flat task list from the keys + per-key values. Each
   // value may still be undefined immediately after its key arrived; filter
@@ -197,14 +207,31 @@ export function App() {
       }));
   });
 
-  const callMutation = async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
+  // Two variants so the "success clears the error toast" policy applies
+  // only where it makes sense — to user-initiated *writes* whose success
+  // implies the prior failure is resolved. A successful read (export)
+  // shouldn't silently erase an unrelated error the user is still looking
+  // at, so callQuery captures failures but does not touch a stale toast.
+  const captureError = (err: unknown): undefined => {
+    setError(err instanceof Error ? err.message : String(err));
+    return undefined;
+  };
+
+  const callWrite = async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
     try {
       const result = await fn();
       setError(null);
       return result;
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      return undefined;
+      return captureError(err);
+    }
+  };
+
+  const callQuery = async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
+    try {
+      return await fn();
+    } catch (err) {
+      return captureError(err);
     }
   };
 
@@ -214,7 +241,7 @@ export function App() {
     // Clear the input synchronously before the await so subsequent keystrokes
     // aren't clobbered by a late `setQuery("")` after the mutation resolves.
     setQuery("");
-    const created = await callMutation(() => api.add({ title, parentId: null }));
+    const created = await callWrite(() => api.add({ title, parentId: null }));
     if (created) setSelected(created.id);
   };
 
@@ -228,19 +255,19 @@ export function App() {
   };
 
   const toggle = async (id: TaskId) => {
-    await callMutation(() => api.toggle(id));
+    await callWrite(() => api.toggle(id));
     setFocusedId(id);
   };
 
   const remove = async (id: TaskId) => {
-    await callMutation(() => api.remove(id));
+    await callWrite(() => api.remove(id));
     if (!error() && selected() === id) setSelected(null);
   };
 
   const moveByKey = async (id: TaskId, action: KeyMove) => {
     const target = resolveKeyMove(taskList(), id, action);
     if (!target) return;
-    await callMutation(() => api.move({ id, target }));
+    await callWrite(() => api.move({ id, target }));
     setFocusedId(id);
   };
 
@@ -305,6 +332,55 @@ export function App() {
       e.preventDefault();
       action(id);
     }
+  };
+
+  const exportTasks = async () => {
+    const backup = await callQuery(() => api.export());
+    if (!backup) return;
+    const json = JSON.stringify(backup, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = backupFilename();
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportFile = async (file: File) => {
+    const text = await file.text();
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch (err) {
+      setError(`Import failed: not valid JSON (${err instanceof Error ? err.message : err})`);
+      return;
+    }
+    const validated = BackupSchema.safeParse(parsed);
+    if (!validated.success) {
+      setError(`Import failed: file does not match the backup format (${validated.error.message})`);
+      return;
+    }
+    const count = validated.data.tasks.length;
+    // Destructive: confirm before wiping the current store. The current
+    // codebase has no in-app modal pattern; window.confirm is the simplest
+    // accessible blocker for an action the user can't undo from inside
+    // the app.
+    if (!window.confirm(`Replace all current tasks with ${count} from ${file.name}?`)) {
+      return;
+    }
+    await callWrite(() => api.import(validated.data));
+  };
+
+  const handleImportChange = async (e: Event) => {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    // Reset before any await so re-importing the same file fires `change` again.
+    input.value = "";
+    if (!file) return;
+    await handleImportFile(file);
   };
 
   onMount(() => {
@@ -458,7 +534,7 @@ export function App() {
     clearDragState();
     if (!src || !t) return;
     const target: MoveTarget = { kind: t.zone, refId: t.id };
-    void callMutation(() => api.move({ id: src, target }));
+    void callWrite(() => api.move({ id: src, target }));
   };
 
   const handleRowPointerCancel = () => {
@@ -679,6 +755,35 @@ export function App() {
         <span>
           <kbd>Space</kbd> toggle · <kbd>x</kbd> delete · <kbd>/</kbd> search
         </span>
+      </div>
+
+      <div class="backup" data-testid="backup">
+        <span class="backup-label">Backup</span>
+        <button
+          type="button"
+          class="backup-btn"
+          data-testid="export-button"
+          onClick={() => void exportTasks()}
+        >
+          Export
+        </button>
+        <span class="backup-sep">·</span>
+        <button
+          type="button"
+          class="backup-btn"
+          data-testid="import-button"
+          onClick={() => importInputRef.click()}
+        >
+          Import
+        </button>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept="application/json,.json"
+          data-testid="import-input"
+          class="backup-file"
+          onChange={(e) => void handleImportChange(e)}
+        />
       </div>
 
       <footer class="runtime" data-testid="footer-runtime">
