@@ -14,7 +14,7 @@ import { resolve } from "node:path";
 import { RPCHandler as WsRPCHandler } from "@orpc/server/bun-ws";
 import { RPCHandler } from "@orpc/server/fetch";
 import type { ServerWebSocket } from "bun";
-import { buildClient } from "../build-client";
+import { buildClient, pwaHeadersFor } from "../build-client";
 import { openDb, resolveStateDir } from "../storage/db";
 import { taskStore } from "../storage/tasks";
 import { buildRouter } from "./router";
@@ -41,7 +41,9 @@ const hostname = process.env.HOST ?? "0.0.0.0";
 // wrapper) has pre-built the client bundle at that path — skip the
 // runtime build so we don't try to write into the read-only Nix store.
 // Unset (the dev shell path) keeps the existing behavior: build into
-// packages/app/dist at startup.
+// packages/app/dist at startup. `buildClient` also copies PWA assets
+// (manifest, service worker, icons) per the PWA_FILES contract in
+// build-client.ts — both branches end with the same dist/ shape.
 const distDir = process.env.ANYWHEN_DIST_DIR;
 const DIST_DIR = distDir ?? resolve(import.meta.dirname, "..", "..", "dist");
 if (!distDir) {
@@ -62,6 +64,9 @@ const server = Bun.serve({
       return new Response("WebSocket upgrade failed", { status: 426 });
     }
 
+    // `/rpc/*` and `/api/*` are the "always network-only" namespaces — the
+    // service worker's isRpcPath predicate (client/service-worker.js) mirrors
+    // this. New top-level RPC-ish prefixes must be added in both places.
     if (path === "/api/health") return new Response("ok", { status: 200 });
 
     if (path.startsWith("/rpc/")) {
@@ -88,7 +93,7 @@ const server = Bun.serve({
     }
 
     const file = Bun.file(filePath);
-    if (await file.exists()) return new Response(file);
+    if (await file.exists()) return new Response(file, { headers: pwaHeadersFor(path) });
 
     // SPA fallback — any unknown path serves index.html so client-side
     // routing (if introduced later) doesn't 404 on direct navigation.

@@ -32,6 +32,29 @@ const solidJsxPlugin: BunPlugin = {
   },
 };
 
+// Single source of truth for PWA assets that bypass Bun.build's HTML-import
+// bundler. Each entry drives two things: the post-build copy from clientDir
+// into outDir (so static serving + the SW's `cache.addAll(APP_SHELL)` find
+// them at predictable URLs), and any per-path response-header overrides at
+// serve time (Bun.file infers MIME from extension and gets .js / .svg right,
+// but `.webmanifest` is non-standard so set it explicitly;
+// Service-Worker-Allowed widens the SW's controllable scope — not strictly
+// required when the SW sits at the root, but harmless and future-proof).
+// Adding a new PWA asset = one row here.
+export type PwaFile = { name: string; headers?: HeadersInit };
+export const PWA_FILES: readonly PwaFile[] = [
+  {
+    name: "service-worker.js",
+    headers: { "Content-Type": "application/javascript", "Service-Worker-Allowed": "/" },
+  },
+  { name: "manifest.webmanifest", headers: { "Content-Type": "application/manifest+json" } },
+  { name: "icon.svg" },
+  { name: "icon-maskable.svg" },
+];
+
+export const pwaHeadersFor = (path: string): HeadersInit | undefined =>
+  PWA_FILES.find((f) => path === `/${f.name}`)?.headers;
+
 export async function buildClient({ clientDir, outDir }: { clientDir: string; outDir: string }): Promise<void> {
   const result = await Bun.build({
     entrypoints: [resolve(clientDir, "index.html")],
@@ -43,6 +66,13 @@ export async function buildClient({ clientDir, outDir }: { clientDir: string; ou
   if (!result.success) {
     for (const msg of result.logs) console.error(msg);
     throw new Error("Client build failed");
+  }
+  // Copy each PWA asset alongside the bundled output. The Nix package pre-
+  // bakes this into $out/share/anywhen/packages/app/dist (so production
+  // closures ship the SW, manifest, and icons); the dev path repeats it on
+  // every server startup.
+  for (const { name } of PWA_FILES) {
+    await Bun.write(resolve(outDir, name), Bun.file(resolve(clientDir, name)));
   }
 }
 
