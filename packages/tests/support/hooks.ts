@@ -32,9 +32,14 @@ const REPORTS_DIR = resolve(import.meta.dirname, "..", "reports");
 const resolveTestBin = (): string => {
   const bin = process.env.ANYWHEN_TEST_BIN;
   if (!bin) {
-    throw new Error(
-      "ANYWHEN_TEST_BIN is not set. Run tests via `nix develop .#e2e -c just test` so the wrapped Nix-built binary is available.",
-    );
+    // Distinguish "no e2e shell at all" from "stale e2e shell that pre-dates
+    // ANYWHEN_TEST_BIN being added". PLAYWRIGHT_BROWSERS_PATH is the canary
+    // for the latter — it was set by the e2e shell long before TEST_BIN was.
+    const inE2eShell = process.env.PLAYWRIGHT_BROWSERS_PATH !== undefined;
+    const hint = inE2eShell
+      ? "You appear to be inside the e2e shell (PLAYWRIGHT_BROWSERS_PATH is set), but ANYWHEN_TEST_BIN is missing — the shell is likely stale. Exit and re-enter via `nix develop .#e2e`."
+      : "Run tests via `nix develop .#e2e -c just test` so the wrapped Nix-built binary is available.";
+    throw new Error(`ANYWHEN_TEST_BIN is not set. ${hint}`);
   }
   return bin;
 };
