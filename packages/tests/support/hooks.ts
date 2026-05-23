@@ -17,12 +17,12 @@
 // client bundle, wrapper) get exercised end-to-end; the source-tree
 // spawn path is reserved for `just dev`.
 
-import { AfterAll, Before, BeforeAll, After, Status } from "@cucumber/cucumber";
-import type { ITestCaseHookParameter } from "@cucumber/cucumber";
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import type { ITestCaseHookParameter } from "@cucumber/cucumber";
+import { After, AfterAll, Before, BeforeAll, Status } from "@cucumber/cucumber";
 import getPort from "get-port";
 import { chromium } from "playwright";
 import type { AnywhenWorld } from "./world";
@@ -130,6 +130,7 @@ AfterAll(async () => {
   await browserSingleton?.close();
   if (serverProcess && !serverProcess.killed) {
     serverProcess.kill("SIGTERM");
+    // Give the server 200 ms to flush and exit cleanly before SIGKILL.
     await new Promise((r) => setTimeout(r, 200));
     if (!serverProcess.killed) serverProcess.kill("SIGKILL");
   }
