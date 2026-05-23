@@ -14,9 +14,12 @@ A personal task manager. One search box: filter the tree, or add to it.
 > intact) + mobile-friendly layout (responsive media queries, touch-sized
 > tap targets, always-visible row actions on coarse pointers) + PWA
 > (installable from the browser, with a service worker that caches the
-> app shell and serves `index.html` from cache when offline). Filter
-> atoms, tags, due dates, body, blocked-by, and the detail panel land in
-> later PRs.
+> app shell and serves `index.html` from cache when offline) + JSON
+> backup (the footer's Export downloads a versioned envelope of every
+> task; Import replaces the current tree with the contents of a backup
+> file — drop the export into Dropbox/git/etc. for off-app retention).
+> Filter atoms, tags, due dates, body, blocked-by, and the detail panel
+> land in later PRs.
 
 ## Stack
 
