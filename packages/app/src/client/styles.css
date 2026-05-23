@@ -79,7 +79,7 @@ body {
   background-attachment: fixed;
   background-repeat: no-repeat, repeat;
   color: var(--ink);
-  font: 400 16px / 1.6 var(--font-serif);
+  font: 400 17.5px / 1.6 var(--font-serif);
   font-variation-settings: "opsz" 14;
   font-feature-settings: "kern", "liga", "calt";
   -webkit-text-size-adjust: 100%;
@@ -149,7 +149,7 @@ h1 .dot {
 .tagline {
   margin: 0 0 36px;
   color: var(--muted);
-  font: italic 400 15px / 1.55 var(--font-serif);
+  font: italic 400 16.5px / 1.55 var(--font-serif);
   font-variation-settings: "opsz" 18;
   letter-spacing: 0.005em;
 }
@@ -241,7 +241,7 @@ h1 .dot {
   color: var(--ink);
   min-width: 0;
   padding: 2px 0;
-  font: 400 17px / 1.4 var(--font-serif);
+  font: 400 19px / 1.4 var(--font-serif);
   font-variation-settings: "opsz" 24;
   letter-spacing: 0.002em;
 }
@@ -259,7 +259,7 @@ h1 .dot {
   border: 1px solid var(--accent);
   background: var(--accent);
   color: var(--paper-card);
-  font: 500 14px / 1 var(--font-serif);
+  font: 500 15px / 1 var(--font-serif);
   font-variation-settings:
     "opsz" 14,
     "wght" 500;
@@ -297,7 +297,7 @@ h1 .dot {
 /* ── Tree ──────────────────────────────────────────────────────────── */
 
 .tree {
-  font: 400 15.5px / 1.55 var(--font-serif);
+  font: 400 17px / 1.55 var(--font-serif);
   font-variation-settings: "opsz" 16;
 }
 
@@ -485,7 +485,7 @@ h1 .dot {
 
 .empty {
   color: var(--muted);
-  font: italic 400 14.5px / 1.6 var(--font-serif);
+  font: italic 400 16px / 1.6 var(--font-serif);
   font-variation-settings: "opsz" 18;
   padding: 28px 4px;
   text-align: center;
@@ -499,7 +499,7 @@ h1 .dot {
   padding: 9px 14px;
   border-radius: 3px;
   margin-bottom: 14px;
-  font: italic 400 13.5px / 1.5 var(--font-serif);
+  font: italic 400 14.5px / 1.5 var(--font-serif);
   font-variation-settings: "opsz" 14;
 }
 
@@ -508,7 +508,7 @@ h1 .dot {
   padding-top: 16px;
   border-top: 1px solid var(--rule-soft);
   color: var(--muted);
-  font: 400 12.5px / 1.5 var(--font-serif);
+  font: 400 13.5px / 1.5 var(--font-serif);
   font-variation-settings: "opsz" 12;
   display: flex;
   gap: 20px;
@@ -521,7 +521,7 @@ h1 .dot {
   border-bottom-width: 2px;
   border-radius: 3px;
   padding: 1px 6px;
-  font: 500 11.5px / 1 var(--font-mono);
+  font: 500 12.5px / 1 var(--font-mono);
   color: var(--ink-soft);
 }
 
@@ -530,7 +530,7 @@ h1 .dot {
   padding-top: 16px;
   border-top: 1px solid var(--rule-soft);
   color: var(--muted);
-  font: italic 400 12.5px / 1.6 var(--font-serif);
+  font: italic 400 13.5px / 1.6 var(--font-serif);
   font-variation-settings: "opsz" 14;
   text-align: center;
   letter-spacing: 0.01em;
@@ -653,16 +653,16 @@ h1 .dot {
     margin: 14px 0 4px;
   }
   .tagline {
-    font-size: 13.5px;
+    font-size: 15px;
     margin-bottom: 24px;
   }
   .search {
     padding: 12px 12px 12px 44px;
     /* Prevent iOS auto-zoom on focus; 16px is the documented threshold. */
-    font-size: 16px;
+    font-size: 17px;
   }
   .search input {
-    font-size: 16px;
+    font-size: 17px;
   }
   .search-mark {
     left: 14px;
@@ -675,6 +675,6 @@ h1 .dot {
   .hint {
     flex-direction: column;
     gap: 7px;
-    font-size: 12px;
+    font-size: 13px;
   }
 }
