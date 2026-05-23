@@ -85,6 +85,11 @@ const descendantsOf = (tasks: Task[], rootId: TaskId): Set<TaskId> => {
   return out;
 };
 
+// Drag state snapshot — id of the task being dragged plus its descendant
+// set, captured once at drag-start to seal the gesture against mid-drag
+// refetches.
+type DragSnapshot = { id: TaskId; descendants: Set<TaskId> };
+
 export function App() {
   const [tasks, { refetch }] = createResource<Task[]>(() => api.list());
   const [query, setQuery] = createSignal("");
@@ -149,7 +154,6 @@ export function App() {
   // can't shift the descendant set under the user's hand. The server
   // re-validates, but blocking invalid targets here keeps the visual
   // indicator off them so the UX matches the outcome.
-  type DragSnapshot = { id: TaskId; descendants: Set<TaskId> };
   const [drag, setDrag] = createSignal<DragSnapshot | null>(null);
   const [dropTarget, setDropTarget] = createSignal<{ id: TaskId; zone: DropZone } | null>(null);
 
