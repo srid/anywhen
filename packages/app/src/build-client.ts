@@ -24,10 +24,7 @@ const solidJsxPlugin: BunPlugin = {
       const code = await Bun.file(args.path).text();
       const result = await transformAsync(code, {
         filename: args.path,
-        presets: [
-          [babelSolid, {}],
-          [babelTypeScript, {}],
-        ],
+        presets: [babelSolid, babelTypeScript],
       });
       if (!result?.code) throw new Error(`Babel transform produced no output for ${args.path}`);
       return { contents: result.code, loader: "js" };
