@@ -9,10 +9,10 @@
 // parallel `store.X + bus.publish` path.
 
 import { implement } from "@orpc/server";
-import { implementSurface } from "@kolu/surface/server";
+import { implementSurface, publisherChannel } from "@kolu/surface/server";
+import { MemoryPublisher } from "@orpc/experimental-publisher/memory";
 import { surface } from "../shared/surface";
 import type { TaskStore } from "../storage/tasks";
-import { channelFactory } from "./channel";
 
 // `implementSurface` returns `{ surface: t.router(namespaces) }`. The inner
 // `t.router(...)` carries the full surface contract as a hidden "router
@@ -27,9 +27,14 @@ import { channelFactory } from "./channel";
 // hand-written namespaces; a surface-only host needs the explicit rewrap.
 
 export function buildRouter(store: TaskStore) {
-  const channel = channelFactory();
+  // MemoryPublisher's generic insists on `Record<string, object>`; we publish
+  // `Task` objects and `string[]` key snapshots, both of which satisfy
+  // `object` in JS. Per-channel typing lives on the surface contract — the
+  // publisher's `any` carrier just keeps TypeScript out of the way here.
+  // biome-ignore lint/suspicious/noExplicitAny: see comment above
+  const publisher = new MemoryPublisher<Record<string, any>>();
   const { router: surfaceFragment } = implementSurface(surface, {
-    channel,
+    channel: <T>(name: string) => publisherChannel<T>(publisher, name),
     collections: {
       tasks: {
         readAll: () => store.listMap(),
