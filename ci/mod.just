@@ -20,9 +20,13 @@ default: nix typecheck biome fmt-check bun-nix-fresh e2e
 
 # Single per-platform `bun install`. Funnel every bun consumer through this
 # node so concurrent `bun install` runs against the same workspace don't race.
+# The hydrate call is wrapped in `sh -c '...'` so `$ANYWHEN_KOLU_SURFACE` is
+# expanded inside the nix-develop shell that exports it, not by just's outer
+# shell (which runs under `set -u` — symmetric to the fix in the top-level
+# justfile).
 install:
     {{ nix_shell }} bun install
-    {{ nix_shell }} sh scripts/hydrate-kolu-surface.sh "$ANYWHEN_KOLU_SURFACE"
+    {{ nix_shell }} sh -c 'sh scripts/hydrate-kolu-surface.sh "$ANYWHEN_KOLU_SURFACE"'
 
 # Build all flake outputs via devour-flake.
 nix:

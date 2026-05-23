@@ -67,6 +67,14 @@ runs without extra setup. Cucumber overrides with a per-run `mktemp` dir
 (see `packages/tests/support/hooks.ts`) so production and test paths stay
 distinct.
 
+`just dev` boots with sample tasks (a small nested tree, a couple marked
+done) so a first run isn't an empty screen. The seed is gated by
+`ANYWHEN_SEED_SAMPLE_DATA=1` (set by the `dev` recipe; not set by `just
+test`) and is a no-op once any tasks exist — re-running `just dev`
+against a populated DB never clobbers user data. To start blank, delete
+`./state/anywhen.db` and unset the env var, or just clear the tasks via
+the UI.
+
 Schema evolution: every change ships as a new `.ts` file under
 `packages/app/src/storage/migrations/`. `openDb` applies pending migrations
 on app start via Kysely's `Migrator`, so a stale DB upgrades itself the next

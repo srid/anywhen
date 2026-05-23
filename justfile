@@ -14,14 +14,20 @@ mod ci 'ci/mod.just'
 default:
     @just --list
 
-# Install dependencies (bun) and re-link @kolu/surface from the nix store
+# Install dependencies (bun) and re-link @kolu/surface from the nix store.
+# The hydrate call is wrapped in `sh -c '...'` so `$ANYWHEN_KOLU_SURFACE`
+# is expanded *inside* the nix-develop shell that exports it, not by
+# just's outer shell (which runs under `set -u` and errors on the unset
+# var if the user invokes `just dev` from a non-direnv terminal).
 install:
     {{ nix_shell }} bun install
-    {{ nix_shell }} sh scripts/hydrate-kolu-surface.sh "$ANYWHEN_KOLU_SURFACE"
+    {{ nix_shell }} sh -c 'sh scripts/hydrate-kolu-surface.sh "$ANYWHEN_KOLU_SURFACE"'
 
-# Run the app with auto-reload
+# Run the app with auto-reload. Seeds sample tasks into an empty DB so a
+# fresh `just dev` run shows the tree populated; a no-op against a DB that
+# already has rows.
 dev: install
-    {{ nix_shell }} bun --cwd packages/app dev
+    {{ nix_shell }} sh -c 'ANYWHEN_SEED_SAMPLE_DATA=1 bun --cwd packages/app dev'
 
 # TypeScript type checking across the workspace
 typecheck: install
