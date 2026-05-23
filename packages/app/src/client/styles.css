@@ -1,14 +1,67 @@
+/* anywhen — editorial-horological paper UI.
+   Warm cream paper, deep coffee ink, single burnished-gold accent.
+   The brand mark (concentric rings + center dot) recurs in the
+   header colophon, the meridian rule, the search marker, and the
+   row checkboxes — every element nods at "all time is now". */
+
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&display=swap");
+
 :root {
-  --bg: #faf8f4;
-  --card: #ffffff;
-  --ink: #2c2a26;
-  --muted: #8c8378;
-  --line: #e6dfd2;
-  --accent: #7a623d;
-  --accent-dark: #6a5535;
-  --done: #6b8e53;
-  --todo: #a8a098;
-  --soft: #f4f0e6;
+  /* Paper */
+  --paper: #f4ede0;
+  --paper-deep: #ebe1ce;
+  --paper-card: #fbf6ec;
+
+  /* Ink */
+  --ink: #1f1810;
+  --ink-soft: #3a2f22;
+  --muted: #82735a;
+
+  /* Hairlines */
+  --rule: #b89f76;
+  --rule-soft: #d6c5a6;
+
+  /* Single accent — burnished brass */
+  --accent: #a8773c;
+  --accent-deep: #8c5e2c;
+  --accent-soft: rgba(168, 119, 60, 0.14);
+  --mark-bg: rgba(212, 175, 85, 0.32);
+
+  /* Paper grain — warm sepia speckle. Encoded inline to avoid an asset. */
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.16  0 0 0 0 0.13  0 0 0 0 0.09  0 0 0 0.045 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+
+  /* Semantic */
+  --done: #6a8557;
+  --danger: #9a3d33;
+
+  /* Display + body type — one family, full variable axis */
+  --font-serif: "Fraunces", "Iowan Old Style", "Charter", "Georgia", ui-serif, serif;
+  --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", "Menlo", "Consolas", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #15110b;
+    --paper-deep: #1f1812;
+    --paper-card: #1a1410;
+
+    --ink: #f0e6d3;
+    --ink-soft: #d2c4a8;
+    --muted: #998767;
+
+    --rule: #5a4a32;
+    --rule-soft: #382c1d;
+
+    --accent: #d4a26a;
+    --accent-deep: #b88550;
+    --accent-soft: rgba(212, 162, 106, 0.16);
+    --mark-bg: rgba(212, 162, 106, 0.28);
+
+    --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.94  0 0 0 0 0.9  0 0 0 0 0.82  0 0 0 0.035 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+
+    --done: #8aa276;
+    --danger: #c66b5e;
+  }
 }
 
 * {
@@ -18,71 +71,166 @@
 html,
 body {
   margin: 0;
-  background: var(--bg);
+  background-color: var(--paper);
+  /* Paper grain over a warm cream vignette. Fixed attachment makes the
+     grain feel like the texture of the sheet itself, not a scrolling layer. */
+  background-image:
+    radial-gradient(120% 80% at 50% 0%, rgba(255, 255, 255, 0.5), transparent 60%), var(--grain);
+  background-attachment: fixed;
+  background-repeat: no-repeat, repeat;
   color: var(--ink);
-  font:
-    15px / 1.55 ui-sans-serif,
-    system-ui,
-    -apple-system,
-    "Inter",
-    sans-serif;
-  /* Allow vertical scroll across the whole page; rows opt out only while
-     actively dragging (see .row.dragging below). */
+  font: 400 16px / 1.6 var(--font-serif);
+  font-variation-settings: "opsz" 14;
+  font-feature-settings: "kern", "liga", "calt";
   -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+@media (prefers-color-scheme: dark) {
+  html,
+  body {
+    background-image:
+      radial-gradient(120% 80% at 50% 0%, rgba(220, 190, 140, 0.06), transparent 60%), var(--grain);
+  }
 }
 
 main {
   max-width: 720px;
   margin: 0 auto;
-  padding: 56px 24px 80px;
+  padding: 72px 28px 96px;
+  position: relative;
+}
+
+/* ── Brand colophon: mark + wordmark, side by side ────────────────────── */
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+}
+
+.brand-mark {
+  width: clamp(32px, 5vw, 44px);
+  height: clamp(32px, 5vw, 44px);
+  color: var(--ink);
+  flex-shrink: 0;
 }
 
 h1 {
-  font-size: 30px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  margin: 0 0 4px;
+  margin: 0;
+  font: 600 clamp(38px, 6vw, 58px) / 0.95 var(--font-serif);
+  font-variation-settings:
+    "opsz" 96,
+    "wght" 600;
+  letter-spacing: -0.025em;
+  color: var(--ink);
 }
+
 h1 .dot {
   color: var(--accent);
+  /* The period is the wordmark's punctuation but also the visual quote of
+     the brand mark's center dot — its colour ties the header together. */
+  margin-left: 1px;
+}
+
+/* ── Meridian rule: hairline with 12 hour-ticks ──────────────────────── */
+
+.meridian {
+  display: block;
+  width: 100%;
+  height: 12px;
+  margin: 18px 0 6px;
+  color: var(--rule);
+  overflow: visible;
 }
 
 .tagline {
+  margin: 0 0 36px;
   color: var(--muted);
-  font-size: 13.5px;
-  margin: 0 0 28px;
+  font: italic 400 15px / 1.55 var(--font-serif);
+  font-variation-settings: "opsz" 18;
+  letter-spacing: 0.005em;
 }
+
+.tagline em {
+  font-style: normal;
+  color: var(--ink-soft);
+  font-variation-settings:
+    "opsz" 18,
+    "wght" 500;
+  border-bottom: 1px solid var(--rule-soft);
+  padding-bottom: 1px;
+}
+
+/* ── Search: paper-card input with concentric brand-mark marker ─────── */
 
 .search {
   position: relative;
   display: flex;
   align-items: center;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 8px 8px 8px 44px;
-  font-size: 16px;
-  background: #fff;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
-  margin: 4px 0 22px;
-  gap: 6px;
+  gap: 8px;
+  padding: 14px 14px 14px 50px;
+  background: var(--paper-card);
+  border: 1px solid var(--rule-soft);
+  border-radius: 4px;
+  margin: 0 0 28px;
+  box-shadow:
+    0 1px 0 rgba(31, 24, 16, 0.03),
+    0 18px 36px -28px rgba(31, 24, 16, 0.25);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.25s ease;
 }
 
 .search:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(122, 98, 61, 0.12);
+  box-shadow:
+    0 1px 0 rgba(31, 24, 16, 0.03),
+    0 22px 42px -28px rgba(31, 24, 16, 0.3),
+    0 0 0 3px var(--accent-soft);
 }
 
-.search::before {
+.search::after {
+  /* Accent underline drawing from the center on focus — a small
+     gesture that says "you are typing into the present moment". */
   content: "";
+  position: absolute;
+  left: 50%;
+  right: 50%;
+  bottom: -1px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+  transition:
+    left 0.32s cubic-bezier(0.2, 0.8, 0.2, 1),
+    right 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.search:focus-within::after {
+  left: 8px;
+  right: 8px;
+}
+
+.search-mark {
   position: absolute;
   left: 16px;
   top: 50%;
-  width: 14px;
-  height: 14px;
+  width: 22px;
+  height: 22px;
   transform: translateY(-50%);
-  border: 1.5px solid var(--muted);
-  border-radius: 50%;
-  opacity: 0.6;
+  color: var(--ink-soft);
+  opacity: 0.78;
+  transition:
+    color 0.2s ease,
+    opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.search:focus-within .search-mark {
+  color: var(--accent);
+  opacity: 1;
 }
 
 .search input {
@@ -90,80 +238,107 @@ h1 .dot {
   outline: 0;
   background: transparent;
   flex: 1;
-  font: inherit;
   color: var(--ink);
   min-width: 0;
-  padding: 4px 0;
+  padding: 2px 0;
+  font: 400 17px / 1.4 var(--font-serif);
+  font-variation-settings: "opsz" 24;
+  letter-spacing: 0.002em;
 }
+
 .search input::placeholder {
   color: var(--muted);
+  font-style: italic;
+  font-variation-settings:
+    "opsz" 24,
+    "wght" 400;
 }
 
 .add-btn {
   flex-shrink: 0;
-  border: 0;
+  border: 1px solid var(--accent);
   background: var(--accent);
-  color: #fff;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  padding: 8px 16px;
-  border-radius: 999px;
+  color: var(--paper-card);
+  font: 500 14px / 1 var(--font-serif);
+  font-variation-settings:
+    "opsz" 14,
+    "wght" 500;
+  letter-spacing: 0.04em;
+  padding: 9px 18px;
+  border-radius: 3px;
   cursor: pointer;
-  transition:
-    background 0.12s,
-    opacity 0.12s;
   min-height: 36px;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
 }
+
 .add-btn:hover:not(:disabled),
 .add-btn:focus-visible:not(:disabled) {
-  background: var(--accent-dark);
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
   outline: none;
+  transform: translateY(-1px);
 }
+
+.add-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
 .add-btn:disabled {
-  background: var(--line);
+  background: transparent;
+  border-color: var(--rule-soft);
   color: var(--muted);
   cursor: default;
 }
 
+/* ── Tree ──────────────────────────────────────────────────────────── */
+
 .tree {
-  font-size: 14.5px;
+  font: 400 15.5px / 1.55 var(--font-serif);
+  font-variation-settings: "opsz" 16;
 }
 
 .row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 5px 6px;
-  border-radius: 6px;
+  gap: 12px;
+  padding: 7px 8px;
+  border-radius: 3px;
   position: relative;
   cursor: grab;
-  /* Allow vertical scroll when finger flicks across a row; long-press in the
-     handler is what promotes the press into a drag. */
   touch-action: pan-y;
-  /* Suppress the native long-press text-selection (and iOS callout/magnifier)
-     during the 350ms drag-arming window — the row is an interactive draggable,
-     not selectable text. -webkit-touch-callout has no standard equivalent. */
   user-select: none;
   -webkit-touch-callout: none;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
+
 .row:hover {
-  background: rgba(122, 98, 61, 0.04);
+  background: var(--accent-soft);
 }
+
 .row.selected {
-  background: rgba(122, 98, 61, 0.1);
+  background: var(--accent-soft);
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
 }
+
 .row.dragging {
-  opacity: 0.4;
+  opacity: 0.42;
   cursor: grabbing;
-  /* While actively dragging, block native scroll so the drag stays smooth. */
   touch-action: none;
 }
+
 .row.drop-inside {
-  background: rgba(122, 98, 61, 0.18);
+  background: var(--mark-bg);
   outline: 1px dashed var(--accent);
   outline-offset: -2px;
 }
+
 .row.drop-before::before,
 .row.drop-after::after {
   content: "";
@@ -174,10 +349,13 @@ h1 .dot {
   background: var(--accent);
   border-radius: 1px;
   pointer-events: none;
+  box-shadow: 0 0 8px var(--accent-soft);
 }
+
 .row.drop-before::before {
   top: -1px;
 }
+
 .row.drop-after::after {
   bottom: -1px;
 }
@@ -185,197 +363,296 @@ h1 .dot {
 .indent {
   width: 18px;
   align-self: stretch;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--rule-soft);
   margin-right: 2px;
 }
+
+/* Round-dot checkbox: empty ring (todo, eternity loop) → filled disc
+   (done, the point, the now). Visually quotes the brand mark. */
 
 .check {
   width: 18px;
   height: 18px;
-  border: 1.5px solid var(--todo);
-  border-radius: 4px;
-  flex-shrink: 0;
-  position: relative;
-  cursor: pointer;
+  border: 1.5px solid var(--rule);
+  border-radius: 50%;
   background: transparent;
+  flex-shrink: 0;
+  cursor: pointer;
   padding: 0;
+  position: relative;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
 }
+
+.check:hover,
+.check:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 .check.done {
-  border-color: var(--done);
-  background: var(--done);
-}
-.check.done::after {
-  content: "";
-  position: absolute;
-  left: 5px;
-  top: 1px;
-  width: 4px;
-  height: 9px;
-  border: solid #fff;
-  border-width: 0 1.5px 1.5px 0;
-  transform: rotate(45deg);
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
 .title {
   flex: 1;
   min-width: 0;
+  color: var(--ink);
+  font-variation-settings:
+    "opsz" 16,
+    "wght" 400;
 }
+
 .title mark {
-  background: rgba(218, 195, 84, 0.32);
+  background: var(--mark-bg);
   color: inherit;
-  border-radius: 3px;
+  border-radius: 2px;
   padding: 0 2px;
+  font-variation-settings:
+    "opsz" 16,
+    "wght" 500;
 }
+
 .row.is-done .title {
   color: var(--muted);
   text-decoration: line-through;
-  text-decoration-color: var(--line);
+  text-decoration-color: var(--rule-soft);
+  text-decoration-thickness: 1px;
+  font-style: italic;
 }
+
 .row.dimmed .title,
 .row.dimmed .check {
-  opacity: 0.45;
+  opacity: 0.42;
 }
+
 .row.dimmed {
   cursor: default;
-}
-
-.empty {
-  color: var(--muted);
-  font-size: 14px;
-  padding: 22px 4px;
-  text-align: center;
-}
-
-.hint {
-  margin-top: 22px;
-  padding-top: 14px;
-  border-top: 1px dashed var(--line);
-  color: var(--muted);
-  font-size: 12.5px;
-  display: flex;
-  gap: 18px;
-  flex-wrap: wrap;
-}
-
-.hint kbd {
-  background: var(--soft);
-  border: 1px solid var(--line);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  padding: 1px 6px;
-  font:
-    11.5px ui-monospace,
-    "JetBrains Mono",
-    monospace;
-  color: var(--ink);
-}
-
-.err {
-  background: #fef4f4;
-  border: 1px solid #f3cdcd;
-  color: #a04545;
-  padding: 8px 12px;
-  border-radius: 6px;
-  margin-bottom: 14px;
-  font-size: 13px;
 }
 
 .delete {
   background: transparent;
   border: 0;
   padding: 0 6px;
-  font-size: 18px;
-  line-height: 1;
+  font: 400 20px / 1 var(--font-serif);
+  font-variation-settings: "opsz" 24;
   color: var(--muted);
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 3px;
   opacity: 0;
   transition:
-    opacity 0.1s,
-    color 0.1s,
-    background 0.1s;
-  min-width: 24px;
-  min-height: 24px;
+    opacity 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease;
+  min-width: 28px;
+  min-height: 28px;
 }
+
 .row:hover .delete,
 .row:focus-within .delete {
   opacity: 1;
 }
+
 .delete:hover,
 .delete:focus {
-  color: var(--blocked, #b85450);
-  background: rgba(184, 84, 80, 0.08);
+  color: var(--danger);
+  background: rgba(154, 61, 51, 0.08);
   outline: none;
 }
 
-.credit {
-  margin-top: 36px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
+/* ── Empty / error / hint / credit ─────────────────────────────────── */
+
+.empty {
   color: var(--muted);
-  font-size: 12px;
+  font: italic 400 14.5px / 1.6 var(--font-serif);
+  font-variation-settings: "opsz" 18;
+  padding: 28px 4px;
   text-align: center;
+  letter-spacing: 0.005em;
 }
+
+.err {
+  background: rgba(154, 61, 51, 0.08);
+  border: 1px solid rgba(154, 61, 51, 0.3);
+  color: var(--danger);
+  padding: 9px 14px;
+  border-radius: 3px;
+  margin-bottom: 14px;
+  font: italic 400 13.5px / 1.5 var(--font-serif);
+  font-variation-settings: "opsz" 14;
+}
+
+.hint {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule-soft);
+  color: var(--muted);
+  font: 400 12.5px / 1.5 var(--font-serif);
+  font-variation-settings: "opsz" 12;
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.hint kbd {
+  background: var(--paper-deep);
+  border: 1px solid var(--rule-soft);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 1px 6px;
+  font: 500 11.5px / 1 var(--font-mono);
+  color: var(--ink-soft);
+}
+
+.credit {
+  margin-top: 44px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule-soft);
+  color: var(--muted);
+  font: italic 400 12.5px / 1.6 var(--font-serif);
+  font-variation-settings: "opsz" 14;
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+
 .credit a {
   color: var(--accent);
   text-decoration: none;
+  font-style: normal;
   border-bottom: 1px dotted currentColor;
 }
+
 .credit a:hover {
   border-bottom-style: solid;
 }
 
-/* Touch / coarse-pointer devices: reveal the delete button (no hover), and
-   bump tap targets to the WCAG-friendly 44px minimum on the action buttons. */
+/* ── Page-load animation: staggered rise. Respects reduced-motion. ──── */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.brand,
+.meridian,
+.tagline,
+.err,
+.search,
+.tree,
+.hint,
+.credit {
+  animation: rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.brand {
+  animation-delay: 0s;
+}
+.meridian {
+  animation-delay: 0.08s;
+}
+.tagline {
+  animation-delay: 0.16s;
+}
+.err {
+  animation-delay: 0.18s;
+}
+.search {
+  animation-delay: 0.24s;
+}
+.tree {
+  animation-delay: 0.34s;
+}
+.hint {
+  animation-delay: 0.44s;
+}
+.credit {
+  animation-delay: 0.52s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand,
+  .meridian,
+  .tagline,
+  .err,
+  .search,
+  .tree,
+  .hint,
+  .credit {
+    animation: none;
+  }
+  .search::after,
+  .add-btn,
+  .check,
+  .row,
+  .delete {
+    transition: none;
+  }
+}
+
+/* ── Touch / coarse-pointer devices ───────────────────────────────── */
+
 @media (pointer: coarse) {
   .delete {
     opacity: 1;
-    min-width: 32px;
-    min-height: 32px;
-    padding: 4px 10px;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 6px 10px;
   }
   .check {
     width: 22px;
     height: 22px;
   }
-  .check.done::after {
-    left: 7px;
-    top: 2px;
-    height: 11px;
-  }
   .row {
-    padding: 8px 6px;
+    padding: 10px 8px;
   }
 }
 
-/* Narrow viewports — phones in portrait. Slim the page chrome, stack the
-   hint vertically, and shrink the heading so the search box owns the screen. */
+/* ── Narrow viewports — phones in portrait. ──────────────────────── */
+
 @media (max-width: 600px) {
   main {
-    padding: 24px 14px 40px;
+    padding: 32px 18px 56px;
   }
-  h1 {
-    font-size: 24px;
+  .brand {
+    gap: 10px;
+  }
+  .meridian {
+    margin: 14px 0 4px;
   }
   .tagline {
-    font-size: 13px;
-    margin-bottom: 18px;
+    font-size: 13.5px;
+    margin-bottom: 24px;
   }
   .search {
-    padding-left: 38px;
-    /* Prevent iOS Safari from auto-zooming when the input is focused; 16px
-       font is the documented threshold. */
+    padding: 12px 12px 12px 44px;
+    /* Prevent iOS auto-zoom on focus; 16px is the documented threshold. */
     font-size: 16px;
   }
-  .search::before {
-    left: 13px;
+  .search input {
+    font-size: 16px;
+  }
+  .search-mark {
+    left: 14px;
+    width: 20px;
+    height: 20px;
   }
   .add-btn {
-    padding: 8px 12px;
+    padding: 8px 13px;
   }
   .hint {
     flex-direction: column;
-    gap: 6px;
+    gap: 7px;
     font-size: 12px;
   }
 }

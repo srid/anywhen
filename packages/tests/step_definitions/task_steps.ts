@@ -31,6 +31,7 @@ Given("the app is running with a fresh database", async function (this: AnywhenW
   if (!res.ok) throw new Error(`Reset failed: ${res.status} ${await res.text()}`);
   await this.page.goto(this.serverUrl);
   await this.page.locator('[data-testid="search-input"]').waitFor({ state: "visible" });
+  await this.page.waitForLoadState("networkidle");
 });
 
 When("I type {string} in the search box", async function (this: AnywhenWorld, text: string) {
