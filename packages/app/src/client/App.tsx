@@ -1,17 +1,15 @@
-// PR 1 client. Three surface procedures over plain oRPC HTTP — no
-// WebSocket, no Cell/Collection/Stream/Event reactivity. After each
-// mutation the client refetches `tasks.list`; PR 2 swaps that for a
-// `Collection<Id, Task>` with push deltas (and keyboard navigation /
-// search filtering).
+// Live tree view over the `tasks` Collection. `app.collections.tasks.use()`
+// subscribes to the server's keys stream and, per key, the per-row value
+// stream — snapshot-then-deltas semantics keep the UI eventually consistent
+// without an explicit refetch after each mutation.
 //
-// The contract namespaces every procedure under `surface.<ns>` — see
-// kolu-master/packages/surface/src/define.ts:640-647 — so the path is
-// `client.surface.tasks.{list,add,toggle}`.
+// The search box does double duty: `+ title` adds a task (Enter), a plain
+// query narrows the tree as you type (live filter). The matcher lives in
+// shared/filter.ts so a future server-side delta evaluation imports the
+// same function.
 
-import { createORPCClient } from "@orpc/client";
-import { RPCLink } from "@orpc/client/fetch";
-import type { ContractRouterClient } from "@orpc/contract";
-import { createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { matchesQuery } from "../shared/filter";
 import { parseInput } from "../shared/input";
 import {
   type DropZone,
@@ -21,20 +19,15 @@ import {
   ZONE_AFTER_RATIO,
   ZONE_BEFORE_RATIO,
 } from "../shared/schemas";
-import type { surface } from "../shared/surface";
+import { ancestorIds, descendantIds } from "../shared/tree";
+import { highlightSegments } from "./highlight";
+import { app } from "./wire";
 
-type Client = ContractRouterClient<typeof surface.contract>;
-
-const link = new RPCLink({ url: `${location.origin}/rpc` });
-const client = createORPCClient<Client>(link);
-const api = client.surface.tasks;
+const api = app.rpc.surface.tasks;
 
 // ── Tree derivation: flat Task[] → ordered, indented rows ─────────────
-type Row = { task: Task; depth: number };
+type Row = { task: Task; depth: number; dimmed: boolean };
 
-// Parent → children adjacency map. The shared primitive behind both row
-// rendering and descendant lookups for drag-veto. One construction; two
-// callers walk it for different outputs.
 const byParentMap = (tasks: Task[]): Map<TaskId | null, Task[]> => {
   const out = new Map<TaskId | null, Task[]>();
   for (const t of tasks) {
@@ -45,10 +38,12 @@ const byParentMap = (tasks: Task[]): Map<TaskId | null, Task[]> => {
   return out;
 };
 
-const buildRows = (tasks: Task[]): Row[] => {
+// Single DFS walk: position-orders siblings, visits parent before children,
+// and records depth inline — one byParentMap, one allocation, one traversal.
+const sortedWithDepths = (tasks: Task[]): { task: Task; depth: number }[] => {
   const byParent = byParentMap(tasks);
   for (const arr of byParent.values()) arr.sort((a, b) => a.position - b.position);
-  const out: Row[] = [];
+  const out: { task: Task; depth: number }[] = [];
   const walk = (parentId: TaskId | null, depth: number) => {
     for (const t of byParent.get(parentId) ?? []) {
       out.push({ task: t, depth });
@@ -63,8 +58,6 @@ const buildRows = (tasks: Task[]): Row[] => {
 // quarter → after, middle half → inside (re-parent). Symmetric so the user
 // can always nudge a task one step up, one step down, or one level deeper.
 const zoneAt = (offsetY: number, height: number): DropZone => {
-  // Zero-height rows are collapsed/invisible; "inside" is the neutral
-  // fallback (no positional indicator appears on such rows anyway).
   if (height <= 0) return "inside";
   const ratio = offsetY / height;
   if (ratio < ZONE_BEFORE_RATIO) return "before";
@@ -72,25 +65,6 @@ const zoneAt = (offsetY: number, height: number): DropZone => {
   return "inside";
 };
 
-const descendantsOf = (tasks: Task[], rootId: TaskId): Set<TaskId> => {
-  const byParent = byParentMap(tasks);
-  const out = new Set<TaskId>();
-  const walk = (id: TaskId) => {
-    for (const c of byParent.get(id) ?? []) {
-      out.add(c.id);
-      walk(c.id);
-    }
-  };
-  walk(rootId);
-  return out;
-};
-
-// Same-parent siblings in position order, plus the task's index inside that
-// list. Keyboard reordering needs both (the "ref" sibling sits one slot away)
-// and indent needs the previous sibling; computing them together avoids
-// re-sorting the same array twice. Routes through `byParentMap` so the
-// "siblings = children of parent in position order" derivation lives in one
-// place; the `slice()` keeps the cached array unmutated for other callers.
 const siblingsOf = (
   tasks: Task[],
   id: TaskId,
@@ -104,10 +78,6 @@ const siblingsOf = (
   return { siblings, index, task };
 };
 
-// Keyboard intent → MoveTarget. Returning null means "no legal move from
-// this position" (already at the top sibling, already a root, etc.) so the
-// caller can no-op instead of firing a server round-trip that would just
-// re-validate and refuse.
 type KeyMove = "indent" | "outdent" | "up" | "down";
 
 const resolveKeyMove = (tasks: Task[], id: TaskId, action: KeyMove): MoveTarget | null => {
@@ -125,10 +95,6 @@ const resolveKeyMove = (tasks: Task[], id: TaskId, action: KeyMove): MoveTarget 
   return ref ? { kind: action === "up" ? "before" : "after", refId: ref.id } : null;
 };
 
-// `<For>` rebuilds the row DOM after refetch, so the focused element is lost
-// across a successful move. Refocusing by data-task-id on the next frame
-// reattaches the cursor to the same task, which is what keeps "Alt+ArrowUp"
-// chains working (press it twice in a row to move two slots up).
 const focusRowById = (id: TaskId) => {
   requestAnimationFrame(() => {
     const el = document.querySelector<HTMLElement>(
@@ -138,37 +104,62 @@ const focusRowById = (id: TaskId) => {
   });
 };
 
-// Drag state snapshot — id of the task being dragged plus its descendant
-// set, captured once at drag-start to seal the gesture against mid-drag
-// refetches.
 type DragSnapshot = { id: TaskId; descendants: Set<TaskId> };
 
 export function App() {
-  const [tasks, { refetch }] = createResource<Task[]>(() => api.list());
+  // Live subscription to the tasks Collection. `notes.keys()` is a reactive
+  // accessor; `notes.byKey(id)?.()` is the per-row value, undefined until
+  // its first snapshot lands.
+  const tasksColl = app.collections.tasks.use({
+    onError: (err) => setError(err instanceof Error ? err.message : String(err)),
+  });
   const [query, setQuery] = createSignal("");
   const [selected, setSelected] = createSignal<TaskId | null>(null);
   const [error, setError] = createSignal<string | null>(null);
-  // Solid ref to the search input. The "/" shortcut and the post-add focus
-  // path both need a stable handle to focus the element; reaching for it via
-  // `document.querySelector('[data-testid=...]')` would make the production
-  // shortcut depend on a test-instrumentation attribute.
   let searchInputRef!: HTMLInputElement;
 
-  // Unwrap the resource once — callers downstream get a plain Task[] and
-  // don't need to guard against the loading/error undefined themselves.
-  const taskList = createMemo<Task[]>(() => tasks() ?? []);
-  const rows = createMemo<Row[]>(() => buildRows(taskList()));
+  // Reconstruct the flat task list from the keys + per-key values. Each
+  // value may still be undefined immediately after its key arrived; filter
+  // those out so renders never see partial rows.
+  const taskList = createMemo<Task[]>(() => {
+    const keys = tasksColl.keys() as TaskId[];
+    const tasks: Task[] = [];
+    for (const k of keys) {
+      const v = tasksColl.byKey(k)?.();
+      if (v) tasks.push(v as Task);
+    }
+    return tasks;
+  });
 
-  // Every mutation has the same shape: await the RPC, refetch the list,
-  // surface any error. Inlining this at three call sites would force PR 2
-  // (which adds keyboard-nav mutations and search-submit) to update each
-  // copy in lockstep — and Solid's signal updates would still be missed
-  // on whichever copy diverged. One helper, one error path.
+  // The filter is on for non-empty plain queries. `+ title` (the create
+  // arm) leaves the tree unfiltered so users see what they're typing as
+  // they're composing a new task title.
+  const filterQuery = createMemo<string | null>(() => {
+    const parsed = parseInput(query());
+    return parsed?.kind === "query" ? parsed.q : null;
+  });
+
+  const sorted = createMemo<{ task: Task; depth: number }[]>(() => sortedWithDepths(taskList()));
+
+  const rows = createMemo<Row[]>(() => {
+    const list = sorted();
+    const q = filterQuery();
+    if (!q) {
+      return list.map(({ task, depth }) => ({ task, depth, dimmed: false }));
+    }
+    const byId = new Map<TaskId, Task>(list.map(({ task: t }) => [t.id, t]));
+    const matched = new Set<TaskId>();
+    for (const { task: t } of list) if (matchesQuery(t.title, q)) matched.add(t.id);
+    const ancestors = ancestorIds(matched, (id) => byId.get(id)?.parentId ?? null);
+    return list
+      .filter(({ task: t }) => matched.has(t.id) || ancestors.has(t.id))
+      .map(({ task, depth }) => ({ task, depth, dimmed: !matched.has(task.id) }));
+  });
+
   const callMutation = async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
     try {
       const result = await fn();
       setError(null);
-      await refetch();
       return result;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -178,31 +169,31 @@ export function App() {
 
   const handleKeyDown = async (e: KeyboardEvent) => {
     if (e.key !== "Enter") return;
+    // Query arm: filter is already applied live; Enter is a no-op so the
+    // input keeps focus and the user can refine their query. Reading
+    // `filterQuery()` here keeps `parseInput` callers down to one — the
+    // create arm below — instead of re-parsing the signal a second time.
+    if (filterQuery() !== null) return;
     const parsed = parseInput(query());
-    if (!parsed) return;
-    // PR 2 fills in the query arm (filter the tree); for now we no-op so
-    // the search box still accepts free text without firing a mutation.
-    if (parsed.kind === "query") return;
+    if (!parsed || parsed.kind !== "create") return;
     e.preventDefault();
-    const created = await callMutation(() => api.add({ title: parsed.title, parentId: null }));
-    if (!created) return;
+    // Clear the input synchronously before the await so subsequent keystrokes
+    // aren't clobbered by a late `setQuery("")` after the mutation resolves.
+    // The earlier ordering raced with rapid "+ title ↵" sequences — the user's
+    // second `+ title` could land in the box, then the first add's resolution
+    // would erase it before its Enter ran.
     setQuery("");
-    setSelected(created.id);
+    const created = await callMutation(() => api.add({ title: parsed.title, parentId: null }));
+    if (created) setSelected(created.id);
   };
 
   const toggle = async (id: TaskId) => {
     await callMutation(() => api.toggle(id));
-    // `<For>` rebuilds the row after refetch, so the focused element is
-    // discarded mid-toggle and the user loses their cursor on the tree.
-    // Same problem `moveByKey` solves; same fix.
     focusRowById(id);
   };
 
   const remove = async (id: TaskId) => {
     await callMutation(() => api.remove(id));
-    // Clearing selection before the mutation settles would leave the user
-    // with no selection on a failed delete (the row still exists, just
-    // unselected). Clear only after callMutation flips the error signal.
     if (!error() && selected() === id) setSelected(null);
   };
 
@@ -213,10 +204,6 @@ export function App() {
     focusRowById(id);
   };
 
-  // Move focus to the row offset slots away in the flat tree-order view.
-  // Wraparound is intentionally not supported: the user pressing ArrowDown
-  // at the last row should land "stuck" rather than warp to the top, since
-  // wrapping makes Alt+ArrowDown's reorder semantics ambiguous later.
   const moveSelection = (id: TaskId, offset: 1 | -1) => {
     const rs = rows();
     const idx = rs.findIndex((r) => r.task.id === id);
@@ -238,11 +225,6 @@ export function App() {
       void remove(id);
       return;
     }
-    // Modifier-key polarity differs between Tab and Arrow on purpose:
-    //   Tab keeps Shift through so Shift+Tab can mean outdent;
-    //   Arrow keeps Alt through because Alt+Arrow is the reorder chord.
-    // Ctrl/Meta are guarded everywhere — those are OS-level navigation
-    // chords we never want to capture.
     if (e.key === "Tab" && !e.altKey && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       void moveByKey(id, e.shiftKey ? "outdent" : "indent");
@@ -258,10 +240,6 @@ export function App() {
     }
   };
 
-  // "/" focuses the search box from anywhere on the page, matching the
-  // muscle-memory of every command-palette-ish UI. Guarded against firing
-  // while the user is already typing in an input or contentEditable region —
-  // otherwise it would clobber a literal "/" inside a query.
   onMount(() => {
     const onGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "/") return;
@@ -281,13 +259,6 @@ export function App() {
     onCleanup(() => window.removeEventListener("keydown", onGlobalKeyDown));
   });
 
-  // ── Drag-and-drop reordering ────────────────────────────────────────
-  // The drag snapshot couples a task id with its descendant set, taken once
-  // at drag-start. Tying both to a single value seals the drag gesture
-  // against mid-drag refetches: a background mutation that re-reads tasks
-  // can't shift the descendant set under the user's hand. The server
-  // re-validates, but blocking invalid targets here keeps the visual
-  // indicator off them so the UX matches the outcome.
   const [drag, setDrag] = createSignal<DragSnapshot | null>(null);
   const [dropTarget, setDropTarget] = createSignal<{ id: TaskId; zone: DropZone } | null>(null);
 
@@ -298,10 +269,12 @@ export function App() {
   };
 
   const handleDragStart = (e: DragEvent, id: TaskId) => {
-    setDrag({ id, descendants: descendantsOf(taskList(), id) });
+    const tasks = taskList();
+    const byParent = byParentMap(tasks);
+    const descendants = descendantIds(id, (tid) => (byParent.get(tid) ?? []).map((c) => c.id));
+    setDrag({ id, descendants });
     if (e.dataTransfer) {
       e.dataTransfer.effectAllowed = "move";
-      // Some browsers ignore the drag if no data is attached.
       e.dataTransfer.setData("text/plain", id);
     }
   };
@@ -325,15 +298,9 @@ export function App() {
 
   const handleDrop = (e: DragEvent, rowId: TaskId) => {
     e.preventDefault();
-    // Use the zone the dragover handler already settled on. Re-deriving from
-    // a fresh getBoundingClientRect() here would let scroll/reflow between
-    // the last dragover and the drop split the indicator from the RPC.
     const t = dropTarget();
     const src = drag()?.id;
     clearDragState();
-    // Guard: dragover may have last fired on a different row than where
-    // drop landed (fast cursor movement); discard if the committed target
-    // doesn't match the row that fired the drop event.
     if (!src || !t || t.id !== rowId) return;
     const target: MoveTarget = { kind: t.zone, refId: rowId };
     void callMutation(() => api.move({ id: src, target }));
@@ -369,12 +336,16 @@ export function App() {
       <div class="tree" data-testid="task-tree" role="tree" aria-label="Tasks">
         <Show
           when={rows().length > 0}
-          fallback={<div class="empty">No tasks yet. Type "+ buy milk" and press Enter.</div>}
+          fallback={
+            <div class="empty">
+              {filterQuery()
+                ? `No tasks match "${filterQuery()}".`
+                : 'No tasks yet. Type "+ buy milk" and press Enter.'}
+            </div>
+          }
         >
           <For each={rows()}>
             {(row) => {
-              // One memo per row: reads dropTarget() once, suppresses
-              // recomputes when neither this row's id nor its zone changes.
               const rowDropZone = createMemo((): DropZone | null => {
                 const dt = dropTarget();
                 return dt?.id === row.task.id ? dt.zone : null;
@@ -386,6 +357,7 @@ export function App() {
                     "is-done": row.task.status === "done",
                     selected: selected() === row.task.id,
                     dragging: drag()?.id === row.task.id,
+                    dimmed: row.dimmed,
                     "drop-before": rowDropZone() === "before",
                     "drop-after": rowDropZone() === "after",
                     "drop-inside": rowDropZone() === "inside",
@@ -424,7 +396,11 @@ export function App() {
                       void toggle(row.task.id);
                     }}
                   />
-                  <span class="title">{row.task.title}</span>
+                  <span class="title">
+                    <For each={highlightSegments(row.task.title, filterQuery() ?? "")}>
+                      {(seg) => (seg.match ? <mark>{seg.text}</mark> : <span>{seg.text}</span>)}
+                    </For>
+                  </span>
                   <button
                     type="button"
                     class="delete"

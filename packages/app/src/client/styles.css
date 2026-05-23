@@ -174,10 +174,23 @@ h1 .dot {
   flex: 1;
   min-width: 0;
 }
+.title mark {
+  background: rgba(218, 195, 84, 0.32);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
+}
 .row.is-done .title {
   color: var(--muted);
   text-decoration: line-through;
   text-decoration-color: var(--line);
+}
+.row.dimmed .title,
+.row.dimmed .check {
+  opacity: 0.45;
+}
+.row.dimmed {
+  cursor: default;
 }
 
 .empty {

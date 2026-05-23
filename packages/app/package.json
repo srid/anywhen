@@ -13,6 +13,7 @@
     "@meck93/kysely-bun-sqlite": "^0.2.16",
     "@orpc/client": "^1.13.13",
     "@orpc/contract": "^1.13.13",
+    "@orpc/experimental-publisher": "^1.14",
     "@orpc/server": "^1.13.13",
     "babel-preset-solid": "^1.9.0",
     "kysely": "^0.28.11",

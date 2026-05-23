@@ -66,6 +66,47 @@ export const taskStore = (db: Kysely<Database>) => {
       return rows.map(rowToTask);
     },
 
+    // Keyed view consumed by the Collection's `readAll` — the framework
+    // wraps it in the snapshot-then-deltas iterator for `tasks.keys` and
+    // `tasks.get(id)`. Same row source and order as `list()` so the
+    // Collection's first snapshot is stable across deploys.
+    async listMap(): Promise<Map<TaskId, Task>> {
+      const rows = await db.selectFrom("tasks").selectAll().orderBy("position", "asc").execute();
+      const out = new Map<TaskId, Task>();
+      for (const row of rows) out.set(row.id, rowToTask(row));
+      return out;
+    },
+
+    // INSERT OR REPLACE writer for the Collection's `upsert` deps. The
+    // verb-specific procedures (add / toggle / move) already wrote their
+    // own rows; this exists so the Collection's deps callback can route
+    // wire-level upserts through SQL too. Idempotent against values the
+    // procedures wrote — no double-write side effects.
+    async upsert(task: Task): Promise<void> {
+      await db
+        .insertInto("tasks")
+        .values({
+          id: task.id,
+          parent_id: task.parentId,
+          title: task.title,
+          status: task.status,
+          position: task.position,
+          created_at: task.createdAt,
+          updated_at: task.updatedAt,
+        })
+        .onConflict((oc) =>
+          oc.column("id").doUpdateSet({
+            parent_id: task.parentId,
+            title: task.title,
+            status: task.status,
+            position: task.position,
+            created_at: task.createdAt,
+            updated_at: task.updatedAt,
+          }),
+        )
+        .execute();
+    },
+
     // Transactional: the synchronous bun:sqlite store ran read+insert
     // atomically by virtue of being non-async; the Kysely rewrite yields
     // the event loop between awaits, so the max-position read and the
@@ -103,14 +144,14 @@ export const taskStore = (db: Kysely<Database>) => {
     // the (parentId, position) so clients never compute float midpoints.
     // Rejects: moving into self, or any move that would make an ancestor
     // become its own descendant. Dropping a task adjacent to itself is
-    // permitted and resolves to an idempotent position update. The whole
-    // sequence runs in a transaction because the position calculation
-    // reads neighbour positions and the resulting update has to land
-    // against the same snapshot — without the txn, a concurrent insert
-    // could create a duplicate position between the read and the write.
-    async move(input: MoveTaskInput): Promise<void> {
+    // permitted and resolves to an idempotent position update. Returns
+    // the updated row so the Collection's upsert fan-out can publish
+    // without a second round-trip. The whole sequence runs in a
+    // transaction — the position calculation reads neighbour positions
+    // and the resulting update has to land against the same snapshot.
+    async move(input: MoveTaskInput): Promise<Task> {
       const { id, target } = input;
-      await db.transaction().execute(async (trx) => {
+      return db.transaction().execute(async (trx) => {
         const task = await trx
           .selectFrom("tasks")
           .selectAll()
@@ -160,7 +201,7 @@ export const taskStore = (db: Kysely<Database>) => {
             next !== undefined ? (ref.position + next) / 2 : ref.position + POSITION_GAP;
         }
 
-        await trx
+        const updated = await trx
           .updateTable("tasks")
           .set({
             parent_id: newParentId,
@@ -168,7 +209,9 @@ export const taskStore = (db: Kysely<Database>) => {
             updated_at: new Date().toISOString(),
           })
           .where("id", "=", id)
-          .execute();
+          .returningAll()
+          .executeTakeFirstOrThrow();
+        return rowToTask(updated);
       });
     },
 

@@ -1,4 +1,7 @@
-// Bun.serve hosts everything: bundled client + oRPC HTTP RPC under /rpc/*.
+// Bun.serve hosts everything: bundled client, oRPC over HTTP under `/rpc/*`
+// (one-shot mutations + the `__test__reset` cucumber hook), and oRPC over
+// WebSocket under `/rpc/ws` (Collection snapshot+deltas via the surface's
+// streaming `keys` / `get(key)` verbs).
 //
 // The client is built explicitly via Bun.build (NOT via Bun.serve's HTML
 // import) because Bun.serve's HTML bundler does not honor plugins
@@ -6,18 +9,16 @@
 // never fires there, and Bun's default JSX transform emits
 // `React.createElement` calls that break at runtime. Bun.build accepts a
 // `plugins` array directly, so we drive the build ourselves.
-//
-// PR 1 is HTTP-only. The WebSocket upgrade for Collection delta push
-// (surface's reactive primitives) lands in PR 2 alongside search.
 
 import { resolve } from "node:path";
-import { RPCHandler } from "@orpc/server/fetch";
 import { transformAsync } from "@babel/core";
 // @ts-expect-error - babel preset types are loose
 import babelTypeScript from "@babel/preset-typescript";
+import { RPCHandler as WsRPCHandler } from "@orpc/server/bun-ws";
+import { RPCHandler } from "@orpc/server/fetch";
 // @ts-expect-error - babel preset types are loose
 import babelSolid from "babel-preset-solid";
-import type { BunPlugin } from "bun";
+import type { BunPlugin, ServerWebSocket } from "bun";
 import { openDb, resolveStateDir } from "../storage/db";
 import { taskStore } from "../storage/tasks";
 import { buildRouter } from "./router";
@@ -25,8 +26,13 @@ import { buildRouter } from "./router";
 const stateDir = resolveStateDir();
 const db = await openDb(stateDir);
 const store = taskStore(db);
-const router = buildRouter(store);
+// Cache mirrors `tasks` for the Collection's synchronous `readAll`. Seeded
+// once from SQL at boot; mutated by procedure handlers via the framework's
+// `ctx.collections.tasks.{upsert,remove}` fan-out (see `router.ts`).
+const cache = await store.listMap();
+const router = buildRouter(store, cache);
 const httpHandler = new RPCHandler(router);
+const wsHandler = new WsRPCHandler(router);
 
 const port = Number(process.env.PORT ?? 7700);
 
@@ -69,9 +75,15 @@ if (!buildResult.success) {
 
 const server = Bun.serve({
   port,
-  async fetch(req) {
+  async fetch(req, srv) {
     const url = new URL(req.url);
     const path = url.pathname;
+
+    if (path === "/rpc/ws") {
+      const ok = srv.upgrade(req);
+      if (ok) return undefined;
+      return new Response("WebSocket upgrade failed", { status: 426 });
+    }
 
     if (path === "/api/health") return new Response("ok", { status: 200 });
 
@@ -97,6 +109,14 @@ const server = Bun.serve({
     // SPA fallback — any unknown path serves index.html so client-side
     // routing (if introduced later) doesn't 404 on direct navigation.
     return new Response(Bun.file(resolve(DIST_DIR, "index.html")));
+  },
+  websocket: {
+    async message(ws: ServerWebSocket<unknown>, message: string | Buffer) {
+      await wsHandler.message(ws, message);
+    },
+    close(ws: ServerWebSocket<unknown>) {
+      wsHandler.close(ws);
+    },
   },
 });
 
