@@ -4,14 +4,23 @@
 // framework owns its `keys` / `get(key)` snapshot+deltas streams and wraps
 // `upsert` / `remove` so every persisted change publishes through the
 // surface's channels. Imperative procedures (`add`, `toggle`, `move`,
-// `remove`, `__test__reset`) go through `ctx.collections.tasks.{upsert,remove}`
-// so each verb's side effects fan out as Collection deltas without a
-// parallel `store.X + bus.publish` path.
+// `remove`, `__test__reset`) write to SQL via the async store and then
+// fan out through `ctx.collections.tasks.{upsert,remove}` so each verb's
+// side effects produce Collection deltas without a parallel
+// `store.X + bus.publish` path.
+//
+// Kolu's Collection deps are strictly synchronous (`readAll: () =>
+// Map<K, T>`, `upsert/remove: (...) => void`) — the framework calls them
+// inline with `keysBus.publish(...)` and cannot await SQL. The bridge is
+// an in-memory `cache: Map<TaskId, Task>` seeded from `store.listMap()`
+// at boot: deps callbacks read and mutate the cache synchronously; the
+// async DB writes happen earlier in each procedure body via `await
+// store.X()`. The framework never touches SQL directly.
 
 import { implementSurface, publisherChannel } from "@kolu/surface/server";
 import { MemoryPublisher } from "@orpc/experimental-publisher/memory";
 import { implement } from "@orpc/server";
-import type { TaskId } from "../shared/schemas";
+import type { Task, TaskId } from "../shared/schemas";
 import { surface } from "../shared/surface";
 import { descendantIds } from "../shared/tree";
 import type { TaskStore } from "../storage/tasks";
@@ -28,7 +37,7 @@ import type { TaskStore } from "../storage/tasks";
 // avoids this because it always spreads the surface fragment alongside
 // hand-written namespaces; a surface-only host needs the explicit rewrap.
 
-export function buildRouter(store: TaskStore) {
+export function buildRouter(store: TaskStore, cache: Map<TaskId, Task>) {
   // MemoryPublisher's generic insists on `Record<string, object>`; we publish
   // `Task` objects and `string[]` key snapshots, both of which satisfy
   // `object` in JS. Per-channel typing lives on the surface contract — the
@@ -39,9 +48,13 @@ export function buildRouter(store: TaskStore) {
     channel: <T>(name: string) => publisherChannel<T>(publisher, name),
     collections: {
       tasks: {
-        readAll: () => store.listMap(),
-        upsert: (_key, value) => store.upsert(value),
-        remove: (id) => store.remove(id),
+        readAll: () => cache,
+        upsert: (_key, value) => {
+          cache.set(value.id, value);
+        },
+        remove: (id) => {
+          cache.delete(id);
+        },
       },
     },
     procedures: {
@@ -49,41 +62,42 @@ export function buildRouter(store: TaskStore) {
         // `add` allocates the id server-side and publishes via the
         // wrapped upsert (which also broadcasts the new keys list).
         add: async ({ input, ctx }) => {
-          const task = store.add(input);
+          const task = await store.add(input);
           ctx.collections.tasks.upsert(task.id, task);
           return task;
         },
         // `toggle` produces a new task value; route it through `upsert`
         // so the per-key value bus fires for the toggled row.
         toggle: async ({ input, ctx }) => {
-          const task = store.toggle(input);
+          const task = await store.toggle(input);
           ctx.collections.tasks.upsert(task.id, task);
           return task;
         },
         // `move` rewrites parent_id / position. `store.move` returns the
-        // updated row, so we publish directly without a second `listMap()`
-        // round-trip.
+        // updated row, so we publish directly without a second snapshot.
         move: async ({ input, ctx }) => {
-          const next = store.move(input);
+          const next = await store.move(input);
           ctx.collections.tasks.upsert(input.id, next);
         },
         // FK cascade removes descendants in SQL; mirror the same fan-out
         // through the Collection so each descendant's key drops off the
-        // keys stream. Snapshot descendants from the keyed view before
-        // the SQL DELETE — afterwards `listMap()` no longer sees them.
+        // keys stream. Snapshot descendants from the cache before the SQL
+        // DELETE — afterwards the cache no longer sees them.
         remove: async ({ input, ctx }) => {
-          const before = store.listMap();
-          const childrenOf = childrenIndex(before);
+          const childrenOf = childrenIndex(cache);
           const descendants = descendantIds<TaskId>(input, (id) => childrenOf.get(id) ?? []);
-          store.remove(input);
+          await store.remove(input);
           ctx.collections.tasks.remove(input);
           for (const id of descendants) ctx.collections.tasks.remove(id);
         },
         // Wipe via the Collection's ctx so the keys bus publishes the
         // post-reset empty set and each per-key subscriber sees its
         // stream tear down cleanly. Cucumber's "fresh database" Given
-        // hits this endpoint between scenarios.
+        // hits this endpoint between scenarios. The DB delete happens
+        // first via store.reset() so the cache is the last source of
+        // truth to drain.
         __test__reset: async ({ ctx }) => {
+          await store.reset();
           for (const k of Array.from(ctx.collections.tasks.readAll().keys())) {
             ctx.collections.tasks.remove(k);
           }
@@ -96,7 +110,7 @@ export function buildRouter(store: TaskStore) {
   return t.router({ ...surfaceFragment });
 }
 
-// Project the parent-pointer view in `listMap()` into a children index keyed
+// Project the parent-pointer view in the cache into a children index keyed
 // by parent id — the shape `descendantIds` consumes. Lives at the router
 // because the Collection fan-out is the only caller; `taskStore.remove`
 // itself relies on the SQL FK cascade and doesn't need this view.

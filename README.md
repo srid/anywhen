@@ -20,7 +20,7 @@ A personal task manager. One search box: filter the tree, or add to it.
 | Runtime    | [Bun 1.2+](https://bun.sh) — `Bun.serve` with HTML imports bundles the SolidJS UI   |
 | UI         | [SolidJS](https://solidjs.com) via `bun-plugin-solid`                               |
 | Wire       | [`@kolu/surface`](https://github.com/juspay/kolu/tree/master/packages/surface) over [oRPC](https://orpc.unnoq.com) — tasks are a `Collection` (snapshot+deltas over WebSocket at `/rpc/ws`); imperative verbs (`add`/`toggle`/`move`/`remove`) ride HTTP under `/rpc/*` |
-| Store      | `bun:sqlite`                                                                        |
+| Store      | `bun:sqlite` via [Kysely](https://kysely.dev) (typed query builder + auto-migrations) |
 | Schemas    | [Zod 4](https://zod.dev)                                                            |
 | Lint / fmt | [Biome](https://biomejs.dev)                                                        |
 | E2E tests  | [Cucumber 12](https://cucumber.io) + [Playwright](https://playwright.dev) — mirrors `kolu/packages/tests/` |
@@ -53,6 +53,13 @@ runs without extra setup. Cucumber overrides with a per-run `mktemp` dir
 (see `packages/tests/support/hooks.ts`) so production and test paths stay
 distinct.
 
+Schema evolution: every change ships as a new `.ts` file under
+`packages/app/src/storage/migrations/`. `openDb` applies pending migrations
+on app start via Kysely's `Migrator`, so a stale DB upgrades itself the next
+time the app boots — no manual migration step. Scaffold a new migration via
+`just new-migration <short_name>`; the file's body is restricted to
+`db.schema.*` + bounded backfill (see `migrations/README.md`).
+
 ## Tests
 
 ```sh
@@ -80,7 +87,7 @@ packages/
   app/                                  # the anywhen application
     src/
       server/                           # Bun.serve + Bun.build + oRPC HTTP handler
-      storage/                          # bun:sqlite schema + CRUD
+      storage/                          # Kysely + migrations + per-table stores
       client/                           # SolidJS UI (plain CSS, no Tailwind yet)
       shared/                           # domain types + Zod schemas + surface spec
   tests/                                # cucumber + playwright (e2e)

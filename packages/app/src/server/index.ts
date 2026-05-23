@@ -24,9 +24,13 @@ import { taskStore } from "../storage/tasks";
 import { buildRouter } from "./router";
 
 const stateDir = resolveStateDir();
-const db = openDb(stateDir);
+const db = await openDb(stateDir);
 const store = taskStore(db);
-const router = buildRouter(store);
+// Cache mirrors `tasks` for the Collection's synchronous `readAll`. Seeded
+// once from SQL at boot; mutated by procedure handlers via the framework's
+// `ctx.collections.tasks.{upsert,remove}` fan-out (see `router.ts`).
+const cache = await store.listMap();
+const router = buildRouter(store, cache);
 const httpHandler = new RPCHandler(router);
 const wsHandler = new WsRPCHandler(router);
 

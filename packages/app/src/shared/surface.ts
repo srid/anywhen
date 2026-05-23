@@ -45,10 +45,10 @@ export const surface = defineSurface({
         output: z.void(),
       },
       // remove cascades to descendants via the parent_id FK's
-      // `ON DELETE CASCADE` clause in schema.sql — deleting a parent
-      // removes its entire subtree atomically. The server fans `remove`
-      // through `ctx.collections.tasks.remove` for each affected id so the
-      // keys bus publishes once per descendant.
+      // `ON DELETE CASCADE` clause in the init migration — deleting a
+      // parent removes its entire subtree atomically. The server fans
+      // `remove` through `ctx.collections.tasks.remove` for each affected
+      // id so the keys bus publishes once per descendant.
       remove: {
         input: TaskIdSchema,
         output: z.void(),
