@@ -32,10 +32,10 @@ const solidJsxPlugin: BunPlugin = {
   },
 };
 
-export async function buildClient(opts: { clientDir: string; outDir: string }): Promise<void> {
+export async function buildClient({ clientDir, outDir }: { clientDir: string; outDir: string }): Promise<void> {
   const result = await Bun.build({
-    entrypoints: [resolve(opts.clientDir, "index.html")],
-    outdir: opts.outDir,
+    entrypoints: [resolve(clientDir, "index.html")],
+    outdir: outDir,
     target: "browser",
     minify: false,
     plugins: [solidJsxPlugin],
