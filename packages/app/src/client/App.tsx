@@ -292,7 +292,7 @@ export function App() {
                   title="Delete (also removes any sub-tasks)"
                   onClick={(e) => {
                     e.stopPropagation();
-                    remove(row.task.id);
+                    void remove(row.task.id);
                   }}
                 >
                   ×
