@@ -197,6 +197,9 @@ export function App() {
     const t = dropTarget();
     const src = drag()?.id;
     clearDragState();
+    // Guard: dragover may have last fired on a different row than where
+    // drop landed (fast cursor movement); discard if the committed target
+    // doesn't match the row that fired the drop event.
     if (!src || !t || t.id !== rowId) return;
     const target: MoveTarget = { kind: t.zone, refId: rowId };
     void callMutation(() => api.move({ id: src, target }));
