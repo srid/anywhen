@@ -369,16 +369,19 @@ export function App() {
     // the first long-press timer fires, which would otherwise orphan the old
     // timer until it expires).
     clearPendingPress();
+    if (fromHandle) {
+      beginDrag(id);
+      return;
+    }
+    // Only stage pendingPress for the paths that actually consume it — the
+    // mouse-threshold check in handleRowPointerMove and the long-press timer
+    // below. The handle path above bypasses both and short-circuits here.
     pendingPress = {
       id,
       startX: e.clientX,
       startY: e.clientY,
       pointerType: e.pointerType,
     };
-    if (fromHandle) {
-      beginDrag(id);
-      return;
-    }
     if (e.pointerType === "touch" || e.pointerType === "pen") {
       // `press` captures the identity of this specific press so the timer
       // guard can tell if a later clearPendingPress() already cancelled it.
