@@ -467,8 +467,13 @@ h1 {
   }
 }
 
-/* Round-dot checkbox: empty ring (todo, eternity loop) → filled disc
-   (done, the point, the now). Visually quotes the brand mark. */
+/* Round-dot checkbox cycling todo → doing → done.
+     · todo  → empty ring (the eternity loop)
+     · doing → empty ring + inner concentric ring (quotes the brand mark's
+               nested rings; categorically distinct from a half-fill so it
+               doesn't read as "50% done")
+     · done  → filled disc (the point, the now)
+   Each state visually quotes the brand colophon at the top of the page. */
 
 .check {
   width: 18px;
@@ -490,6 +495,23 @@ h1 {
     border-color: var(--accent);
     outline: none;
     box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  /* Inner concentric ring affordance. `inset` keeps the inner circle
+     centered without doing the arithmetic manually — the gap between the
+     outer border and the inner ring stays equal on every side as the
+     element scales (e.g. 18 → 22 on coarse pointers). */
+  &.doing {
+    border-color: var(--accent);
+
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 3px;
+      border: 1.5px solid var(--accent);
+      border-radius: 50%;
+      pointer-events: none;
+    }
   }
 
   &.done {

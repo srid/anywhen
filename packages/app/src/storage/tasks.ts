@@ -8,7 +8,7 @@ import {
   type SqlBool,
 } from "kysely";
 import type { Database } from "./schema";
-import type { MoveTaskInput, Task, TaskId } from "../shared/schemas";
+import { type MoveTaskInput, nextInCycle, type Task, type TaskId } from "../shared/schemas";
 
 // Row type derives from Kysely's `Selectable<TasksTable>` so the SELECT
 // shape stays in lockstep with the schema interface — adding a column in
@@ -85,10 +85,10 @@ export const taskStore = (db: Kysely<Database>) => {
     },
 
     // INSERT OR REPLACE writer for the Collection's `upsert` deps. The
-    // verb-specific procedures (add / toggle / move) already wrote their
-    // own rows; this exists so the Collection's deps callback can route
-    // wire-level upserts through SQL too. Idempotent against values the
-    // procedures wrote — no double-write side effects.
+    // verb-specific procedures (add / cycleStatus / move) already wrote
+    // their own rows; this exists so the Collection's deps callback can
+    // route wire-level upserts through SQL too. Idempotent against values
+    // the procedures wrote — no double-write side effects.
     async upsert(task: Task): Promise<void> {
       await db
         .insertInto("tasks")
@@ -222,8 +222,8 @@ export const taskStore = (db: Kysely<Database>) => {
       });
     },
 
-    // Rename a task. No read-then-write race here (unlike toggle, which
-    // must read status to flip it), so no transaction is needed —
+    // Rename a task. No read-then-write race here (unlike cycleStatus,
+    // which must read status to advance it), so no transaction is needed —
     // the UPDATE is a single atomic statement. Title is validated non-empty
     // at the wire boundary via `EditTaskInputSchema`.
     // `executeTakeFirstOrThrow` implicitly signals a missing id.
@@ -237,10 +237,12 @@ export const taskStore = (db: Kysely<Database>) => {
       return rowToTask(updated);
     },
 
-    // Transactional: read-then-flip is a lost-update risk without a txn,
-    // since the async boundary lets a concurrent toggle land between the
-    // status read and the update write.
-    async toggle(id: TaskId): Promise<Task> {
+    // Transactional: read-then-advance is a lost-update risk without a txn,
+    // since the async boundary lets a concurrent cycle land between the
+    // status read and the update write. The cycle order itself lives in
+    // shared/schemas.ts (`nextInCycle`) so client and server agree on the
+    // wrap without a parallel constant here.
+    async cycleStatus(id: TaskId): Promise<Task> {
       return db.transaction().execute(async (trx) => {
         const current = await trx
           .selectFrom("tasks")
@@ -248,10 +250,9 @@ export const taskStore = (db: Kysely<Database>) => {
           .where("id", "=", id)
           .executeTakeFirst();
         if (!current) throw new Error(`Task ${id} not found`);
-        const next = current.status === "todo" ? "done" : "todo";
         const updated = await trx
           .updateTable("tasks")
-          .set({ status: next, updated_at: new Date().toISOString() })
+          .set({ status: nextInCycle(current.status), updated_at: new Date().toISOString() })
           .where("id", "=", id)
           .returningAll()
           .executeTakeFirstOrThrow();

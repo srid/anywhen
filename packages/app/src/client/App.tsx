@@ -237,8 +237,8 @@ export function App() {
     await createFromInput();
   };
 
-  const toggle = async (id: TaskId) => {
-    await callWrite(() => api.toggle(id));
+  const cycleStatus = async (id: TaskId) => {
+    await callWrite(() => api.cycleStatus(id));
     setFocusedId(id);
   };
 
@@ -348,7 +348,7 @@ export function App() {
   // Composite key "Shift+Tab" is encoded as the lookup key so the Tab and
   // Shift+Tab cases don't need a nested conditional inside the handler.
   const ROW_KEY_ACTIONS: Record<string, (id: TaskId) => void> = {
-    " ": (id) => void toggle(id),
+    " ": (id) => void cycleStatus(id),
     // vim primary  │  ARIA alias
     x: (id) => void remove(id),
     Backspace: (id) => void remove(id),
@@ -699,7 +699,7 @@ export function App() {
               // When focusedId matches this row, focus its DOM element. Runs
               // on mount and whenever focusedId changes — so a mutation that
               // tears down and rebuilds this row (Collection delta after
-              // toggle / move) re-establishes focus the moment the new
+              // cycleStatus / move) re-establishes focus the moment the new
               // element is bound.
               createEffect(() => {
                 if (focusedId() === row.task.id) rowEl.focus();
@@ -719,6 +719,7 @@ export function App() {
                     ref={rowEl}
                     class="row"
                     classList={{
+                      "is-doing": row.task.status === "doing",
                       "is-done": row.task.status === "done",
                       selected: selected() === row.task.id,
                       dragging: drag()?.id === row.task.id,
@@ -760,15 +761,27 @@ export function App() {
                     <button
                       type="button"
                       class="check"
-                      classList={{ done: row.task.status === "done" }}
+                      classList={{
+                        doing: row.task.status === "doing",
+                        done: row.task.status === "done",
+                      }}
                       data-testid="task-check"
-                      aria-pressed={row.task.status === "done"}
-                      aria-label={`Mark ${row.task.title} ${
-                        row.task.status === "done" ? "not done" : "done"
-                      }`}
+                      // ARIA tri-state checkbox: false → "todo", mixed →
+                      // "doing" (an in-flight state, not yet complete),
+                      // true → "done". Mirrors the visual cycle so screen
+                      // readers announce the same three steps.
+                      aria-checked={
+                        row.task.status === "done"
+                          ? "true"
+                          : row.task.status === "doing"
+                            ? "mixed"
+                            : "false"
+                      }
+                      role="checkbox"
+                      aria-label={`Advance ${row.task.title} (currently ${row.task.status})`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        void toggle(row.task.id);
+                        void cycleStatus(row.task.id);
                       }}
                     />
                     <Show
@@ -888,7 +901,8 @@ export function App() {
           <kbd>⇧K</kbd> to reorder siblings
         </span>
         <span>
-          <kbd>Space</kbd> toggle · <kbd>e</kbd> edit · <kbd>x</kbd> delete · <kbd>/</kbd> search
+          <kbd>Space</kbd> cycle status · <kbd>e</kbd> edit · <kbd>x</kbd> delete · <kbd>/</kbd>{" "}
+          search
         </span>
       </div>
 

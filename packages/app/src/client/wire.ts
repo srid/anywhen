@@ -3,7 +3,7 @@
 // Cell/Collection/Stream/Event to its typed oRPC procedure refs; the
 // `.use()` hooks consume those.
 //
-// Imperative procedures (`tasks.add`, `tasks.toggle`, `tasks.move`,
+// Imperative procedures (`tasks.add`, `tasks.cycleStatus`, `tasks.move`,
 // `tasks.remove`) stay accessible via `app.rpc.surface.tasks.<verb>`.
 
 import { surfaceClient } from "@kolu/surface/solid";

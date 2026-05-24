@@ -8,7 +8,29 @@
 import { z } from "zod";
 
 export const TaskIdSchema = z.string().min(1);
-export const TaskStatusSchema = z.enum(["todo", "done"]);
+export const TaskStatusSchema = z.enum(["todo", "doing", "done"]);
+
+// Cycle map for the row checkbox + Space key. Colocated with the enum so
+// adding a future state edits one place — adding a key to the enum forces
+// a key in the `Record` here (TS exhaustiveness), and the wrap direction
+// is data rather than control flow. The server applies it inside the
+// cycleStatus txn so the cycle direction can never drift between client
+// and store.
+const NEXT_STATUS: Record<z.infer<typeof TaskStatusSchema>, z.infer<typeof TaskStatusSchema>> = {
+  todo: "doing",
+  doing: "done",
+  done: "todo",
+};
+
+export const nextInCycle = (
+  status: z.infer<typeof TaskStatusSchema>,
+): z.infer<typeof TaskStatusSchema> => NEXT_STATUS[status];
+
+// Iteration order of the Record — exposed for tests that want to confirm
+// every TaskStatus value participates in the cycle. Object key order is
+// insertion order for string keys, so this matches the literal order
+// above without a parallel declaration.
+export const STATUS_CYCLE = Object.keys(NEXT_STATUS) as readonly z.infer<typeof TaskStatusSchema>[];
 
 export const TaskSchema = z.object({
   id: TaskIdSchema,

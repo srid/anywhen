@@ -4,9 +4,10 @@
 // scenarios. No-op when any tasks already exist, so re-running
 // `just dev` against a populated DB never clobbers user data.
 //
-// Writes through the store's verbs (`add`, `toggle`) rather than raw SQL
-// so positions, timestamps, and FK invariants stay identical to what
-// the running app produces.
+// Writes through the store's verbs (`add`, `cycleStatus`) rather than raw
+// SQL so positions, timestamps, and FK invariants stay identical to what
+// the running app produces. To land at `done`, advance twice through the
+// cycle (todo → doing → done); to land at `doing`, advance once.
 
 import type { TaskStore } from "./tasks";
 
@@ -78,7 +79,9 @@ export async function seedSampleData(store: TaskStore): Promise<void> {
     ].join("\n"),
     parentId: reading.id,
   });
-  await store.toggle(simpleMadeEasy.id);
+  // todo → doing → done.
+  await store.cycleStatus(simpleMadeEasy.id);
+  await store.cycleStatus(simpleMadeEasy.id);
 
   const weekend = await store.add({ title: "Weekend", parentId: null });
   const groceries = await store.add({ title: "Groceries", parentId: weekend.id });
@@ -93,5 +96,7 @@ export async function seedSampleData(store: TaskStore): Promise<void> {
     ].join("\n"),
     parentId: weekend.id,
   });
-  await store.toggle(bread.id);
+  // todo → doing. Leaving one task mid-cycle demonstrates the in-flight
+  // affordance (inner concentric ring) on a freshly-seeded DB.
+  await store.cycleStatus(bread.id);
 }

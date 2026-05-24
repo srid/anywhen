@@ -42,7 +42,10 @@ When in doubt: the app's job is to be a quiet place to keep your
 attention, not to compete for it.
 
 > **Status**: scaffold + add a task (press `↵` in the search box, or tap
-> the Add button) + view the tree + toggle done + edit the title
+> the Add button) + view the tree + cycle status `todo → doing → done`
+> (one click of the row check, or `Space` on the focused row; the middle
+> state shows an inner concentric ring quoting the brand mark, no
+> strikethrough — that stays exclusive to `done`) + edit the title
 > inline (press `e` on a focused row, or tap the pencil button — Enter
 > commits, Escape discards) + delete (with a browser confirm prompt;
 > cascades to descendants) + reorder via pointer drag — works for mouse, pen, and
@@ -51,7 +54,7 @@ attention, not to compete for it.
 > edge = drop after, middle = nest as child + vim-friendly keyboard
 > navigation (`j`/`k` moves selection, `l`/`h` indents/outdents, `⇧J`/`⇧K`
 > reorders siblings, `e` edits the focused row, `x` deletes it, `Space`
-> toggles done, `/` focuses the search box) + live filter (type a
+> advances status through the cycle, `/` focuses the search box) + live filter (type a
 > query — matches highlight in their
 > own row, ancestors stay visible but dimmed so the path to a match is
 > intact) + mobile-friendly layout (responsive media queries, touch-sized

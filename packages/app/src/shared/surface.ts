@@ -1,7 +1,7 @@
 // Tasks live on the surface as a Collection — declared up-front so future
 // server-side delta evaluation (Phase 5: filter atoms) is a channel-
 // implementation swap rather than a contract migration. The procedures stay
-// as the imperative escape hatch: `add` assigns the id, `move`/`toggle`/
+// as the imperative escape hatch: `add` assigns the id, `move`/`cycleStatus`/
 // `remove` carry verb-shaped intent the upsert primitive can't model
 // (same pattern as kolu's notes.create in example/src/common/surface.ts).
 //
@@ -48,14 +48,18 @@ export const surface = defineSurface({
         input: AddTaskInputSchema,
         output: TaskSchema,
       },
-      toggle: {
+      // Advance a task one step through the lifecycle cycle (todo → doing
+      // → done → todo). The server owns the wrap inside its txn so the
+      // direction can't drift across client/server. See `nextInCycle` in
+      // ../shared/schemas.ts.
+      cycleStatus: {
         input: TaskIdSchema,
         output: TaskSchema,
       },
       // Rename a task. Title is the only user-editable free-text field
-      // today; status / parentId / position have their own verbs (toggle,
-      // move). The server returns the updated row so the Collection's
-      // upsert fan-out can publish without a follow-up snapshot.
+      // today; status / parentId / position have their own verbs
+      // (cycleStatus, move). The server returns the updated row so the
+      // Collection's upsert fan-out can publish without a follow-up snapshot.
       edit: {
         input: EditTaskInputSchema,
         output: TaskSchema,

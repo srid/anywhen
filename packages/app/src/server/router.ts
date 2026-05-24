@@ -3,7 +3,7 @@
 // `tasks` lives on the surface as a Collection (`collections.tasks`) — the
 // framework owns its `keys` / `get(key)` snapshot+deltas streams and wraps
 // `upsert` / `remove` so every persisted change publishes through the
-// surface's channels. Imperative procedures (`add`, `toggle`, `move`,
+// surface's channels. Imperative procedures (`add`, `cycleStatus`, `move`,
 // `remove`, `__test__reset`) write to SQL via the async store and then
 // fan out through `ctx.collections.tasks.{upsert,remove}` so each verb's
 // side effects produce Collection deltas without a parallel
@@ -66,15 +66,15 @@ export function buildRouter(store: TaskStore, cache: Map<TaskId, Task>, runtimeI
           ctx.collections.tasks.upsert(task.id, task);
           return task;
         },
-        // `toggle` produces a new task value; route it through `upsert`
-        // so the per-key value bus fires for the toggled row.
-        toggle: async ({ input, ctx }) => {
-          const task = await store.toggle(input);
+        // `cycleStatus` produces a new task value; route it through
+        // `upsert` so the per-key value bus fires for the advanced row.
+        cycleStatus: async ({ input, ctx }) => {
+          const task = await store.cycleStatus(input);
           ctx.collections.tasks.upsert(task.id, task);
           return task;
         },
-        // `edit` rewrites only the title; same upsert fan-out as toggle so
-        // every subscriber sees the renamed row in one delta.
+        // `edit` rewrites only the title; same upsert fan-out as
+        // cycleStatus so every subscriber sees the renamed row in one delta.
         edit: async ({ input, ctx }) => {
           const task = await store.edit(input.id, input.title);
           ctx.collections.tasks.upsert(task.id, task);
