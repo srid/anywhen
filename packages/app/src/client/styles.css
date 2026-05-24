@@ -42,6 +42,14 @@
      staggered-rise page-load animation. One token so the two stay in sync. */
   --ease-spring: cubic-bezier(0.2, 0.8, 0.2, 1);
 
+  /* Row layout shared constants. `--row-prefix-w` is the horizontal space a
+     row's grip + check + their gaps occupy before the title column begins;
+     the multi-line body indents past it (`.task-body-wrap` margin-left) so
+     body text lines up under the title text. Touching the row prefix means
+     touching one number. */
+  --row-prefix-w: 56px;
+  --row-indent-step: 20px;
+
   @media (prefers-color-scheme: dark) {
     --paper: #150b10;
     --paper-deep: #1f1218;
@@ -535,10 +543,12 @@ h1 {
    pieces the row's left edge uses (`.indent` width 18 + 2 gap, plus the
    leading drag-handle/check column ≈ 50px). */
 .task-body-wrap {
-  /* Indent calc mirrors .row: each depth step is 18px (indent width) +
-     2px (margin-right). The 56px constant skips past the grip + check
-     column so the body left edge sits under the title baseline. */
-  margin: -2px 0 8px calc(var(--row-depth, 0) * 20px + 56px);
+  /* Indent calc reads two shared row constants: `--row-indent-step` is
+     each depth step's width (`.indent` 18px + 2px margin-right), and
+     `--row-prefix-w` is the grip+check column the body must clear so
+     its text aligns under the title's. Touching either dimension means
+     touching one variable. */
+  margin: -2px 0 8px calc(var(--row-depth, 0) * var(--row-indent-step) + var(--row-prefix-w));
   font: 400 15px / 1.55 var(--font-serif);
   font-variation-settings: "opsz" 14;
   color: var(--ink-soft, var(--muted));
