@@ -557,8 +557,8 @@ export function App() {
     if (e.button !== 0) return;
     // Don't hijack clicks on action buttons or the inline edit input — those
     // are interactive surfaces inside the row that need to receive the
-    // press untransformed (button click, caret placement in the input).
-    if (e.target instanceof Element && e.target.closest("button, input")) return;
+    // press untransformed (button click, caret placement, text selection).
+    if (e.target instanceof Element && e.target.closest("button, input, textarea")) return;
     const sourceEl = e.currentTarget as HTMLElement;
     // Two-layer affordance. CSS (`@media (pointer: coarse)`) reveals the handle
     // span only on touch / coarse-pointer devices, so a mouse user normally

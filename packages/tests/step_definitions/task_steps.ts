@@ -283,8 +283,12 @@ When(
   "I touch-drag the task titled {string} {word} the task titled {string}",
   async function (this: AnywhenWorld, source: string, where: string, target: string) {
     assertDropZone(where);
-    const sourceRow = this.page.locator(`[data-testid="task-row"][data-task-firstline="${source}"]`);
-    const targetRow = this.page.locator(`[data-testid="task-row"][data-task-firstline="${target}"]`);
+    const sourceRow = this.page.locator(
+      `[data-testid="task-row"][data-task-firstline="${source}"]`,
+    );
+    const targetRow = this.page.locator(
+      `[data-testid="task-row"][data-task-firstline="${target}"]`,
+    );
     // Hold past DRAG_LONGPRESS_MS so the long-press timer fires before the
     // first move. The +100 ms margin absorbs scheduler jitter.
     await dispatchTouchDrag(sourceRow, targetRow, where, {
@@ -300,8 +304,12 @@ When(
   "I handle-drag the task titled {string} {word} the task titled {string}",
   async function (this: AnywhenWorld, source: string, where: string, target: string) {
     assertDropZone(where);
-    const sourceRow = this.page.locator(`[data-testid="task-row"][data-task-firstline="${source}"]`);
-    const targetRow = this.page.locator(`[data-testid="task-row"][data-task-firstline="${target}"]`);
+    const sourceRow = this.page.locator(
+      `[data-testid="task-row"][data-task-firstline="${source}"]`,
+    );
+    const targetRow = this.page.locator(
+      `[data-testid="task-row"][data-task-firstline="${target}"]`,
+    );
     await dispatchTouchDrag(sourceRow, targetRow, where, {
       from: sourceRow.locator('[data-testid="task-drag-handle"]'),
     });
@@ -318,8 +326,12 @@ When(
   "I drag the task titled {string} {word} the task titled {string}",
   async function (this: AnywhenWorld, source: string, where: string, target: string) {
     assertDropZone(where);
-    const sourceRow = this.page.locator(`[data-testid="task-row"][data-task-firstline="${source}"]`);
-    const targetRow = this.page.locator(`[data-testid="task-row"][data-task-firstline="${target}"]`);
+    const sourceRow = this.page.locator(
+      `[data-testid="task-row"][data-task-firstline="${source}"]`,
+    );
+    const targetRow = this.page.locator(
+      `[data-testid="task-row"][data-task-firstline="${target}"]`,
+    );
     const sourceBox = await sourceRow.boundingBox();
     const targetBox = await targetRow.boundingBox();
     if (!sourceBox || !targetBox) throw new Error("Could not measure rows for drag");
@@ -355,7 +367,9 @@ Then(
 Then(
   "the task titled {string} should be a child of the task titled {string}",
   async function (this: AnywhenWorld, child: string, parent: string) {
-    const parentRow = this.page.locator(`[data-testid="task-row"][data-task-firstline="${parent}"]`);
+    const parentRow = this.page.locator(
+      `[data-testid="task-row"][data-task-firstline="${parent}"]`,
+    );
     const childRow = this.page.locator(`[data-testid="task-row"][data-task-firstline="${child}"]`);
     const parentId = await parentRow.getAttribute("data-task-id");
     if (!parentId) throw new Error(`Parent row "${parent}" has no data-task-id`);
