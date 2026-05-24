@@ -19,11 +19,13 @@ type Props = {
 };
 
 export function Breadcrumb(props: Props) {
-  const path = createMemo<Task[]>(() => {
+  const path = createMemo(() => {
     const id = props.selectedId();
     if (id === null) return [];
     const byId = new Map(props.tasks().map((t) => [t.id, t]));
     const ancestors = ancestorPath(id, (cid) => byId.get(cid)?.parentId ?? null);
+    // Skip ancestors whose Task hasn't arrived yet (parentId set but row not
+    // in the collection) — renders a gap-free chain rather than crashing.
     return ancestors.flatMap((aid) => {
       const t = byId.get(aid);
       return t ? [t] : [];
@@ -32,18 +34,7 @@ export function Breadcrumb(props: Props) {
   return (
     <Show when={path().length > 0}>
       <p class="breadcrumb" data-testid="breadcrumb" aria-live="polite">
-        <For each={path()}>
-          {(t, i) => (
-            <>
-              <Show when={i() > 0}>
-                <span class="breadcrumb-sep" aria-hidden="true">
-                  /
-                </span>
-              </Show>
-              <span class="breadcrumb-crumb">{t.title}</span>
-            </>
-          )}
-        </For>
+        <For each={path()}>{(t) => <span class="breadcrumb-crumb">{t.title}</span>}</For>
       </p>
     </Show>
   );

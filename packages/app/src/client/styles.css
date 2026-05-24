@@ -178,16 +178,18 @@ h1 .dot {
   letter-spacing: 0.01em;
 }
 
-.breadcrumb-sep {
-  color: var(--rule);
-  margin: 0 6px;
-}
-
 .breadcrumb-crumb {
   color: var(--ink-soft);
   font-variation-settings:
     "opsz" 14,
     "wght" 500;
+}
+
+/* Separator rendered in CSS so the JSX stays flat — just a For of crumb spans. */
+.breadcrumb-crumb + .breadcrumb-crumb::before {
+  content: "/";
+  color: var(--rule);
+  margin: 0 6px;
 }
 
 /* ── Search: paper-card input with concentric brand-mark marker ─────── */
