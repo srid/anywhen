@@ -17,16 +17,20 @@ Then("the visibility lever should be off", async function (this: AnywhenWorld) {
 Then(
   "the search input should contain {string}",
   async function (this: AnywhenWorld, fragment: string) {
-    const value = await this.page.getByTestId("search-input").inputValue();
-    expect(value).toContain(fragment);
+    // toHaveValue with a regex auto-retries until the condition is met,
+    // unlike inputValue() + toContain() which snapshot-checks once.
+    await expect(this.page.getByTestId("search-input")).toHaveValue(
+      new RegExp(fragment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
   },
 );
 
 Then(
   "the search input should not contain {string}",
   async function (this: AnywhenWorld, fragment: string) {
-    const value = await this.page.getByTestId("search-input").inputValue();
-    expect(value).not.toContain(fragment);
+    await expect(this.page.getByTestId("search-input")).not.toHaveValue(
+      new RegExp(fragment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
   },
 );
 
