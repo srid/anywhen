@@ -34,8 +34,8 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     SELECT id, parent_id, title, status, position, created_at, updated_at FROM tasks
   `.execute(db);
 
-  await sql`DROP TABLE tasks`.execute(db);
-  await sql`ALTER TABLE tasks_new RENAME TO tasks`.execute(db);
+  await db.schema.dropTable("tasks").execute();
+  await db.schema.alterTable("tasks_new").renameTo("tasks").execute();
 
   await db.schema
     .createIndex("tasks_parent_idx")
@@ -68,8 +68,8 @@ export async function down(db: Kysely<unknown>): Promise<void> {
     SELECT id, parent_id, title, status, position, created_at, updated_at FROM tasks
   `.execute(db);
 
-  await sql`DROP TABLE tasks`.execute(db);
-  await sql`ALTER TABLE tasks_new RENAME TO tasks`.execute(db);
+  await db.schema.dropTable("tasks").execute();
+  await db.schema.alterTable("tasks_new").renameTo("tasks").execute();
 
   await db.schema
     .createIndex("tasks_parent_idx")
