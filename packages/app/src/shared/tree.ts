@@ -42,7 +42,7 @@ export const sortedWithDepths = (tasks: Task[]): SortedTask[] => {
   return out;
 };
 
-export const siblingsOf = (
+const siblingsOf = (
   tasks: Task[],
   id: TaskId,
 ): { siblings: Task[]; index: number; task: Task } | null => {
