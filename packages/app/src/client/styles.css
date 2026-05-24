@@ -535,11 +535,13 @@ h1 {
   }
 }
 
-.delete:hover,
-.delete:focus {
-  color: var(--danger);
-  background: rgba(154, 61, 51, 0.08);
-  outline: none;
+.delete {
+  &:hover,
+  &:focus {
+    color: var(--danger);
+    background: rgba(154, 61, 51, 0.08);
+    outline: none;
+  }
 }
 
 .row:is(:hover, :focus-within) :is(.edit, .delete) {
