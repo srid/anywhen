@@ -61,7 +61,10 @@ attention, not to compete for it.
 > app shell and serves `index.html` from cache when offline) + JSON
 > backup (the footer's Export downloads a versioned envelope of every
 > task; Import replaces the current tree with the contents of a backup
-> file — drop the export into Dropbox/git/etc. for off-app retention)
+> file — drop the export into Dropbox/git/etc. for off-app retention;
+> the server also writes a rolling on-disk copy hourly to
+> `$ANYWHEN_STATE_DIR/backups/`, pruning anything older than seven days,
+> so any one of those files is a drop-in for Import)
 > + runtime info footer (GitHub source link, server hostname, SQLite
 > path — so a user opening the app can see where their data lives at a
 > glance) + ancestor breadcrumb (selecting a nested row reveals its

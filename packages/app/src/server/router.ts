@@ -20,7 +20,7 @@
 import { implementSurface, publisherChannel } from "@kolu/surface/server";
 import { MemoryPublisher } from "@orpc/experimental-publisher/memory";
 import { implement } from "@orpc/server";
-import { BACKUP_VERSION, type Task, type TaskId } from "../shared/schemas";
+import { makeBackup, type Task, type TaskId } from "../shared/schemas";
 import { type RuntimeInfo, surface } from "../shared/surface";
 import { descendantIds } from "../shared/tree";
 import type { TaskStore } from "../storage/tasks";
@@ -103,11 +103,7 @@ export function buildRouter(store: TaskStore, cache: Map<TaskId, Task>, runtimeI
         // separate SELECT against the store.
         export: async ({ ctx }) => {
           const tasks = [...ctx.collections.tasks.readAll().values()];
-          return {
-            version: BACKUP_VERSION,
-            exportedAt: new Date().toISOString(),
-            tasks,
-          };
+          return makeBackup(tasks, new Date());
         },
         // Replace every current task with the imported set. SQL is wiped
         // and rewritten in one transaction (`store.replaceAll`); the

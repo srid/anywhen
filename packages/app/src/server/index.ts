@@ -13,6 +13,7 @@ import { resolve } from "node:path";
 import { RPCHandler as WsRPCHandler } from "@orpc/server/bun-ws";
 import { RPCHandler } from "@orpc/server/fetch";
 import type { ServerWebSocket } from "bun";
+import { startBackupScheduler } from "../storage/backup";
 import { openDb, resolveStateDir } from "../storage/db";
 import { seedSampleData } from "../storage/seed";
 import { taskStore } from "../storage/tasks";
@@ -33,6 +34,14 @@ if (process.env.ANYWHEN_SEED_SAMPLE_DATA === "1") {
 // once from SQL at boot; mutated by procedure handlers via the framework's
 // `ctx.collections.tasks.{upsert,remove}` fan-out (see `router.ts`).
 const cache = await store.listMap();
+// Rolling on-disk backup. Writes once immediately, then hourly; prunes
+// anything older than seven days. Files share `BackupSchema` with
+// `api.export`, so any one of them is a drop-in for `api.import`.
+// Sourcing from `store.list()` (the durable SQL view) — `api.export` reads
+// the in-memory cache instead, by design (per its inline comment), so the
+// two paths produce same-schema envelopes from slightly different vantage
+// points: the on-disk copy is the persisted truth.
+startBackupScheduler(() => store.list(), resolve(stateDir, "backups"));
 const router = buildRouter(store, cache, { hostname: osHostname(), dbPath });
 const httpHandler = new RPCHandler(router);
 const wsHandler = new WsRPCHandler(router);
