@@ -32,6 +32,7 @@ import {
   type MoveTarget,
   type Task,
   type TaskId,
+  type TaskStatus,
   ZONE_AFTER_RATIO,
   ZONE_BEFORE_RATIO,
 } from "../shared/schemas";
@@ -99,6 +100,18 @@ const confirmDestructive = (message: string): boolean => window.confirm(message)
 //                       <br>. Bodies tend to be paragraphs, not poetry.
 const MD_OPTIONS = { html: false, linkify: true, breaks: false } as const;
 const md = new MarkdownIt(MD_OPTIONS);
+
+// ARIA tri-state checkbox token per lifecycle status. Lives in the
+// presentation layer (here, not shared/schemas.ts) because the values are
+// WAI-ARIA spec constants — a UI-protocol mapping, not domain policy.
+// `Record<TaskStatus, …>` makes a future fourth status a TypeScript error
+// at this declaration site rather than a silent `"false"` fallback if it
+// were a chained ternary on the row's JSX.
+const STATUS_TO_ARIA_CHECKED: Record<TaskStatus, "true" | "false" | "mixed"> = {
+  todo: "false",
+  doing: "mixed",
+  done: "true",
+};
 
 // Backup filename uses the local date — Dropbox-friendly, sorts well,
 // and matches the unit the user thinks in ("today's backup").
@@ -769,13 +782,7 @@ export function App() {
                       // "doing" (an in-flight state, not yet complete),
                       // true → "done". Mirrors the visual cycle so screen
                       // readers announce the same three steps.
-                      aria-checked={
-                        row.task.status === "done"
-                          ? "true"
-                          : row.task.status === "doing"
-                            ? "mixed"
-                            : "false"
-                      }
+                      aria-checked={STATUS_TO_ARIA_CHECKED[row.task.status]}
                       role="checkbox"
                       aria-label={`Advance ${row.task.title} (currently ${row.task.status})`}
                       onClick={(e) => {
