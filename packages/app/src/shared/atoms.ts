@@ -102,6 +102,23 @@ const serializeAtom = (atom: Atom): string => {
 
 export const serializeAtoms = (atoms: Atom[]): string => atoms.map(serializeAtom).join(" ");
 
+// Display rendering — the single place that knows what to *show* the user
+// for each atom kind. Returned as a string; the caller wraps in whatever
+// element it likes. Today the only display caller is the atoms-sentence
+// in App.tsx (which renders one classed span per atom); a future detail
+// pane that wants to badge atoms can reuse this without re-implementing
+// the kind switch.
+export const atomToDisplayString = (atom: Atom): string => {
+  switch (atom.kind) {
+    case "text":
+      return `"${atom.needle}"`;
+    case "done":
+      return `done:${atom.value}`;
+    case "not":
+      return `not ${atomToDisplayString(atom.inner)}`;
+  }
+};
+
 export const atomEquals = (a: Atom, b: Atom): boolean => {
   if (a.kind !== b.kind) return false;
   switch (a.kind) {

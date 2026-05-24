@@ -25,6 +25,7 @@ import {
 import {
   type Atom,
   atomEquals,
+  atomToDisplayString,
   evalAtoms,
   HIDE_STALE_DONE,
   parseAtoms,
@@ -704,20 +705,17 @@ export function App() {
                   <Show when={idx() > 0}>
                     <span class="atoms-sep">·</span>
                   </Show>
-                  {atom.kind === "text" ? (
-                    <span class="atom-text">"{atom.needle}"</span>
-                  ) : atom.kind === "done" ? (
-                    <span class="atom-structured">done:{atom.value}</span>
-                  ) : (
-                    <span class="atom-not">
-                      <span class="atom-not-prefix">not</span>{" "}
-                      <span class="atom-structured">
-                        {atom.inner.kind === "done"
-                          ? `done:${atom.inner.value}`
-                          : serializeAtoms([atom.inner])}
-                      </span>
-                    </span>
-                  )}
+                  <span
+                    class={
+                      atom.kind === "text"
+                        ? "atom-text"
+                        : atom.kind === "not"
+                          ? "atom-not"
+                          : "atom-structured"
+                    }
+                  >
+                    {atomToDisplayString(atom)}
+                  </span>
                 </>
               )}
             </For>
