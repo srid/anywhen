@@ -367,11 +367,7 @@ h1 {
     letter-spacing: 0;
   }
 
-  & .atom-text {
-    font-style: normal;
-    color: var(--ink-soft);
-  }
-
+  & .atom-text,
   & .atom-not {
     font-style: normal;
     color: var(--ink-soft);
