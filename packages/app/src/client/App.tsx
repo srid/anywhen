@@ -887,10 +887,12 @@ export function App() {
                       class="task-body-wrap"
                       classList={{ dimmed: row.dimmed }}
                       style={{ "--row-depth": row.depth }}
+                      data-task-id={row.task.id}
                     >
                       <summary
                         class="task-body-toggle"
                         data-testid="task-body-toggle"
+                        data-task-id={row.task.id}
                         aria-label={`Show details for ${firstLine()}`}
                       >
                         <span class="chevron" aria-hidden="true">
@@ -901,6 +903,7 @@ export function App() {
                       <div
                         class="task-body"
                         data-testid="task-body"
+                        data-task-id={row.task.id}
                         // markdown-it is constructed with html:false so user
                         // content can't smuggle raw <script> / <iframe> through.
                         // biome-ignore lint/security/noDangerouslySetInnerHtml: rendered HTML is sanitized by markdown-it (html:false)

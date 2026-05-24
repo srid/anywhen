@@ -462,37 +462,57 @@ Then(
   },
 );
 
+// The body's <details> renders as a DOM *sibling* of its row so the row's
+// flex layout doesn't have to accommodate a full-width disclosure child.
+// Body sub-elements share `data-task-id` with their row, letting a step
+// address "this task's body" without nesting Playwright locators inside
+// the row (which would only find descendants).
+async function taskIdFor(world: AnywhenWorld, firstLine: string): Promise<string> {
+  const row = world.page.locator(`[data-testid="task-row"][data-task-firstline="${firstLine}"]`);
+  const id = await row.getAttribute("data-task-id");
+  if (!id) throw new Error(`No task row found with first line "${firstLine}"`);
+  return id;
+}
+
 Then(
   "the task with first line {string} should have a body disclosure",
   async function (this: AnywhenWorld, firstLine: string) {
-    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${firstLine}"]`);
-    await expect(row.locator('[data-testid="task-body"]')).toHaveCount(1);
+    const id = await taskIdFor(this, firstLine);
+    await expect(this.page.locator(`[data-testid="task-body"][data-task-id="${id}"]`)).toHaveCount(
+      1,
+    );
   },
 );
 
 Then(
   "the task with first line {string} should not have a body disclosure",
   async function (this: AnywhenWorld, firstLine: string) {
-    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${firstLine}"]`);
-    await expect(row.locator('[data-testid="task-body"]')).toHaveCount(0);
+    const id = await taskIdFor(this, firstLine);
+    await expect(this.page.locator(`[data-testid="task-body"][data-task-id="${id}"]`)).toHaveCount(
+      0,
+    );
   },
 );
 
 When(
   "I expand the body of the task with first line {string}",
   async function (this: AnywhenWorld, firstLine: string) {
-    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${firstLine}"]`);
+    const id = await taskIdFor(this, firstLine);
     // Force-click the summary: it lives inside <details>, which the
     // browser will toggle on click regardless of pointer reveal state.
-    await row.locator('[data-testid="task-body-toggle"]').click({ force: true });
+    await this.page
+      .locator(`[data-testid="task-body-toggle"][data-task-id="${id}"]`)
+      .click({ force: true });
   },
 );
 
 Then(
   "the body of the task with first line {string} should contain a(n) {string} element with text {string}",
   async function (this: AnywhenWorld, firstLine: string, tag: string, text: string) {
-    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${firstLine}"]`);
-    const el = row.locator(`[data-testid="task-body"] ${tag}`, { hasText: text });
+    const id = await taskIdFor(this, firstLine);
+    const el = this.page.locator(`[data-testid="task-body"][data-task-id="${id}"] ${tag}`, {
+      hasText: text,
+    });
     await expect(el).toBeVisible();
   },
 );
