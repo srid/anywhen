@@ -63,3 +63,66 @@ test("init migration applied via Kysely's tracking table", async () => {
     expect.arrayContaining([expect.stringMatching(/_init$/)]),
   );
 });
+
+test("widen_task_status migration accepts a doing row", async () => {
+  // The widen migration rebuilds the table with CHECK (status IN
+  // ('todo', 'doing', 'done')). If a future migration drops the rebuild
+  // or mismatches the literals, this insert fails — the test is the
+  // tripwire on the migration ↔ TaskStatusSchema invariant documented in
+  // migrations/README.md.
+  const { db } = await openDb(freshStateDir());
+  onTestFinished(() => db.destroy());
+  await db
+    .insertInto("tasks")
+    .values({
+      id: "t-doing",
+      parent_id: null,
+      title: "in flight",
+      status: "doing",
+      position: 100,
+      created_at: "2026-05-24T00:00:00.000Z",
+      updated_at: "2026-05-24T00:00:00.000Z",
+    })
+    .execute();
+  const [row] = await db
+    .selectFrom("tasks")
+    .select(["status"])
+    .where("id", "=", "t-doing")
+    .execute();
+  expect(row?.status).toBe("doing");
+});
+
+test("widen_task_status down() coerces doing rows back to todo", async () => {
+  // The down migration narrows the CHECK back to ('todo', 'done'). Any
+  // row currently in 'doing' must be coerced before the rebuild or the
+  // INSERT…SELECT into the narrower table fails. Reach in by name so a
+  // future reordering of the migrations directory doesn't drift this test.
+  const { db } = await openDb(freshStateDir());
+  onTestFinished(() => db.destroy());
+  await db
+    .insertInto("tasks")
+    .values({
+      id: "t-doing",
+      parent_id: null,
+      title: "in flight",
+      status: "doing",
+      position: 100,
+      created_at: "2026-05-24T00:00:00.000Z",
+      updated_at: "2026-05-24T00:00:00.000Z",
+    })
+    .execute();
+
+  const { down } = await import("./migrations/20260524210804_widen_task_status");
+  await down(db);
+
+  // Cast through `any` for the post-down read because the Kysely
+  // `Database` interface still types `status` under the widened enum
+  // (TaskStatus), but at this point the column has been narrowed back.
+  // biome-ignore lint/suspicious/noExplicitAny: post-down narrow shape
+  const [row] = await (db as any)
+    .selectFrom("tasks")
+    .select(["status"])
+    .where("id", "=", "t-doing")
+    .execute();
+  expect(row?.status).toBe("todo");
+});
