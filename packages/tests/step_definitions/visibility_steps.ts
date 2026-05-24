@@ -2,6 +2,10 @@ import { When, Then } from "@cucumber/cucumber";
 import { expect } from "@playwright/test";
 import type { AnywhenWorld } from "../support/world";
 
+// Escape regex metacharacters so a fragment from a Gherkin string parameter
+// can be passed to toHaveValue() as a literal substring match.
+const escapeForRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 When("I click the visibility lever", async function (this: AnywhenWorld) {
   await this.page.getByTestId("visibility-lever").click();
 });
@@ -20,7 +24,7 @@ Then(
     // toHaveValue with a regex auto-retries until the condition is met,
     // unlike inputValue() + toContain() which snapshot-checks once.
     await expect(this.page.getByTestId("search-input")).toHaveValue(
-      new RegExp(fragment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+      new RegExp(escapeForRegex(fragment)),
     );
   },
 );
@@ -29,7 +33,7 @@ Then(
   "the search input should not contain {string}",
   async function (this: AnywhenWorld, fragment: string) {
     await expect(this.page.getByTestId("search-input")).not.toHaveValue(
-      new RegExp(fragment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+      new RegExp(escapeForRegex(fragment)),
     );
   },
 );
