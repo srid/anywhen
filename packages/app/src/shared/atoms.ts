@@ -151,7 +151,7 @@ const isFreshDone = (task: Task, now: number): boolean => {
   return age !== null && age <= STALE_THRESHOLD_MS;
 };
 
-export const evalAtom = (atom: Atom, task: Task, now: number): boolean => {
+const evalAtom = (atom: Atom, task: Task, now: number): boolean => {
   switch (atom.kind) {
     case "text":
       return matchesQuery(task.title, atom.needle);
