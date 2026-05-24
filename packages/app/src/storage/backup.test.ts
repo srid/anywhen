@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BackupSchema } from "../shared/schemas";
-import { pruneBackups, writeBackup } from "./backup";
+import { BACKUP_RETENTION_MS, pruneBackups, writeBackup } from "./backup";
 import { openDb } from "./db";
 import { taskStore } from "./tasks";
 
@@ -54,7 +54,7 @@ test("pruneBackups deletes files whose mtime is older than retention; keeps the 
   // An unrelated file in the same directory must not be touched.
   make("operator-note.txt", 10 * day);
 
-  const deleted = pruneBackups(backupDir, 7 * day);
+  const deleted = pruneBackups(backupDir, BACKUP_RETENTION_MS);
 
   expect(deleted).toEqual([stale]);
   const remaining = readdirSync(backupDir).sort();
@@ -69,5 +69,5 @@ test("pruneBackups deletes files whose mtime is older than retention; keeps the 
 
 test("pruneBackups is a no-op when the backup dir doesn't exist yet", () => {
   const dir = freshStateDir();
-  expect(pruneBackups(join(dir, "backups"), 7 * 24 * 60 * 60 * 1000)).toEqual([]);
+  expect(pruneBackups(join(dir, "backups"), BACKUP_RETENTION_MS)).toEqual([]);
 });
