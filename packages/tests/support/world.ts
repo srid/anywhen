@@ -11,14 +11,16 @@ export class AnywhenWorld extends World {
   // `.clone().json()` so the world holds one fact, not three.
   lastHttpResponse?: Response;
 
-  // Override the universal accept-handler for one dialog. The scope is the
-  // rest of the current scenario; the next scenario's Given re-registers
-  // the universal accept. Centralized here so the Playwright dialog-event
-  // mechanics live in one place — step definitions just declare intent.
+  // Override the universal accept-handler for one dialog, then restore it.
+  // After the .once fires the universal handler is back in place, so any
+  // further dialog in the same scenario is accepted rather than left
+  // unhandled. Centralized here so the Playwright dialog-event mechanics
+  // live in one place — step definitions just declare intent.
   dismissNextConfirm(): void {
     this.page.removeAllListeners("dialog");
     this.page.once("dialog", async (d) => {
       await d.dismiss();
+      this.page.on("dialog", (d2) => void d2.accept());
     });
   }
 }
