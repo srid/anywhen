@@ -38,6 +38,10 @@
   --font-serif: "Fraunces", "Iowan Old Style", "Charter", "Georgia", ui-serif, serif;
   --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", "Menlo", "Consolas", monospace;
 
+  /* Brand easing — a gentle spring used for the search underline and the
+     staggered-rise page-load animation. One token so the two stay in sync. */
+  --ease-spring: cubic-bezier(0.2, 0.8, 0.2, 1);
+
   @media (prefers-color-scheme: dark) {
     --paper: #150b10;
     --paper-deep: #1f1218;
@@ -220,8 +224,8 @@ h1 {
     background: var(--accent);
     border-radius: 1px;
     transition:
-      left 0.32s cubic-bezier(0.2, 0.8, 0.2, 1),
-      right 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+      left 0.32s var(--ease-spring),
+      right 0.32s var(--ease-spring);
   }
 
   &:focus-within {
@@ -742,7 +746,7 @@ h1 {
 .hint,
 .backup,
 .runtime {
-  animation: rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: rise 0.7s var(--ease-spring) both;
 }
 
 .brand {
