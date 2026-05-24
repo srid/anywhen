@@ -791,7 +791,7 @@ export function App() {
               </>
             }
           >
-            <span class="lever-pivot">showing recent</span> · show all
+            showing recent · <span class="lever-pivot">show all</span>
           </Show>
         </button>
       </div>

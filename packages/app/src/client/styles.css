@@ -421,31 +421,22 @@ h1 {
   white-space: nowrap;
   flex-shrink: 0;
 
+  /* Pivot = the action word (the click target). Always the action,
+     always accent — consistent across both states. Lever-engaged signal
+     lives in the prose ("showing all" ↔ "showing recent") and in the
+     atoms-sentence that appears below the search box, not in the pivot's
+     color. */
   & .lever-pivot {
     font-style: normal;
-    color: var(--ink-soft);
-    border-bottom: 1px solid var(--rule);
-    padding-bottom: 1px;
-    transition:
-      color 0.18s ease,
-      border-color 0.18s ease;
-  }
-
-  &:hover .lever-pivot,
-  &:focus-visible .lever-pivot {
     color: var(--accent-deep);
-    border-bottom-color: var(--accent);
+    border-bottom: 1px solid var(--accent);
+    padding-bottom: 1px;
   }
 
   &:focus-visible {
     outline: 2px solid var(--accent-soft);
     outline-offset: 3px;
     border-radius: 2px;
-  }
-
-  &.on .lever-pivot {
-    color: var(--accent-deep);
-    border-bottom-color: var(--accent);
   }
 }
 
