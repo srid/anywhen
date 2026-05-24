@@ -35,7 +35,6 @@ export function MeridianRule() {
   });
   // nowX maps minutes-since-midnight onto the SVG_W axis. Memoized so the
   // two circles that share cx={nowX()} compute it once per minute tick.
-  // Majors every 6 hours (i % 3 === 0, since each tick = 2 h).
   const nowX = createMemo(() => (minutesSinceMidnight(now()) / MINUTES_PER_DAY) * SVG_W);
   return (
     <svg class="meridian" viewBox={`0 0 ${SVG_W} 12`} preserveAspectRatio="none" aria-hidden="true">
@@ -50,6 +49,7 @@ export function MeridianRule() {
       />
       <For each={TICK_POSITIONS}>
         {(i) => {
+          // Major ticks every 3 positions = every 6 hours (each tick = 2 h).
           const major = i % 3 === 0;
           return (
             <line
