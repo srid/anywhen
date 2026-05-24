@@ -61,7 +61,10 @@ attention, not to compete for it.
 > app shell and serves `index.html` from cache when offline) + JSON
 > backup (the footer's Export downloads a versioned envelope of every
 > task; Import replaces the current tree with the contents of a backup
-> file — drop the export into Dropbox/git/etc. for off-app retention)
+> file — drop the export into Dropbox/git/etc. for off-app retention;
+> the server also writes a rolling on-disk copy hourly to
+> `$ANYWHEN_STATE_DIR/backups/`, pruning anything older than seven days,
+> so any one of those files is a drop-in for Import)
 > + runtime info footer (GitHub source link, server hostname, SQLite
 > path — so a user opening the app can see where their data lives at a
 > glance) + ancestor breadcrumb (selecting a nested row reveals its
@@ -70,10 +73,11 @@ attention, not to compete for it.
 > focus) + multi-line tasks (the search box and inline editor are
 > textareas — Enter submits, Shift+Enter inserts a newline; the first
 > line is the row label, any subsequent lines are a basic-Markdown body
-> rendered via [markdown-it](https://github.com/markdown-it/markdown-it)
-> inside a native `<details>` disclosure beneath the row — collapsed by
-> default, expanded on click, mobile-friendly with no hover-only
-> affordance).
+> rendered via [markdown-it](https://github.com/markdown-it/markdown-it).
+> A chevron lives inside the row alongside edit / delete — collapsed
+> rows stay the same height as single-line ones, expanding pushes the
+> body inline beneath; mobile-friendly with the chevron always on
+> coarse pointers).
 > Filter atoms, tags, due dates, blocked-by, and the detail panel
 > land in later PRs.
 

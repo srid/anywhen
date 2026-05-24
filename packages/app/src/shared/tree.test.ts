@@ -45,3 +45,10 @@ test("ancestorPath and ancestorIds agree on membership", () => {
   const ids = ancestorIds(["c"], parentOf);
   expect(new Set(path)).toEqual(ids);
 });
+
+test("ancestorIds excludes the seed even when a cycle loops back through it", () => {
+  const cyclic = (id: string): string | null => (id === "x" ? "y" : id === "y" ? "x" : null);
+  const ids = ancestorIds(["x"], cyclic);
+  expect(ids.has("x")).toBe(false);
+  expect(ids.has("y")).toBe(true);
+});
