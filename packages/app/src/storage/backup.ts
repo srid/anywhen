@@ -93,24 +93,29 @@ export function pruneBackups(
  * container restart isn't N minutes away from any rollback target, then
  * sleeps `intervalMs` between ticks. The `async while` shape encodes
  * "ticks never overlap" structurally — the next iteration cannot start
- * until the previous tick's `await` chain completes — rather than via a
- * mutable `inFlight` flag. Failures are logged and the loop continues; a
- * transient disk-full shouldn't kill the loop.
+ * until the previous tick's `await` chain completes. Failures are logged
+ * and the loop continues; a transient disk-full shouldn't kill the loop.
+ *
+ * No stop handle: the loop runs for the lifetime of the process, the
+ * same shape `db` and `server` already take in `server/index.ts`. A
+ * graceful-shutdown orchestrator (close server, await db.destroy, stop
+ * the loop in sequence) would be the right place to add this, but it
+ * belongs to the whole process and not just the backup scheduler — half
+ * a graceful shutdown is worse than none.
  */
 export function startBackupScheduler(
   snapshot: () => Promise<Task[]>,
   backupDir: string,
   opts: { intervalMs?: number; retentionMs?: number } = {},
-): () => void {
+): void {
   const intervalMs = opts.intervalMs ?? BACKUP_INTERVAL_MS;
   const retentionMs = opts.retentionMs ?? BACKUP_RETENTION_MS;
-  let stopped = false;
   const sleep = (ms: number) =>
     new Promise<void>((resolve) => {
       setTimeout(resolve, ms);
     });
   void (async () => {
-    while (!stopped) {
+    while (true) {
       try {
         const tasks = await snapshot();
         await writeBackup(tasks, backupDir);
@@ -118,11 +123,7 @@ export function startBackupScheduler(
       } catch (err) {
         console.error("[backup] tick failed:", err);
       }
-      if (stopped) return;
       await sleep(intervalMs);
     }
   })();
-  return () => {
-    stopped = true;
-  };
 }
