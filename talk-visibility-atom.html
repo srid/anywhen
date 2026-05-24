@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Atom grammar + visibility lever — full query support</title>
+<style>
+  :root {
+    --paper: #faf2f5;
+    --paper-card: #fef8fa;
+    --paper-deep: #f1e2e8;
+    --ink: #120710;
+    --ink-soft: #2c1a24;
+    --muted: #76586a;
+    --rule: #d4adbe;
+    --rule-soft: #ecd6df;
+    --accent: #c43d6e;
+    --accent-deep: #9d2c54;
+    --accent-soft: rgba(196, 61, 110, 0.1);
+    --mark-bg: rgba(228, 124, 167, 0.32);
+    --done: #6a8557;
+    --green-rule: #b8d2a8;
+    --green-ink: #3f5a2d;
+    --purple-rule: #b8a8d2;
+    --purple-ink: #5b4a7a;
+    --amber-rule: #d2c188;
+    --amber-ink: #6a5a2a;
+    --font-serif: "Iowan Old Style", "Charter", "Georgia", ui-serif, serif;
+    --font-mono: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
+
+    @media (prefers-color-scheme: dark) {
+      --paper: #150b10;
+      --paper-card: #1a0f15;
+      --paper-deep: #1f1218;
+      --ink: #f1dce5;
+      --ink-soft: #d6b4c2;
+      --muted: #98768a;
+      --rule: #5a3344;
+      --rule-soft: #381e2a;
+      --accent: #e88aac;
+      --accent-deep: #c4678a;
+      --accent-soft: rgba(232, 138, 172, 0.16);
+      --mark-bg: rgba(232, 138, 172, 0.30);
+      --done: #8aa276;
+      --green-rule: #4a6a3a;
+      --green-ink: #b8d2a8;
+      --purple-rule: #5a4a7a;
+      --purple-ink: #b8a8d2;
+      --amber-rule: #6a5a2a;
+      --amber-ink: #d2c188;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--paper); color: var(--ink); font: 400 16.5px/1.6 var(--font-serif); }
+  main { max-width: 880px; margin: 0 auto; padding: 56px 28px 96px; }
+  h1 { font: 600 38px/1.05 var(--font-serif); letter-spacing: -0.02em; margin: 0 0 8px; }
+  h1 .dot { color: var(--accent); }
+  .lede { color: var(--muted); font: italic 16px/1.55 var(--font-serif); margin: 0 0 18px; max-width: 700px; }
+  .meta { color: var(--muted); font: italic 13px/1.5 var(--font-serif); margin: 0 0 28px; }
+  .meta strong { color: var(--ink-soft); font-style: normal; }
+
+  .card {
+    background: var(--paper-card);
+    border: 1px solid var(--rule-soft);
+    border-radius: 6px;
+    padding: 26px 28px 22px;
+    margin: 0 0 20px;
+  }
+  .card-head { display: flex; align-items: baseline; gap: 12px; margin: 0 0 16px; }
+  .card-num { font: 700 14px/1 var(--font-mono); color: var(--muted); letter-spacing: 0.04em; }
+  .card-title { font: 600 13.5px/1.1 var(--font-serif); letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-soft); }
+
+  p { margin: 0 0 12px; }
+  code { font: 500 13.5px/1 var(--font-mono); background: var(--paper-deep); padding: 2px 6px; border-radius: 3px; color: var(--ink); }
+
+  pre { background: var(--paper-deep); padding: 14px 16px; border-radius: 4px; overflow-x: auto;
+    font: 500 13px/1.55 var(--font-mono); color: var(--ink); margin: 6px 0 12px; }
+  pre .k { color: var(--accent-deep); font-weight: 600; }
+  pre .s { color: var(--green-ink); }
+  pre .c { color: var(--muted); font-style: italic; }
+
+  /* search prototype */
+  .prototype { margin: 14px 0 8px; }
+  .proto-cap { font: 500 10.5px/1.3 var(--font-mono); letter-spacing: 0.18em; color: var(--muted); margin: 0 0 10px; }
+  .proto-divider { display: block; height: 1px; background: var(--rule-soft); margin: 4px 0 12px; position: relative; }
+  .proto-divider::after { content: ""; position: absolute; left: 58%; top: -2px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+  .search {
+    position: relative; display: flex; align-items: center; gap: 8px;
+    padding: 12px 12px 12px 44px;
+    background: var(--paper); border: 1px solid var(--rule); border-radius: 4px;
+    box-shadow: 0 1px 0 rgba(18,7,16,0.03), 0 14px 28px -22px rgba(18,7,16,0.22);
+  }
+  .search-mark { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px;
+    border-radius: 50%; border: 1.5px solid var(--ink-soft); opacity: 0.55; }
+  .search input { border: 0; outline: 0; background: transparent; flex: 1; color: var(--ink);
+    font: 400 17px/1.4 var(--font-serif); padding: 2px 0; min-width: 0; }
+  .add-btn { flex-shrink: 0; border: 1px solid var(--rule-soft); background: transparent;
+    color: var(--muted); font: 500 14px/1 var(--font-serif); padding: 8px 16px; border-radius: 3px; }
+  .lever-row { display: flex; justify-content: flex-end; margin: 8px 4px 4px; }
+  .lever { border: 0; background: transparent; color: var(--muted);
+    font: italic 13.5px/1.4 var(--font-serif); cursor: pointer; padding: 0; }
+  .lever .pivot { color: var(--ink-soft); font-style: normal; border-bottom: 1px solid var(--rule); padding-bottom: 1px; }
+  .lever.on .pivot { color: var(--accent-deep); border-bottom-color: var(--accent); }
+
+  .atoms-sentence { color: var(--muted); font: italic 13.5px/1.5 var(--font-serif); margin: 4px 4px 12px; }
+  .atoms-sentence .atom { color: var(--accent-deep); font-style: normal; font-weight: 500; font-family: var(--font-mono); font-size: 12.5px; }
+  .atoms-sentence .free { color: var(--ink-soft); }
+  .atoms-sentence .neg { color: var(--ink-soft); font-style: normal; }
+  .atoms-sentence .sep { color: var(--rule); margin: 0 6px; }
+
+  .tree { font: 400 15.5px/1.55 var(--font-serif); margin: 12px 0 6px; }
+  .row { display: flex; align-items: center; gap: 10px; padding: 5px 6px; border-radius: 3px; }
+  .row + .row { border-top: 1px dotted var(--rule-soft); }
+  .check { width: 14px; height: 14px; border: 1.4px solid var(--ink-soft); border-radius: 50%; flex-shrink: 0; opacity: 0.7; }
+  .check.done { background: var(--done); border-color: var(--done); }
+  .row.done .title { text-decoration: line-through; color: var(--muted); font-style: italic; }
+  .row .tag { margin-left: auto; font: 500 11px/1 var(--font-mono); color: var(--muted); background: var(--paper-deep); padding: 3px 7px; border-radius: 10px; }
+  .annot { color: var(--muted); font: italic 13px/1.5 var(--font-serif); margin: 6px 2px 0; }
+
+  .callout { border-left: 3px solid; padding: 11px 14px; margin: 10px 0; background: var(--paper); border-radius: 0 3px 3px 0; }
+  .callout p { margin: 0; }
+  .callout-phil { border-color: var(--accent); }
+  .callout-hickey { border-color: var(--green-rule); background: rgba(184, 210, 168, 0.12); }
+  .callout-lowy { border-color: var(--purple-rule); background: rgba(184, 168, 210, 0.10); }
+  .callout-amber { border-color: var(--amber-rule); background: rgba(210, 193, 136, 0.10); }
+  .callout-label { font: 600 12.5px/1 var(--font-serif); }
+  .callout-phil .callout-label { color: var(--accent-deep); }
+  .callout-hickey .callout-label { color: var(--green-ink); }
+  .callout-lowy .callout-label { color: var(--purple-ink); }
+  .callout-amber .callout-label { color: var(--amber-ink); }
+  .arrow { color: var(--muted); margin: 0 3px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 14.5px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  th { color: var(--muted); font: 500 11.5px/1 var(--font-serif); letter-spacing: 0.12em; text-transform: uppercase; }
+  td code { font-size: 13px; }
+  td:first-child { white-space: nowrap; }
+  .file { font-family: var(--font-mono); font-size: 13px; color: var(--ink-soft); }
+  ul.tight { margin: 4px 0 10px; padding-left: 22px; }
+  ul.tight li { margin: 0 0 4px; }
+
+  .footnote { color: var(--muted); font: italic 13.5px/1.5 var(--font-serif); margin: 18px 0 0; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>atom grammar + visibility lever<span class="dot">.</span></h1>
+<p class="lede">One PR off master: the discriminated-union atom grammar baseline, the <code>done:stale</code> atom that justifies its first concrete user payoff, and a hairline lever that hides done tasks older than 24h. Designed so future atoms (<code>tag:</code>, <code>has:body</code>, <code>root</code>, <code>under:title</code>) drop in without rework.</p>
+<p class="meta"><strong>Reviewed by Lowy</strong> — verdict folded below. Headlines: ship the union with three witness kinds; fix three pre-existing volatility leaks alongside; round-trip is load-bearing; keep <code>query</code> session-only.</p>
+
+<!-- ─── 01: PR split ─── -->
+<section class="card">
+  <div class="card-head">
+    <span class="card-num">01</span>
+    <span class="card-title">Two PRs, not one</span>
+  </div>
+
+  <p>Lowy's audit surfaced three pre-existing leaks on master that the new grammar would otherwise stand atop. Land them as a refactor-only precursor — no user-visible change — then ship the feature on a clean foundation.</p>
+
+  <table>
+    <thead><tr><th>PR</th><th>Contents</th><th>Reviewable as</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>① Precursor</strong></td>
+        <td>
+          <ul class="tight">
+            <li>Extract <code>matchPositions(title, needle)</code> in <span class="file">shared/filter.ts</span>; <span class="file">client/highlight.ts</span> and <code>matchesQuery</code> both consume it. (Leak 1)</li>
+            <li>Move <code>byParentMap</code>, <code>sortedWithDepths</code>, <code>siblingsOf</code>, <code>resolveKeyMove</code> from <span class="file">client/App.tsx</span> into <span class="file">shared/tree.ts</span> beside <code>ancestorIds</code> / <code>descendantIds</code>. (Leak 2)</li>
+            <li>Extract <code>applyFilter(sorted, predicate, now): Row[]</code> as a pure function; <code>rows()</code> memo becomes a one-liner. (Leak 3)</li>
+          </ul>
+        </td>
+        <td>Pure refactor. No behaviour change. Tests stay green untouched.</td>
+      </tr>
+      <tr>
+        <td><strong>② Feature</strong></td>
+        <td>Atom grammar baseline + <code>completedAt</code> column + visibility lever. Builds on ①.</td>
+        <td>User-visible: type structured atoms; hide stale done with one click.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-lowy">
+    <p><span class="callout-label">Lowy</span> <span class="arrow">→</span> "Fix [the leaks] in the same PR or the seam you're paying for now will be load-bearing against an asymmetric foundation. If too large for one PR, split as a precursor PR (leak fixes first, grammar second) — <strong>not as a follower</strong>."</p>
+  </div>
+</section>
+
+<!-- ─── 02: grammar ─── -->
+<section class="card">
+  <div class="card-head">
+    <span class="card-num">02</span>
+    <span class="card-title">Atom grammar — <code>shared/atoms.ts</code></span>
+  </div>
+
+  <p>One file. Single volatility axis (atoms change together). Three kinds — enough to make the discriminated union load-bearing, not so many that the grammar bundles unrelated data-model work.</p>
+
+  <pre><span class="c">// shared/atoms.ts</span>
+<span class="k">export type</span> Atom =
+  | { kind: <span class="s">"text"</span>;   needle: <span class="k">string</span> }                              <span class="c">// trivial witness</span>
+  | { kind: <span class="s">"done"</span>;   value: <span class="s">"no"</span> | <span class="s">"yes"</span> | <span class="s">"fresh"</span> | <span class="s">"stale"</span> }      <span class="c">// structured witness</span>
+  | { kind: <span class="s">"not"</span>;    inner: Atom };                              <span class="c">// recursive witness</span>
+
+<span class="k">export const</span> STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+
+<span class="k">export function</span> parseAtoms(query: <span class="k">string</span>): Atom[];
+<span class="k">export function</span> serializeAtoms(atoms: Atom[]): <span class="k">string</span>;       <span class="c">// round-trip with parseAtoms</span>
+<span class="k">export function</span> evalAtom(atom: Atom, task: Task, now: <span class="k">number</span>): <span class="k">boolean</span>;
+<span class="k">export function</span> evalAtoms(atoms: Atom[], task: Task, now: <span class="k">number</span>): <span class="k">boolean</span>;  <span class="c">// AND</span></pre>
+
+  <div class="callout callout-lowy">
+    <p><span class="callout-label">Lowy (A — phase split)</span> <span class="arrow">→</span> "<code>done:X</code> is the structured-kind witness; <code>not</code> is the recursive witness; <code>text</code> is the trivial witness. Three is enough to make the discriminated union load-bearing." Adding <code>tag:</code> or <code>has:body</code> here would bundle unrelated data-model volatility into one PR.</p>
+  </div>
+
+  <div class="callout callout-hickey">
+    <p><span class="callout-label">Hickey (F1, carried forward)</span> <span class="arrow">→</span> <strong>Closed enum on the <code>done</code> axis, four values, one <code>done:X</code> per query.</strong> Treating <code>done:stale</code> as a sibling of <code>done:no</code> / <code>done:yes</code> silently admits the impossible combination <code>done:no done:stale</code> (empty set) and the redundant <code>done:yes done:stale</code>. <code>done:stale ⊂ done:yes</code> — refinement, not a peer.</p>
+  </div>
+
+  <div class="callout callout-lowy">
+    <p><span class="callout-label">Lowy (C — <code>done:fresh</code>)</span> <span class="arrow">→</span> <strong>Include all four enum values, including <code>fresh</code>.</strong> Even though only <code>stale</code> has a caller in this PR: "Closed enums should be exhaustive on their axis. The cost of the symmetric variant is ~6 lines; the cost of adding it later is a parser change, a serializer change, a test refresh, and a discoverability hit."</p>
+  </div>
+
+  <div class="callout callout-hickey">
+    <p><span class="callout-label">Hickey (F4) + Lowy (F — round-trip)</span> <span class="arrow">→</span> <strong><code>serializeAtoms ∘ parseAtoms = id</code> on canonical inputs.</strong> The lever's deactivate path is <em>parse → filter out <code>done:stale</code> → serialize</em>. If round-trip isn't identity, toggling the lever rewrites the user's typed query. <strong>Property-test it in this PR</strong> (fast-check or hand-rolled fuzz) — the cheapest insurance against the most likely regression.</p>
+  </div>
+
+  <div class="callout callout-lowy">
+    <p><span class="callout-label">Lowy (D — module boundaries)</span> <span class="arrow">→</span> Single <code>shared/atoms.ts</code> is right for this PR. Split into per-kind files starts paying for itself only when atom kinds have non-trivial per-kind evaluation logic (e.g. <code>tag:</code> needing a tag-storage join). Neither threshold is hit. <code>STALE_THRESHOLD_MS</code> belongs <em>here</em>, not next to <code>DRAG_LONGPRESS_MS</code> in <span class="file">schemas.ts:49-55</span> — different volatility axis.</p>
+  </div>
+</section>
+
+<!-- ─── 03: data model ─── -->
+<section class="card">
+  <div class="card-head">
+    <span class="card-num">03</span>
+    <span class="card-title">Data model — <code>completedAt</code></span>
+  </div>
+
+  <p>Today's <code>updatedAt</code> bumps on rename, move, <em>and</em> toggle (<span class="file">storage/tasks.ts:211-220, 232-237, 253-257</span>) — can't proxy "completed at". One new column, written only inside the existing toggle transaction.</p>
+
+  <table>
+    <thead><tr><th>Site</th><th>Change</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="file">migrations/&lt;new&gt;.ts</span></td>
+        <td><code>ADD COLUMN completed_at TEXT</code> + <code>CHECK (status = 'done' OR completed_at IS NULL)</code>. Legacy rows backfill <code>NULL</code> — predicate treats <code>NULL</code> as "not stale", so existing done tasks remain visible until the user re-toggles them.</td>
+      </tr>
+      <tr>
+        <td><span class="file">storage/schema.ts</span></td>
+        <td>Add <code>completed_at: string | null</code> to <code>TasksTable</code>.</td>
+      </tr>
+      <tr>
+        <td><span class="file">shared/schemas.ts</span></td>
+        <td><code>completedAt: z.string().nullable()</code> on <code>TaskSchema</code>. <code>BackupSchema</code> inherits via <code>TaskSchema</code>.</td>
+      </tr>
+      <tr>
+        <td><span class="file">storage/tasks.ts</span> — <code>toggle</code> (:243-260)</td>
+        <td><strong>Both halves.</strong> <code>todo→done</code>: set <code>completed_at = now</code>. <code>done→todo</code>: set <code>completed_at = null</code>. The clear-on-untoggle makes the stale set a ratchet, not a sliding window.</td>
+      </tr>
+      <tr>
+        <td><span class="file">storage/tasks.ts</span> — <code>upsert</code> (:92-115)</td>
+        <td>Map <code>task.completedAt</code> into <code>.values()</code> and <code>.doUpdateSet()</code> — backup/restore rides this path.</td>
+      </tr>
+      <tr>
+        <td><span class="file">storage/tasks.ts</span> — <code>rowToTask</code> (~:55)</td>
+        <td>Read <code>r.completed_at → completedAt</code>.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-hickey">
+    <p><span class="callout-label">Hickey (F3, DB-level guard)</span> <span class="arrow">→</span> The <code>CHECK</code> constraint enforces the invariant at the SQLite layer — free, one extra line. Without it, a future direct-edit path could orphan the field silently.</p>
+  </div>
+</section>
+
+<!-- ─── 04: lever UX ─── -->
+<section class="card">
+  <div class="card-head">
+    <span class="card-num">04</span>
+    <span class="card-title">Lever — typing shortcut, parse-on-read</span>
+  </div>
+
+  <p>The lever inserts <code>not done:stale</code> into the <code>query</code> signal. Deactivating parses, filters out the atom, re-serializes — leaving any other typed atoms intact. Its visible state derives from parsing <code>query()</code>: no parallel signal.</p>
+
+  <div class="prototype">
+    <p class="proto-cap">Lever off — full tree</p>
+    <span class="proto-divider"></span>
+    <div class="search">
+      <span class="search-mark"></span>
+      <input value="" placeholder="Search tasks…" readonly />
+      <span class="add-btn">Add</span>
+    </div>
+    <div class="lever-row">
+      <button class="lever" type="button">showing all · <span class="pivot">hide done &gt;24h</span></button>
+    </div>
+    <div class="tree">
+      <div class="row"><span class="check"></span><span class="title">draft PR description</span></div>
+      <div class="row done"><span class="check done"></span><span class="title">grocery list for offsite</span></div>
+      <div class="row done"><span class="check done"></span><span class="title">reply to Sam re: Q3 plan</span></div>
+      <div class="row"><span class="check"></span><span class="title">refactor visibility lever</span></div>
+    </div>
+  </div>
+
+  <div class="prototype" style="margin-top:22px;">
+    <p class="proto-cap">Lever on — atom present in query, stale done elides</p>
+    <span class="proto-divider"></span>
+    <div class="search">
+      <span class="search-mark"></span>
+      <input value="not done:stale" readonly />
+      <span class="add-btn">Add</span>
+    </div>
+    <div class="lever-row">
+      <button class="lever on" type="button"><span class="pivot">showing recent</span> · show all</button>
+    </div>
+    <p class="atoms-sentence">matching <span class="neg">not</span> <span class="atom">done:stale</span></p>
+    <div class="tree">
+      <div class="row"><span class="check"></span><span class="title">draft PR description</span></div>
+      <div class="row done"><span class="check done"></span><span class="title">reply to Sam re: Q3 plan</span></div>
+      <div class="row"><span class="check"></span><span class="title">refactor visibility lever</span></div>
+    </div>
+  </div>
+
+  <div class="prototype" style="margin-top:22px;">
+    <p class="proto-cap">Lever on, user typed extra atoms — composed</p>
+    <span class="proto-divider"></span>
+    <div class="search">
+      <span class="search-mark"></span>
+      <input value="not done:stale groc" readonly />
+      <span class="add-btn">Add</span>
+    </div>
+    <div class="lever-row">
+      <button class="lever on" type="button"><span class="pivot">showing recent</span> · show all</button>
+    </div>
+    <p class="atoms-sentence">matching <span class="neg">not</span> <span class="atom">done:stale</span><span class="sep">·</span><span class="free">"groc"</span></p>
+    <p class="annot">Lever deactivation parses <code>[not done:stale, text:"groc"]</code>, filters out the negation, serializes back to <code>groc</code> — the user's free text survives the click.</p>
+  </div>
+
+  <div class="callout callout-lowy">
+    <p><span class="callout-label">Lowy (E — parse-on-read)</span> <span class="arrow">→</span> "<code>query()</code> is the single source of truth. A parallel <code>leverActive</code> signal kept in sync via effect creates a second receptacle for the same volatility axis — any divergence is a correctness bug. If profiling ever shows the parse cost matters (it won't), wrap in <code>createMemo</code>. Do not introduce a separate signal."</p>
+  </div>
+
+  <div class="callout callout-lowy">
+    <p><span class="callout-label">Lowy (G — persistence)</span> <span class="arrow">→</span> <strong>Session-only signal. No URL hash, no localStorage.</strong> "Both are premature commitments to a query-string serialization format that will change as new atom kinds land. Each new atom is a new round-trip surface; locking the format into a URL contract means breaking deep links every time the grammar grows." Revisit once the grammar stabilizes.</p>
+  </div>
+
+  <div class="callout callout-phil">
+    <p><span class="callout-label">Philosophy</span> <span class="arrow">→</span> Relational, not calendrical. The atom says "the moment has passed", not "you are late". 24h is a grace window, not a deadline. Compatible with the README's eternalist stance — the rule it bans is <em>"Today/This week/Overdue smart lists"</em>; this is the opposite axis.</p>
+  </div>
+</section>
+
+<!-- ─── 05: leaks (precursor) ─── -->
+<section class="card">
+  <div class="card-head">
+    <span class="card-num">05</span>
+    <span class="card-title">Pre-existing leaks fixed in the precursor PR</span>
+  </div>
+
+  <table>
+    <thead><tr><th>#</th><th>Leak</th><th>Fix</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><span class="file">client/highlight.ts</span> rebuilds a <code>RegExp</code> to find match boundaries; <span class="file">shared/filter.ts</span> uses <code>.includes()</code> for the boolean. Two implementations of "where does the needle hit". When <code>evalAtoms</code> lands, <code>highlightSegments</code> will silently fall out of sync.</td>
+        <td>Export <code>matchPositions(title, needle): {start, end}[]</code> from <span class="file">shared/filter.ts</span>. Both <code>matchesQuery</code> (boolean reduction) and <code>highlightSegments</code> (segment rendering) call it. Single computation site.</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><code>byParentMap</code>, <code>sortedWithDepths</code>, <code>siblingsOf</code>, <code>resolveKeyMove</code> are free functions at the top of <span class="file">client/App.tsx</span>. Meanwhile <span class="file">shared/tree.ts</span> already holds <code>ancestorIds</code> / <code>descendantIds</code>. Same conceptual operation (parent-pointer graph walks) split across two files on no principled axis.</td>
+        <td>Move them into <span class="file">shared/tree.ts</span>. App.tsx becomes a pure orchestrator.</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><span class="file">client/App.tsx:208-227</span> hardcodes the "show matches + their ancestors, dim the ancestors" policy inline in the <code>rows</code> memo. Not testable, not re-callable from <code>evalAtoms</code>.</td>
+        <td>Extract <code>applyFilter(sorted, predicate, now): Row[]</code> as a pure function. The <code>rows</code> memo becomes a one-liner. Predicate is named, testable, re-callable — making the feature PR's <code>evalAtoms</code> integration trivial.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ─── 06: forward ─── -->
+<section class="card">
+  <div class="card-head">
+    <span class="card-num">06</span>
+    <span class="card-title">Forward extensibility</span>
+  </div>
+
+  <div class="callout callout-amber">
+    <p><span class="callout-label">When future atoms land</span> <span class="arrow">→</span> Each new atom kind is one new variant in the union + one new branch in <code>parseAtoms</code> + one new branch in <code>evalAtom</code>. The data-model dependencies travel with the atom that needs them — <code>tag:</code> ships with tag storage; <code>has:body</code> ships with body content; <code>root</code> / <code>under:title</code> are pure tree walks via the already-consolidated <span class="file">shared/tree.ts</span>. The grammar PR closes; the data-model PRs that bring each new atom open separately.</p>
+  </div>
+</section>
+
+<p class="footnote">Ready to <code>/do</code> when you are — precursor PR first, then feature PR. Open knobs before kickoff: the lever's verb pair (currently <em>"showing all / showing recent"</em>), and whether the atoms-sentence renders only when at least one structured atom is parsed (free text alone might stay implicit, as it does today).</p>
+
+</main>
+</body>
+</html>

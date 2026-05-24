@@ -55,6 +55,7 @@ const rowToTask = (r: DbTask): Task => ({
   position: r.position,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
+  completedAt: r.completed_at,
 });
 
 // Initial spacing between sibling positions, also the step size when
@@ -100,6 +101,7 @@ export const taskStore = (db: Kysely<Database>) => {
           position: task.position,
           created_at: task.createdAt,
           updated_at: task.updatedAt,
+          completed_at: task.completedAt,
         })
         .onConflict((oc) =>
           oc.column("id").doUpdateSet({
@@ -109,6 +111,7 @@ export const taskStore = (db: Kysely<Database>) => {
             position: task.position,
             created_at: task.createdAt,
             updated_at: task.updatedAt,
+            completed_at: task.completedAt,
           }),
         )
         .execute();
@@ -139,6 +142,7 @@ export const taskStore = (db: Kysely<Database>) => {
             position,
             created_at: now,
             updated_at: now,
+            completed_at: null,
           })
           .returningAll()
           .executeTakeFirstOrThrow();
@@ -250,9 +254,18 @@ export const taskStore = (db: Kysely<Database>) => {
           .where("id", "=", id)
           .executeTakeFirst();
         if (!current) throw new Error(`Task ${id} not found`);
+        const next = nextInCycle(current.status);
+        const now = new Date().toISOString();
+        // Whichever transition lands on 'done' stamps completed_at; any
+        // transition that leaves 'done' (today: done→todo) clears it.
+        // The CHECK constraint on tasks.completed_at depends on this
+        // contract — without the clear-on-leave, a row could carry a
+        // stale timestamp through todo / doing.
+        const completedAt =
+          next === "done" ? now : current.status === "done" ? null : current.completed_at;
         const updated = await trx
           .updateTable("tasks")
-          .set({ status: nextInCycle(current.status), updated_at: new Date().toISOString() })
+          .set({ status: next, updated_at: now, completed_at: completedAt })
           .where("id", "=", id)
           .returningAll()
           .executeTakeFirstOrThrow();
@@ -297,6 +310,7 @@ export const taskStore = (db: Kysely<Database>) => {
               position: t.position,
               created_at: t.createdAt,
               updated_at: t.updatedAt,
+              completed_at: t.completedAt,
             })),
           )
           .execute();

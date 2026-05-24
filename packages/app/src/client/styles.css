@@ -355,6 +355,99 @@ h1 {
   }
 }
 
+/* ── Filter meta: atoms sentence + visibility lever ────────────────── */
+
+/* Sits between the search container and the tree. Two children: the
+   atoms sentence (only when at least one structured atom is parsed) and
+   the visibility lever (always rendered). Both follow the breadcrumb's
+   hairline-italic idiom — quiet, not chrome. */
+.filter-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  margin: -18px 4px 22px;
+  min-height: 22px;
+  flex-wrap: wrap;
+}
+
+.atoms-sentence {
+  margin: 0;
+  color: var(--muted);
+  font: italic 400 13.5px / 1.4 var(--font-serif);
+  font-variation-settings: "opsz" 14;
+  letter-spacing: 0.005em;
+  flex: 1;
+  min-width: 0;
+
+  & .atoms-prefix {
+    font-style: italic;
+  }
+
+  & .atom-structured {
+    font-style: normal;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--accent-deep);
+    letter-spacing: 0;
+  }
+
+  & .atom-text,
+  & .atom-not {
+    font-style: normal;
+    color: var(--ink-soft);
+  }
+
+  & .atoms-sep {
+    color: var(--rule);
+    margin: 0 7px;
+  }
+}
+
+/* Hairline two-state toggle. The pivot word is the click affordance —
+   its sibling is dimmed muted text. On = the active pivot turns accent;
+   off = the inactive side is muted. No background, no border, no chrome —
+   the lever inserts/removes an atom from the search query, so the typed
+   query is the visible state and the lever just nudges it. */
+.lever {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: italic 400 13.5px / 1.4 var(--font-serif);
+  font-variation-settings: "opsz" 14;
+  color: var(--muted);
+  cursor: pointer;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+  flex-shrink: 0;
+
+  /* margin-left: auto pins the lever to the right edge of .filter-meta
+     regardless of whether the atoms-sentence sibling is rendered.
+     Without it, justify-content: space-between collapses to flex-start
+     when the lever is the only child (off state, no structured atoms),
+     which makes the lever slide between left and right as the user
+     types structured atoms. The pin keeps the right edge stable. */
+  margin-left: auto;
+
+  /* Pivot = the action word (the click target). Always the action,
+     always accent — consistent across both states. Lever-engaged signal
+     lives in the prose ("showing all" ↔ "showing recent") and in the
+     atoms-sentence that appears below the search box, not in the pivot's
+     color. */
+  & .lever-pivot {
+    font-style: normal;
+    color: var(--accent-deep);
+    border-bottom: 1px solid var(--accent);
+    padding-bottom: 1px;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent-soft);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+}
+
 /* ── Tree ──────────────────────────────────────────────────────────── */
 
 .tree {

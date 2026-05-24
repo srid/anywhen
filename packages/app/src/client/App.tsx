@@ -23,7 +23,16 @@ import {
   Show,
 } from "solid-js";
 import MarkdownIt from "markdown-it";
-import { applyFilter, matchesQuery, type Row } from "../shared/filter";
+import {
+  type Atom,
+  atomEquals,
+  atomToDisplayString,
+  evalAtoms,
+  HIDE_STALE_DONE,
+  parseAtoms,
+  serializeAtoms,
+} from "../shared/atoms";
+import { applyFilter, type Row } from "../shared/filter";
 import { normalizeQuery } from "../shared/input";
 import {
   BackupSchema,
@@ -54,6 +63,15 @@ const api = app.rpc.surface.tasks;
 const runtimeApi = app.rpc.surface.runtime;
 
 const REPO_URL = "https://github.com/srid/anywhen";
+
+// Per-kind CSS class for the atoms-sentence rendering. A record so the
+// JSX stays a single lookup and a new atom kind only needs one entry
+// here plus the matching `.atom-*` rule in styles.css.
+const ATOM_CLASS: Record<Atom["kind"], string> = {
+  text: "atom-text",
+  done: "atom-structured",
+  not: "atom-not",
+};
 
 // Map a pointer's Y inside a row to a drop zone. Top quarter → before, bottom
 // quarter → after, middle half → inside (re-parent). Symmetric so the user
@@ -195,14 +213,70 @@ export function App() {
   // same gate.
   const activeQuery = createMemo<string | null>(() => normalizeQuery(query()) || null);
 
+  // Parsed atom list — the structured view of `query`. Both the filter
+  // pipeline and the visibility lever derive their state from this single
+  // source of truth (the raw `query` signal); no parallel boolean for the
+  // lever, no separate "is filter active" flag.
+  const atomList = createMemo<Atom[]>(() => parseAtoms(query()));
+
+  // Joined free-text needles for row-title highlight. Structured atoms
+  // (`done:X`, `not done:X`) don't highlight anything in titles, so the
+  // highlight tracks only the text atoms the user typed.
+  const highlightQuery = createMemo<string>(() =>
+    atomList()
+      .flatMap((a) => (a.kind === "text" ? [a.needle] : []))
+      .join(" "),
+  );
+
+  // Per-minute reactive clock for the staleness evaluator — without this,
+  // `done:stale` would only re-fire when something else in the filter
+  // pipeline changed, so a task crossing the 24h boundary wouldn't elide
+  // until the next interaction. Deliberately separate from MeridianRule's
+  // clock: that one signals `Date` for hour/minute → SVG x-coordinate;
+  // this one signals `number` (epoch ms) for `Date.parse` arithmetic
+  // against `completedAt`. The two coincide at 60s by accident of human
+  // perception, not as a shared invariant — if MeridianRule moved to 30s
+  // for visual smoothness or this evaluator moved to 5m for background-tab
+  // throttling, the other would stay correct.
+  const [now, setNow] = createSignal(Date.now());
+  onMount(() => {
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    onCleanup(() => clearInterval(t));
+  });
+
   const sorted = createMemo<SortedTask[]>(() => sortedWithDepths(taskList()));
 
   const rows = createMemo<Row[]>(() => {
-    const q = activeQuery();
-    // Match the displayed first line (not the raw multi-line title) so a
-    // surviving row always carries the matching <mark>; otherwise body-only
-    // matches read as "this row passed the filter for no visible reason."
-    return applyFilter(sorted(), q ? (t) => matchesQuery(splitTitle(t.title).label, q) : null);
+    const atoms = atomList();
+    if (atoms.length === 0) return applyFilter(sorted(), null);
+    const nowMs = now();
+    // Text atoms match the displayed first line (not the raw multi-line
+    // title) so a surviving row always carries the matching <mark>;
+    // otherwise body-only matches read as "this row passed the filter
+    // for no visible reason." Done/not atoms ignore title shape.
+    return applyFilter(sorted(), (task) => evalAtoms(atoms, task, nowMs));
+  });
+
+  // The lever is a typing shortcut: activating inserts HIDE_STALE_DONE
+  // into the query; deactivating filters it out. State derives from
+  // parsing `query()` — no parallel signal, so a deep-link or paste that
+  // happens to contain `not done:stale` reflects in the lever's pressed
+  // state without extra wiring.
+  const leverOn = createMemo<boolean>(() => atomList().some((a) => atomEquals(a, HIDE_STALE_DONE)));
+
+  const toggleLever = () => {
+    const current = atomList();
+    const next = leverOn()
+      ? current.filter((a) => !atomEquals(a, HIDE_STALE_DONE))
+      : [...current, HIDE_STALE_DONE];
+    setQuery(serializeAtoms(next));
+  };
+
+  // Add is disabled whenever the parsed atoms include any structured
+  // (non-text) atom — the user is filtering, not naming a task.
+  const canCreate = createMemo<boolean>(() => {
+    const atoms = atomList();
+    return atoms.length > 0 && atoms.every((a) => a.kind === "text");
   });
 
   // Two variants so the "success clears the error toast" policy applies
@@ -234,6 +308,9 @@ export function App() {
   };
 
   const createFromInput = async () => {
+    // Refuse when the query has any structured atom — the user is filtering,
+    // not naming a task. Same gate the Add button uses to disable itself.
+    if (!canCreate()) return;
     const title = activeQuery();
     if (!title) return;
     // Clear the input synchronously before the await so subsequent keystrokes
@@ -674,10 +751,48 @@ export function App() {
           data-testid="add-button"
           aria-label="Add task (Enter)"
           title="Add task (Enter)"
-          disabled={!activeQuery()}
+          disabled={!canCreate()}
           onClick={() => void createFromInput()}
         >
           Add
+        </button>
+      </div>
+
+      <div class="filter-meta" data-testid="filter-meta">
+        <Show when={atomList().some((a) => a.kind !== "text")}>
+          <p class="atoms-sentence" data-testid="atoms-sentence">
+            <span class="atoms-prefix">matching </span>
+            <For each={atomList()}>
+              {(atom, idx) => (
+                <>
+                  <Show when={idx() > 0}>
+                    <span class="atoms-sep">·</span>
+                  </Show>
+                  <span class={ATOM_CLASS[atom.kind]}>{atomToDisplayString(atom)}</span>
+                </>
+              )}
+            </For>
+          </p>
+        </Show>
+        <button
+          type="button"
+          class="lever"
+          classList={{ on: leverOn() }}
+          data-testid="visibility-lever"
+          aria-pressed={leverOn()}
+          aria-label={leverOn() ? "Show all tasks" : "Hide tasks done over 24 hours ago"}
+          onClick={toggleLever}
+        >
+          <Show
+            when={leverOn()}
+            fallback={
+              <>
+                showing all · <span class="lever-pivot">hide done &gt;24h</span>
+              </>
+            }
+          >
+            showing recent · <span class="lever-pivot">show all</span>
+          </Show>
         </button>
       </div>
 
@@ -687,7 +802,7 @@ export function App() {
           fallback={
             <div class="empty">
               {activeQuery()
-                ? `No tasks match "${activeQuery()}". Press Enter to add it.`
+                ? `No tasks match "${activeQuery()}".${canCreate() ? " Press Enter to add it." : ""}`
                 : "No tasks yet. Type a title and press Enter (or tap Add)."}
               <Show when={!activeQuery()}>
                 <span class="empty-quote" data-testid="empty-quote">
@@ -799,7 +914,7 @@ export function App() {
                       when={isEditing()}
                       fallback={
                         <span class="title">
-                          <For each={highlightSegments(firstLine(), activeQuery() ?? "")}>
+                          <For each={highlightSegments(firstLine(), highlightQuery())}>
                             {(seg) =>
                               seg.match ? <mark>{seg.text}</mark> : <span>{seg.text}</span>
                             }

@@ -57,7 +57,11 @@ attention, not to compete for it.
 > advances status through the cycle, `/` focuses the search box) + live filter (type a
 > query — matches highlight in their
 > own row, ancestors stay visible but dimmed so the path to a match is
-> intact) + mobile-friendly layout (responsive media queries, touch-sized
+> intact; structured atoms `done:no`, `done:yes`, `done:fresh`,
+> `done:stale`, and `not <atom>` AND-compose with the free text — a
+> hairline lever beside the search box inserts `not done:stale` as a
+> one-click way to hide tasks finished more than a day ago) +
+> mobile-friendly layout (responsive media queries, touch-sized
 > tap targets, always-visible row actions and grip handles on coarse
 > pointers) + PWA
 > (installable from the browser, with a service worker that caches the
@@ -81,8 +85,8 @@ attention, not to compete for it.
 > rows stay the same height as single-line ones, expanding pushes the
 > body inline beneath; mobile-friendly with the chevron always on
 > coarse pointers).
-> Filter atoms, tags, due dates, blocked-by, and the detail panel
-> land in later PRs.
+> Further filter atoms (tag, has:body, root, under:title), tags, due
+> dates, blocked-by, and the detail panel land in later PRs.
 
 ## Stack
 
