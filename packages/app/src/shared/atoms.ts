@@ -121,13 +121,15 @@ export const atomToDisplayString = (atom: Atom): string => {
 
 export const atomEquals = (a: Atom, b: Atom): boolean => {
   if (a.kind !== b.kind) return false;
+  // b.kind === a.kind at this point; re-switch on b so TypeScript narrows
+  // both sides without Extract<> casts.
   switch (a.kind) {
     case "text":
-      return a.needle === (b as Extract<Atom, { kind: "text" }>).needle;
+      return b.kind === "text" && a.needle === b.needle;
     case "done":
-      return a.value === (b as Extract<Atom, { kind: "done" }>).value;
+      return b.kind === "done" && a.value === b.value;
     case "not":
-      return atomEquals(a.inner, (b as Extract<Atom, { kind: "not" }>).inner);
+      return b.kind === "not" && atomEquals(a.inner, b.inner);
   }
 };
 
