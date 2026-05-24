@@ -35,6 +35,7 @@ import {
   ZONE_AFTER_RATIO,
   ZONE_BEFORE_RATIO,
 } from "../shared/schemas";
+import { splitTitle } from "../shared/title";
 import { ancestorIds, descendantIds } from "../shared/tree";
 import { Breadcrumb } from "./Breadcrumb";
 import { highlightSegments } from "./highlight";
@@ -138,19 +139,6 @@ const DRAG_MOVE_THRESHOLD = 5;
 // accessible blocker. When we eventually grow a modal, only this body
 // changes — every destructive call site already speaks through the name.
 const confirmDestructive = (message: string): boolean => window.confirm(message);
-
-// Multi-line title parsing. A task's `title` is one string where the first
-// line is the row label and any remaining lines are the markdown body —
-// keeping both in one field means no schema change, no separate edit verb,
-// and one user-visible "title" concept that grows from one line to many.
-const firstLineOf = (title: string): string => {
-  const i = title.indexOf("\n");
-  return i === -1 ? title : title.slice(0, i);
-};
-const bodyOf = (title: string): string => {
-  const i = title.indexOf("\n");
-  return i === -1 ? "" : title.slice(i + 1).trimEnd();
-};
 
 // markdown-it with `html: false` strips raw HTML in user content — no
 // `<script>` smuggling even though anywhen is single-user; the cost is one
@@ -748,8 +736,12 @@ export function App() {
               let rowEl!: HTMLDivElement;
               let editInputRef: HTMLTextAreaElement | undefined;
               const isEditing = createMemo(() => editing()?.id === row.task.id);
-              const firstLine = createMemo(() => firstLineOf(row.task.title));
-              const body = createMemo(() => bodyOf(row.task.title));
+              // One memo, one split — keeps label and body derived from a
+              // single `splitTitle` call rather than two independent
+              // `indexOf('\n')` walks that could disagree.
+              const split = createMemo(() => splitTitle(row.task.title));
+              const firstLine = createMemo(() => split().label);
+              const body = createMemo(() => split().body);
               // When focusedId matches this row, focus its DOM element. Runs
               // on mount and whenever focusedId changes — so a mutation that
               // tears down and rebuilds this row (Collection delta after
