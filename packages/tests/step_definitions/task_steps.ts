@@ -133,14 +133,8 @@ When("I press Enter in the search box", async function (this: AnywhenWorld) {
   await this.page.locator('[data-testid="search-input"]').press("Enter");
 });
 
-// Override the universal accept-handler for exactly one dialog. The Given that
-// re-runs at the start of every scenario re-registers the universal handler,
-// so the scope of this override is the rest of the current scenario.
 When("I dismiss the next confirmation dialog", async function (this: AnywhenWorld) {
-  this.page.removeAllListeners("dialog");
-  this.page.once("dialog", async (d) => {
-    await d.dismiss();
-  });
+  this.dismissNextConfirm();
 });
 
 // Type a title + commit with Enter. Used everywhere a scenario needs to seed
