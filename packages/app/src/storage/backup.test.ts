@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from "bun:test";
-import { mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BackupSchema } from "../shared/schemas";
@@ -47,7 +47,7 @@ test("pruneBackups deletes files whose mtime is older than retention; keeps the 
     return p;
   };
   // backupDir doesn't exist yet — writeFileSync needs it
-  require("node:fs").mkdirSync(backupDir, { recursive: true });
+  mkdirSync(backupDir, { recursive: true });
   const stale = make("anywhen-backup-2026-05-14T00-00-00-000Z.json", 10 * day);
   make("anywhen-backup-2026-05-21T00-00-00-000Z.json", 3 * day);
   make("anywhen-backup-2026-05-24T16-30-00-000Z.json", 60 * 60 * 1000);
