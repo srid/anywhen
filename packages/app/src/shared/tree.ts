@@ -26,6 +26,24 @@ export const ancestorIds = <Id>(seeds: Iterable<Id>, parentOf: (id: Id) => Id | 
   return out;
 };
 
+// Walk upward from a single seed, returning the ordered root-first path of
+// ancestors (excludes the seed). The ancestor *set* (see ancestorIds) covers
+// "is this id in someone's lineage"; the ancestor *path* covers "what is this
+// id's lineage, in order" — e.g. rendering a breadcrumb. The walk algorithm
+// is identical: cycle-guarded by a Set of visited ids, mirroring ancestorIds
+// so a future change to parent-pointer semantics lands in one module.
+export const ancestorPath = <Id>(seed: Id, parentOf: (id: Id) => Id | null): Id[] => {
+  const path: Id[] = [];
+  const visited = new Set<Id>();
+  let cursor = parentOf(seed);
+  while (cursor !== null && !visited.has(cursor)) {
+    visited.add(cursor);
+    path.push(cursor);
+    cursor = parentOf(cursor);
+  }
+  return path.reverse();
+};
+
 // Walk downward from `rootId`, collecting every descendant reachable via
 // `childrenOf`. Excludes the root itself.
 export const descendantIds = <Id>(rootId: Id, childrenOf: (id: Id) => Iterable<Id>): Set<Id> => {

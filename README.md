@@ -2,6 +2,45 @@
 
 A personal task manager. One search box: filter the tree, or add to it.
 
+## Philosophy
+
+**anywhen — any-when.** Tasks live in eternity; the present moment is
+wherever your attention is. The UI is built on a few stances:
+
+- **No urgency theater.** No red, no "overdue", no due-today badge, no
+  notifications. The app never tries to make you feel late.
+- **No counts in chrome.** "12 of 247 tasks" creates pressure where the
+  tree itself is the truth. If you want a count, look.
+- **No surfaced timestamps.** `createdAt` / `updatedAt` exist on the row;
+  they're never on the page. The day you wrote a task isn't the day
+  you should do it.
+- **One search box.** Filter and add are the same gesture: type. The
+  present moment is one keystroke wide.
+- **Done is a state, not a triumph.** Strikethrough and italic — no
+  confetti, no streaks.
+- **The tree is given.** No pagination, no "load more", no depth limit.
+  Space is infinite; depth is yours. Long titles wrap; never truncate.
+- **The meridian rule marks the now.** The hairline under the wordmark
+  carries one accent dot at the current local time. It moves once per
+  minute, never glows, never carries a number — time passes; nothing is
+  owed.
+
+### What this rules out
+
+So a future contributor doesn't accidentally undo the stance:
+
+- "Today" / "This week" / "Overdue" smart lists.
+- Calendar grid views.
+- Streak counters, weekly completion rings, "you did 17 tasks!" toasts.
+- Push or browser notifications. The PWA is installable, not noisy.
+- Title-bar / favicon badges with unread counts.
+- Truncated titles with ellipses.
+- "Pin to top" / "snooze until" verbs. Position in the tree is the only
+  sorting.
+
+When in doubt: the app's job is to be a quiet place to keep your
+attention, not to compete for it.
+
 > **Status**: scaffold + add a task (press `↵` in the search box, or tap
 > the Add button) + view the tree + toggle done + edit the title
 > inline (press `e` on a focused row, or tap the pencil button — Enter
@@ -25,7 +64,10 @@ A personal task manager. One search box: filter the tree, or add to it.
 > file — drop the export into Dropbox/git/etc. for off-app retention)
 > + runtime info footer (GitHub source link, server hostname, SQLite
 > path — so a user opening the app can see where their data lives at a
-> glance).
+> glance) + ancestor breadcrumb (selecting a nested row reveals its
+> lineage as a hairline italic sentence above the search box —
+> disappears when nothing is selected or when a root-level row holds
+> focus).
 > Filter atoms, tags, due dates, body, blocked-by, and the detail panel
 > land in later PRs.
 

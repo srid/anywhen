@@ -35,7 +35,9 @@ import {
   ZONE_BEFORE_RATIO,
 } from "../shared/schemas";
 import { ancestorIds, descendantIds } from "../shared/tree";
+import { Breadcrumb } from "./Breadcrumb";
 import { highlightSegments } from "./highlight";
+import { MeridianRule } from "./MeridianRule";
 import { app } from "./wire";
 
 const api = app.rpc.surface.tasks;
@@ -641,33 +643,7 @@ export function App() {
         </h1>
       </header>
 
-      <svg class="meridian" viewBox="0 0 240 12" preserveAspectRatio="none" aria-hidden="true">
-        <line
-          x1="0"
-          y1="6"
-          x2="240"
-          y2="6"
-          stroke="currentColor"
-          stroke-width="0.5"
-          opacity="0.5"
-        />
-        <For each={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]}>
-          {(i) => {
-            const major = i % 3 === 0;
-            return (
-              <line
-                x1={i * 20}
-                x2={i * 20}
-                y1={major ? 2 : 4}
-                y2={major ? 10 : 8}
-                stroke="currentColor"
-                stroke-width={major ? 0.8 : 0.5}
-                opacity={major ? 0.7 : 0.4}
-              />
-            );
-          }}
-        </For>
-      </svg>
+      <MeridianRule />
 
       <p class="tagline">
         A personal task manager. <em>One search box</em>: filter the tree, or add to it.
@@ -680,6 +656,8 @@ export function App() {
           </div>
         )}
       </Show>
+
+      <Breadcrumb selectedId={selected} tasks={taskList} />
 
       <div class="search">
         <svg class="search-mark" viewBox="0 0 24 24" aria-hidden="true">
@@ -720,6 +698,11 @@ export function App() {
               {activeQuery()
                 ? `No tasks match "${activeQuery()}". Press Enter to add it.`
                 : "No tasks yet. Type a title and press Enter (or tap Add)."}
+              <Show when={!activeQuery()}>
+                <span class="empty-quote" data-testid="empty-quote">
+                  — there is no rush; the tree begins whenever you do.
+                </span>
+              </Show>
             </div>
           }
         >
