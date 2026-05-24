@@ -173,8 +173,7 @@ export function App() {
   // highlight tracks only the text atoms the user typed.
   const highlightQuery = createMemo<string>(() =>
     atomList()
-      .filter((a): a is Extract<Atom, { kind: "text" }> => a.kind === "text")
-      .map((a) => a.needle)
+      .flatMap((a) => (a.kind === "text" ? [a.needle] : []))
       .join(" "),
   );
 
