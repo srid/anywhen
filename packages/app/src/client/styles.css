@@ -421,6 +421,14 @@ h1 {
   white-space: nowrap;
   flex-shrink: 0;
 
+  /* margin-left: auto pins the lever to the right edge of .filter-meta
+     regardless of whether the atoms-sentence sibling is rendered.
+     Without it, justify-content: space-between collapses to flex-start
+     when the lever is the only child (off state, no structured atoms),
+     which makes the lever slide between left and right as the user
+     types structured atoms. The pin keeps the right edge stable. */
+  margin-left: auto;
+
   /* Pivot = the action word (the click target). Always the action,
      always accent — consistent across both states. Lever-engaged signal
      lives in the prose ("showing all" ↔ "showing recent") and in the
