@@ -189,9 +189,13 @@ export function App() {
   // Per-minute reactive clock for the staleness evaluator — without this,
   // `done:stale` would only re-fire when something else in the filter
   // pipeline changed, so a task crossing the 24h boundary wouldn't elide
-  // until the next interaction. The MeridianRule owns its own signal;
-  // a second per-minute interval here is negligible and keeps that
-  // component self-contained.
+  // until the next interaction. Deliberately separate from MeridianRule's
+  // clock: that one signals `Date` for hour/minute → SVG x-coordinate;
+  // this one signals `number` (epoch ms) for `Date.parse` arithmetic
+  // against `completedAt`. The two coincide at 60s by accident of human
+  // perception, not as a shared invariant — if MeridianRule moved to 30s
+  // for visual smoothness or this evaluator moved to 5m for background-tab
+  // throttling, the other would stay correct.
   const [now, setNow] = createSignal(Date.now());
   onMount(() => {
     const t = setInterval(() => setNow(Date.now()), 60_000);
