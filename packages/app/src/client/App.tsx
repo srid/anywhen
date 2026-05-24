@@ -61,6 +61,15 @@ const runtimeApi = app.rpc.surface.runtime;
 
 const REPO_URL = "https://github.com/srid/anywhen";
 
+// Per-kind CSS class for the atoms-sentence rendering. A record so the
+// JSX stays a single lookup and a new atom kind only needs one entry
+// here plus the matching `.atom-*` rule in styles.css.
+const ATOM_CLASS: Record<Atom["kind"], string> = {
+  text: "atom-text",
+  done: "atom-structured",
+  not: "atom-not",
+};
+
 // Map a pointer's Y inside a row to a drop zone. Top quarter → before, bottom
 // quarter → after, middle half → inside (re-parent). Symmetric so the user
 // can always nudge a task one step up, one step down, or one level deeper.
@@ -704,17 +713,7 @@ export function App() {
                   <Show when={idx() > 0}>
                     <span class="atoms-sep">·</span>
                   </Show>
-                  <span
-                    class={
-                      atom.kind === "text"
-                        ? "atom-text"
-                        : atom.kind === "not"
-                          ? "atom-not"
-                          : "atom-structured"
-                    }
-                  >
-                    {atomToDisplayString(atom)}
-                  </span>
+                  <span class={ATOM_CLASS[atom.kind]}>{atomToDisplayString(atom)}</span>
                 </>
               )}
             </For>
