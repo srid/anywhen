@@ -268,11 +268,13 @@ h1 {
   }
 }
 
-/* .search-mark stays top-level (not nested into .search). Nesting it as
-   `.search { & .search-mark }` would raise the base specificity to
+/* .search-mark base styles stay top-level (not nested into .search). Nesting
+   the base block as `.search { & .search-mark }` would raise its specificity to
    `.search .search-mark` (0,2,0), and the mobile `@media (max-width: 600px)`
-   override at the bottom — still `.search-mark { ... }` (0,1,0) — would lose.
-   See the invariant note above that @media block. */
+   override — still `.search-mark { ... }` (0,1,0) — would silently lose.
+   The focus-state override (color/opacity inside .search:focus-within) IS nested
+   at (0,2,0), but the mobile block only changes left/width/height, so no conflict.
+   See the invariant note above the @media block. */
 .search-mark {
   position: absolute;
   left: 16px;
