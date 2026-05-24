@@ -35,6 +35,10 @@ export const sortedWithDepths = (tasks: Task[]): SortedTask[] => {
   return out;
 };
 
+// Rebuilds byParentMap on every call rather than taking a pre-built one:
+// the caller is a keyboard-paced resolveKeyMove, so the per-call O(n)
+// allocation is fine and threading a shared map through the signature
+// would complect this function's contract with the caller's caching.
 const siblingsOf = (
   tasks: Task[],
   id: TaskId,
