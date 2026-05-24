@@ -108,17 +108,12 @@ Given("the app is running with a fresh database", async function (this: AnywhenW
     headers: { "content-type": "application/json" },
   });
   if (!res.ok) throw new Error(`Reset failed: ${res.status} ${await res.text()}`);
-  // Universal dialog auto-accept for every scenario. The page object is
-  // reused across scenarios, so clear any prior listeners before
-  // registering — that keeps "exactly one dialog handler at scenario
-  // start" a mechanical property of this step rather than an invariant
-  // the override step has to reconstruct. A scenario that needs to assert
-  // *that* a dialog appeared, or dismiss rather than accept, overrides
-  // this handler explicitly inside its own step.
-  this.page.removeAllListeners("dialog");
-  this.page.on("dialog", async (d) => {
-    await d.accept();
-  });
+  // Reset to "accept all" at scenario start. acceptAllDialogs() clears
+  // prior listeners before registering, so the page always has exactly
+  // one handler at scenario start. A scenario that needs to dismiss
+  // overrides via dismissNextConfirm(), which restores the universal
+  // accept after its one-shot fires.
+  this.acceptAllDialogs();
   await this.page.goto(this.serverUrl);
   await this.page.locator('[data-testid="search-input"]').waitFor({ state: "visible" });
   await this.page.waitForLoadState("networkidle");

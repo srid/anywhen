@@ -11,16 +11,23 @@ export class AnywhenWorld extends World {
   // `.clone().json()` so the world holds one fact, not three.
   lastHttpResponse?: Response;
 
+  // Register the universal auto-accept handler. Called at scenario start
+  // and after a one-shot dismiss fires, so the page always has exactly one
+  // dialog handler unless an override is in flight.
+  acceptAllDialogs(): void {
+    this.page.removeAllListeners("dialog");
+    this.page.on("dialog", (d) => void d.accept());
+  }
+
   // Override the universal accept-handler for one dialog, then restore it.
   // After the .once fires the universal handler is back in place, so any
   // further dialog in the same scenario is accepted rather than left
-  // unhandled. Centralized here so the Playwright dialog-event mechanics
-  // live in one place — step definitions just declare intent.
+  // unhandled.
   dismissNextConfirm(): void {
     this.page.removeAllListeners("dialog");
     this.page.once("dialog", async (d) => {
       await d.dismiss();
-      this.page.on("dialog", (d2) => void d2.accept());
+      this.acceptAllDialogs();
     });
   }
 }
