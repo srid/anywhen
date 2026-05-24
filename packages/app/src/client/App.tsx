@@ -719,7 +719,6 @@ export function App() {
                     ref={rowEl}
                     class="row"
                     classList={{
-                      "is-doing": row.task.status === "doing",
                       "is-done": row.task.status === "done",
                       selected: selected() === row.task.id,
                       dragging: drag()?.id === row.task.id,
