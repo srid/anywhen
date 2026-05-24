@@ -110,10 +110,6 @@ export function startBackupScheduler(
 ): void {
   const intervalMs = opts.intervalMs ?? BACKUP_INTERVAL_MS;
   const retentionMs = opts.retentionMs ?? BACKUP_RETENTION_MS;
-  const sleep = (ms: number) =>
-    new Promise<void>((resolve) => {
-      setTimeout(resolve, ms);
-    });
   void (async () => {
     while (true) {
       try {
@@ -123,7 +119,7 @@ export function startBackupScheduler(
       } catch (err) {
         console.error("[backup] tick failed:", err);
       }
-      await sleep(intervalMs);
+      await Bun.sleep(intervalMs);
     }
   })();
 }
