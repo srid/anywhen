@@ -131,18 +131,24 @@ export const atomEquals = (a: Atom, b: Atom): boolean => {
   }
 };
 
-// Predicates for the done-axis refinements. `completedAt === null` (a
-// legacy or test-imported done row) is treated as "completion time
-// unknown": neither fresh nor stale, so neither `done:fresh` nor
-// `done:stale` matches it. `done:yes` still does.
+// Age of the completion event, or null if the task isn't done with a known
+// timestamp. `completedAt === null` (a legacy or test-imported done row)
+// is treated as "completion time unknown" — both isStaleDone and
+// isFreshDone return false, so neither `done:fresh` nor `done:stale`
+// matches it. `done:yes` still does.
+const completedAgeMs = (task: Task, now: number): number | null => {
+  if (task.status !== "done" || task.completedAt === null) return null;
+  return now - Date.parse(task.completedAt);
+};
+
 const isStaleDone = (task: Task, now: number): boolean => {
-  if (task.status !== "done" || task.completedAt === null) return false;
-  return now - Date.parse(task.completedAt) > STALE_THRESHOLD_MS;
+  const age = completedAgeMs(task, now);
+  return age !== null && age > STALE_THRESHOLD_MS;
 };
 
 const isFreshDone = (task: Task, now: number): boolean => {
-  if (task.status !== "done" || task.completedAt === null) return false;
-  return now - Date.parse(task.completedAt) <= STALE_THRESHOLD_MS;
+  const age = completedAgeMs(task, now);
+  return age !== null && age <= STALE_THRESHOLD_MS;
 };
 
 export const evalAtom = (atom: Atom, task: Task, now: number): boolean => {
