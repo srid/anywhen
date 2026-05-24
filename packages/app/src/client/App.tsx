@@ -32,6 +32,7 @@ import {
   type MoveTarget,
   type Task,
   type TaskId,
+  type TaskStatus,
   ZONE_AFTER_RATIO,
   ZONE_BEFORE_RATIO,
 } from "../shared/schemas";
@@ -99,6 +100,21 @@ const confirmDestructive = (message: string): boolean => window.confirm(message)
 //                       <br>. Bodies tend to be paragraphs, not poetry.
 const MD_OPTIONS = { html: false, linkify: true, breaks: false } as const;
 const md = new MarkdownIt(MD_OPTIONS);
+
+// ARIA `aria-pressed` token per lifecycle status. The check is a toggle
+// button (advances state on click) not a checkbox — `aria-pressed`
+// natively supports tri-state `"true" | "false" | "mixed"` on a <button>
+// without forcing a `role="checkbox"` override that biome's a11y lint
+// (correctly) flags. Lives in the presentation layer because the values
+// are WAI-ARIA spec constants — UI protocol, not domain policy.
+// `Record<TaskStatus, …>` makes a future fourth status a TypeScript error
+// at this declaration site rather than a silent `"false"` fallback if it
+// were a chained ternary on the row's JSX.
+const STATUS_TO_ARIA_PRESSED: Record<TaskStatus, "true" | "false" | "mixed"> = {
+  todo: "false",
+  doing: "mixed",
+  done: "true",
+};
 
 // Backup filename uses the local date — Dropbox-friendly, sorts well,
 // and matches the unit the user thinks in ("today's backup").
@@ -237,8 +253,8 @@ export function App() {
     await createFromInput();
   };
 
-  const toggle = async (id: TaskId) => {
-    await callWrite(() => api.toggle(id));
+  const cycleStatus = async (id: TaskId) => {
+    await callWrite(() => api.cycleStatus(id));
     setFocusedId(id);
   };
 
@@ -348,7 +364,7 @@ export function App() {
   // Composite key "Shift+Tab" is encoded as the lookup key so the Tab and
   // Shift+Tab cases don't need a nested conditional inside the handler.
   const ROW_KEY_ACTIONS: Record<string, (id: TaskId) => void> = {
-    " ": (id) => void toggle(id),
+    " ": (id) => void cycleStatus(id),
     // vim primary  │  ARIA alias
     x: (id) => void remove(id),
     Backspace: (id) => void remove(id),
@@ -699,7 +715,7 @@ export function App() {
               // When focusedId matches this row, focus its DOM element. Runs
               // on mount and whenever focusedId changes — so a mutation that
               // tears down and rebuilds this row (Collection delta after
-              // toggle / move) re-establishes focus the moment the new
+              // cycleStatus / move) re-establishes focus the moment the new
               // element is bound.
               createEffect(() => {
                 if (focusedId() === row.task.id) rowEl.focus();
@@ -760,15 +776,23 @@ export function App() {
                     <button
                       type="button"
                       class="check"
-                      classList={{ done: row.task.status === "done" }}
+                      classList={{
+                        doing: row.task.status === "doing",
+                        done: row.task.status === "done",
+                      }}
                       data-testid="task-check"
-                      aria-pressed={row.task.status === "done"}
-                      aria-label={`Mark ${row.task.title} ${
-                        row.task.status === "done" ? "not done" : "done"
-                      }`}
+                      // ARIA tri-state toggle button: false → "todo",
+                      // mixed → "doing" (an in-flight state, not yet
+                      // complete), true → "done". Mirrors the visual
+                      // cycle so screen readers announce the same three
+                      // steps. `aria-pressed` (not `aria-checked`) is
+                      // correct here — the element is a <button>, not a
+                      // form checkbox, and pressing advances the state.
+                      aria-pressed={STATUS_TO_ARIA_PRESSED[row.task.status]}
+                      aria-label={`Advance ${row.task.title} (currently ${row.task.status})`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        void toggle(row.task.id);
+                        void cycleStatus(row.task.id);
                       }}
                     />
                     <Show
@@ -888,7 +912,8 @@ export function App() {
           <kbd>⇧K</kbd> to reorder siblings
         </span>
         <span>
-          <kbd>Space</kbd> toggle · <kbd>e</kbd> edit · <kbd>x</kbd> delete · <kbd>/</kbd> search
+          <kbd>Space</kbd> cycle status · <kbd>e</kbd> edit · <kbd>x</kbd> delete · <kbd>/</kbd>{" "}
+          search
         </span>
       </div>
 
