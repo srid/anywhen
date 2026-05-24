@@ -153,21 +153,25 @@ const isFreshDone = (task: Task, now: number): boolean => {
   return age !== null && age <= STALE_THRESHOLD_MS;
 };
 
+const evalDone = (value: DoneValue, task: Task, now: number): boolean => {
+  switch (value) {
+    case "no":
+      return task.status === "todo";
+    case "yes":
+      return task.status === "done";
+    case "fresh":
+      return isFreshDone(task, now);
+    case "stale":
+      return isStaleDone(task, now);
+  }
+};
+
 const evalAtom = (atom: Atom, task: Task, now: number): boolean => {
   switch (atom.kind) {
     case "text":
       return matchesQuery(task.title, atom.needle);
     case "done":
-      switch (atom.value) {
-        case "no":
-          return task.status === "todo";
-        case "yes":
-          return task.status === "done";
-        case "fresh":
-          return isFreshDone(task, now);
-        case "stale":
-          return isStaleDone(task, now);
-      }
+      return evalDone(atom.value, task, now);
     case "not":
       return !evalAtom(atom.inner, task, now);
   }
