@@ -78,13 +78,12 @@ export function pruneBackups(
 
 /**
  * Start the rolling-backup scheduler. Writes once immediately so a
- * container restart isn't N minutes away from any rollback target, then on
- * every `intervalMs` tick. Returns a stop function — kept for tests; the
- * production wiring lets the interval ride for the lifetime of the process.
- *
- * `inFlight` guards against overlapping ticks if a write ever blocks past
- * the next interval boundary. Failures are logged and the next tick still
- * fires — a transient disk-full shouldn't kill the loop.
+ * container restart isn't N minutes away from any rollback target, then
+ * sleeps `intervalMs` between ticks. The `async while` shape encodes
+ * "ticks never overlap" structurally — the next iteration cannot start
+ * until the previous tick's `await` chain completes — rather than via a
+ * mutable `inFlight` flag. Failures are logged and the loop continues; a
+ * transient disk-full shouldn't kill the loop.
  */
 export function startBackupScheduler(
   snapshot: () => Promise<Task[]>,
@@ -93,21 +92,25 @@ export function startBackupScheduler(
 ): () => void {
   const intervalMs = opts.intervalMs ?? BACKUP_INTERVAL_MS;
   const retentionMs = opts.retentionMs ?? BACKUP_RETENTION_MS;
-  let inFlight = false;
-  const tick = async () => {
-    if (inFlight) return;
-    inFlight = true;
-    try {
-      const tasks = await snapshot();
-      await writeBackup(tasks, backupDir);
-      pruneBackups(backupDir, retentionMs);
-    } catch (err) {
-      console.error("[backup] tick failed:", err);
-    } finally {
-      inFlight = false;
+  let stopped = false;
+  const sleep = (ms: number) =>
+    new Promise<void>((resolve) => {
+      setTimeout(resolve, ms);
+    });
+  void (async () => {
+    while (!stopped) {
+      try {
+        const tasks = await snapshot();
+        await writeBackup(tasks, backupDir);
+        pruneBackups(backupDir, retentionMs);
+      } catch (err) {
+        console.error("[backup] tick failed:", err);
+      }
+      if (stopped) return;
+      await sleep(intervalMs);
     }
+  })();
+  return () => {
+    stopped = true;
   };
-  void tick();
-  const handle = setInterval(() => void tick(), intervalMs);
-  return () => clearInterval(handle);
 }
