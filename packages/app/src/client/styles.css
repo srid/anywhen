@@ -72,8 +72,8 @@ body {
   background-color: var(--paper);
   /* Paper grain over a blush rose vignette. Fixed attachment makes the
      grain feel like the texture of the sheet itself, not a scrolling layer.
-     The dark-mode override below tints the vignette toward plum-rose so the
-     grain still reads on near-black paper. */
+     The nested dark-mode override tints the vignette toward plum-rose so
+     the grain still reads on near-black paper. */
   background-image:
     radial-gradient(120% 80% at 50% 0%, rgba(255, 255, 255, 0.5), transparent 60%), var(--grain);
   background-attachment: fixed;
