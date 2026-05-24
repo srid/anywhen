@@ -151,7 +151,6 @@ const confirmDestructive = (message: string): boolean => window.confirm(message)
 //                       <br>. Bodies tend to be paragraphs, not poetry.
 const MD_OPTIONS = { html: false, linkify: true, breaks: false } as const;
 const md = new MarkdownIt(MD_OPTIONS);
-const renderBody = (body: string): string => md.render(body);
 
 // Backup filename uses the local date — Dropbox-friendly, sorts well,
 // and matches the unit the user thinks in ("today's backup").
@@ -911,7 +910,7 @@ export function App() {
                         // markdown-it is constructed with html:false so user
                         // content can't smuggle raw <script> / <iframe> through.
                         // biome-ignore lint/security/noDangerouslySetInnerHtml: rendered HTML is sanitized by markdown-it (html:false)
-                        innerHTML={renderBody(body())}
+                        innerHTML={md.render(body())}
                       />
                     </details>
                   </Show>
