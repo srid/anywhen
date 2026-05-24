@@ -183,6 +183,7 @@ describe("evalAtoms", () => {
   const recently = new Date(NOW - 3 * 60 * 60 * 1000).toISOString();
 
   const todo = mkTask({ id: "t1", title: "draft PR description" });
+  const doing = mkTask({ id: "t1d", title: "WIP feature", status: "doing" });
   const doneFresh = mkTask({
     id: "t2",
     title: "reply to Sam",
@@ -207,15 +208,24 @@ describe("evalAtoms", () => {
     expect(evalAtoms([], doneStale, NOW)).toBe(true);
   });
 
-  test("text atom is case-insensitive substring on title", () => {
+  test("text atom is case-insensitive substring on the title's first line", () => {
     expect(evalAtoms(parseAtoms("draft"), todo, NOW)).toBe(true);
     expect(evalAtoms(parseAtoms("DRAFT"), todo, NOW)).toBe(true);
     expect(evalAtoms(parseAtoms("grocery"), todo, NOW)).toBe(false);
+    // Multi-line title: only the label (first line) is searched; matches
+    // in the markdown body fall through.
+    const multiline = mkTask({
+      id: "ml",
+      title: "ship visibility lever\nDetails: lever inserts not done:stale",
+    });
+    expect(evalAtoms(parseAtoms("lever"), multiline, NOW)).toBe(true);
+    expect(evalAtoms(parseAtoms("Details"), multiline, NOW)).toBe(false);
   });
 
-  test("done:no keeps only todo tasks", () => {
+  test("done:no keeps every not-done task (todo + doing)", () => {
     const atoms = parseAtoms("done:no");
     expect(evalAtoms(atoms, todo, NOW)).toBe(true);
+    expect(evalAtoms(atoms, doing, NOW)).toBe(true);
     expect(evalAtoms(atoms, doneFresh, NOW)).toBe(false);
     expect(evalAtoms(atoms, doneStale, NOW)).toBe(false);
   });

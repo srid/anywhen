@@ -19,6 +19,7 @@
 import { matchesQuery } from "./filter";
 import { normalizeQuery } from "./input";
 import type { Task } from "./schemas";
+import { splitTitle } from "./title";
 
 const DONE_VALUES = ["no", "yes", "fresh", "stale"] as const;
 type DoneValue = (typeof DONE_VALUES)[number];
@@ -156,7 +157,9 @@ const isFreshDone = (task: Task, now: number): boolean => {
 const evalDone = (value: DoneValue, task: Task, now: number): boolean => {
   switch (value) {
     case "no":
-      return task.status === "todo";
+      // "Not done" covers every non-done lifecycle state — today: todo and
+      // doing. A future status like "blocked" would also fall here.
+      return task.status !== "done";
     case "yes":
       return task.status === "done";
     case "fresh":
@@ -169,7 +172,10 @@ const evalDone = (value: DoneValue, task: Task, now: number): boolean => {
 const evalAtom = (atom: Atom, task: Task, now: number): boolean => {
   switch (atom.kind) {
     case "text":
-      return matchesQuery(task.title, atom.needle);
+      // Match the displayed first line (not the raw multi-line title) so a
+      // surviving row always carries the matching <mark>; body-only matches
+      // would read as "this row passed the filter for no visible reason."
+      return matchesQuery(splitTitle(task.title).label, atom.needle);
     case "done":
       return evalDone(atom.value, task, now);
     case "not":

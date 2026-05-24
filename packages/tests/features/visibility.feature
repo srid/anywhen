@@ -35,10 +35,11 @@ Feature: Visibility lever and structured filter atoms
     Then the visibility lever should be on
     And the atoms sentence should mention "not done:stale"
 
-  Scenario: done:no atom filters to todo tasks only
+  Scenario: done:no atom filters to not-done tasks (todo + doing)
     Given the app is running with a fresh database
     When I add a task titled "buy bread"
     And I add a task titled "ship feature"
+    And I press "Space" on the task titled "ship feature"
     And I press "Space" on the task titled "ship feature"
     And I type "done:no" in the search box
     Then the tree should contain a task titled "buy bread"
@@ -49,6 +50,7 @@ Feature: Visibility lever and structured filter atoms
     Given the app is running with a fresh database
     When I add a task titled "buy bread"
     And I add a task titled "ship feature"
+    And I press "Space" on the task titled "ship feature"
     And I press "Space" on the task titled "ship feature"
     And I type "done:yes" in the search box
     Then the tree should not contain a task titled "buy bread"

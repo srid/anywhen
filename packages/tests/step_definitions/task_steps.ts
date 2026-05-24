@@ -12,6 +12,12 @@ import type { AnywhenWorld } from "../support/world";
 const isDropZone = (value: string): value is DropZone =>
   (DROP_ZONES as readonly string[]).includes(value);
 
+// Feature-file strings can't carry real newlines, so multi-line bodies are
+// written as the two-character `\n` escape and unescaped here. Hoisted to
+// module scope so every step that accepts multi-line content uses the same
+// transform.
+const unescapeNewlines = (s: string): string => s.replace(/\\n/g, "\n");
+
 // Throws with a clear message when the Gherkin step word isn't a known zone.
 // Called at the top of every drag step so bad feature-file text surfaces immediately.
 function assertDropZone(value: string): asserts value is DropZone {
@@ -147,7 +153,7 @@ When("I click the add button", async function (this: AnywhenWorld) {
 When(
   "I click the checkbox on the task titled {string}",
   async function (this: AnywhenWorld, title: string) {
-    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${title}"]`);
     await row.locator('[data-testid="task-check"]').click();
   },
 );
@@ -155,7 +161,7 @@ When(
 When(
   "I click the delete button on the task titled {string}",
   async function (this: AnywhenWorld, title: string) {
-    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${title}"]`);
     // Click without hover so the mobile "visible without hovering" scenario
     // isn't silently rescued by a synthesized :hover state. Force-clicks
     // bypass Playwright's actionability gate — fine here because visibility
@@ -168,7 +174,7 @@ When(
 When(
   "I click the edit button on the task titled {string}",
   async function (this: AnywhenWorld, title: string) {
-    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${title}"]`);
     // Same force-click rationale as delete: the button is opacity:0 on fine
     // pointers and revealed by @media (pointer: coarse) on touch; the
     // visibility-without-hover assertion is a separate step.
@@ -179,7 +185,7 @@ When(
 Then(
   "the edit input on the task titled {string} should be visible",
   async function (this: AnywhenWorld, title: string) {
-    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${title}"]`);
     await expect(row.locator('[data-testid="task-edit-input"]')).toBeVisible();
   },
 );
@@ -188,7 +194,7 @@ Then(
   "the edit button on the task titled {string} should be revealed without hover",
   async function (this: AnywhenWorld, title: string) {
     const btn = this.page
-      .locator(`[data-testid="task-row"][data-task-title="${title}"]`)
+      .locator(`[data-testid="task-row"][data-task-firstline="${title}"]`)
       .locator('[data-testid="task-edit"]');
     const opacity = await btn.evaluate((el) => Number(getComputedStyle(el).opacity));
     if (opacity < 1) {
@@ -202,8 +208,9 @@ Then(
 When("I fill the edit input with {string}", async function (this: AnywhenWorld, text: string) {
   // The inline editor is row-scoped, but only one row may be in edit mode at
   // a time — match by data-testid alone so the scenario doesn't need to
-  // re-state which row.
-  await this.page.locator('[data-testid="task-edit-input"]').fill(text);
+  // re-state which row. `\n` in the Gherkin string is unescaped so multi-line
+  // bodies can be authored inline.
+  await this.page.locator('[data-testid="task-edit-input"]').fill(unescapeNewlines(text));
 });
 
 When("I press Enter in the edit input", async function (this: AnywhenWorld) {
@@ -222,7 +229,7 @@ Then(
   "the delete button on the task titled {string} should be revealed without hover",
   async function (this: AnywhenWorld, title: string) {
     const btn = this.page
-      .locator(`[data-testid="task-row"][data-task-title="${title}"]`)
+      .locator(`[data-testid="task-row"][data-task-firstline="${title}"]`)
       .locator('[data-testid="task-delete"]');
     const opacity = await btn.evaluate((el) => Number(getComputedStyle(el).opacity));
     if (opacity < 1) {
@@ -242,7 +249,7 @@ Then(
   "the drag handle on the task titled {string} should be visible",
   async function (this: AnywhenWorld, title: string) {
     const handle = this.page
-      .locator(`[data-testid="task-row"][data-task-title="${title}"]`)
+      .locator(`[data-testid="task-row"][data-task-firstline="${title}"]`)
       .locator('[data-testid="task-drag-handle"]');
     await expect(handle).toBeVisible();
   },
@@ -251,7 +258,7 @@ Then(
 Then(
   "the tree should not contain a task titled {string}",
   async function (this: AnywhenWorld, title: string) {
-    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${title}"]`);
     await expect(row).toHaveCount(0);
   },
 );
@@ -259,7 +266,7 @@ Then(
 Then(
   "the tree should contain a task titled {string}",
   async function (this: AnywhenWorld, title: string) {
-    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${title}"]`);
     await expect(row).toBeVisible();
   },
 );
@@ -267,7 +274,7 @@ Then(
 Then(
   "the task titled {string} should have status {string}",
   async function (this: AnywhenWorld, title: string, status: string) {
-    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${title}"]`);
     await expect(row).toHaveAttribute("data-task-status", status);
   },
 );
@@ -276,8 +283,12 @@ When(
   "I touch-drag the task titled {string} {word} the task titled {string}",
   async function (this: AnywhenWorld, source: string, where: string, target: string) {
     assertDropZone(where);
-    const sourceRow = this.page.locator(`[data-testid="task-row"][data-task-title="${source}"]`);
-    const targetRow = this.page.locator(`[data-testid="task-row"][data-task-title="${target}"]`);
+    const sourceRow = this.page.locator(
+      `[data-testid="task-row"][data-task-firstline="${source}"]`,
+    );
+    const targetRow = this.page.locator(
+      `[data-testid="task-row"][data-task-firstline="${target}"]`,
+    );
     // Hold past DRAG_LONGPRESS_MS so the long-press timer fires before the
     // first move. The +100 ms margin absorbs scheduler jitter.
     await dispatchTouchDrag(sourceRow, targetRow, where, {
@@ -293,8 +304,12 @@ When(
   "I handle-drag the task titled {string} {word} the task titled {string}",
   async function (this: AnywhenWorld, source: string, where: string, target: string) {
     assertDropZone(where);
-    const sourceRow = this.page.locator(`[data-testid="task-row"][data-task-title="${source}"]`);
-    const targetRow = this.page.locator(`[data-testid="task-row"][data-task-title="${target}"]`);
+    const sourceRow = this.page.locator(
+      `[data-testid="task-row"][data-task-firstline="${source}"]`,
+    );
+    const targetRow = this.page.locator(
+      `[data-testid="task-row"][data-task-firstline="${target}"]`,
+    );
     await dispatchTouchDrag(sourceRow, targetRow, where, {
       from: sourceRow.locator('[data-testid="task-drag-handle"]'),
     });
@@ -311,8 +326,12 @@ When(
   "I drag the task titled {string} {word} the task titled {string}",
   async function (this: AnywhenWorld, source: string, where: string, target: string) {
     assertDropZone(where);
-    const sourceRow = this.page.locator(`[data-testid="task-row"][data-task-title="${source}"]`);
-    const targetRow = this.page.locator(`[data-testid="task-row"][data-task-title="${target}"]`);
+    const sourceRow = this.page.locator(
+      `[data-testid="task-row"][data-task-firstline="${source}"]`,
+    );
+    const targetRow = this.page.locator(
+      `[data-testid="task-row"][data-task-firstline="${target}"]`,
+    );
     const sourceBox = await sourceRow.boundingBox();
     const targetBox = await targetRow.boundingBox();
     if (!sourceBox || !targetBox) throw new Error("Could not measure rows for drag");
@@ -340,16 +359,18 @@ Then(
   async function (this: AnywhenWorld, first: string, second: string) {
     const rows = this.page.locator('[data-testid="task-row"]');
     await expect(rows).toHaveCount(2);
-    await expect(rows.nth(0)).toHaveAttribute("data-task-title", first);
-    await expect(rows.nth(1)).toHaveAttribute("data-task-title", second);
+    await expect(rows.nth(0)).toHaveAttribute("data-task-firstline", first);
+    await expect(rows.nth(1)).toHaveAttribute("data-task-firstline", second);
   },
 );
 
 Then(
   "the task titled {string} should be a child of the task titled {string}",
   async function (this: AnywhenWorld, child: string, parent: string) {
-    const parentRow = this.page.locator(`[data-testid="task-row"][data-task-title="${parent}"]`);
-    const childRow = this.page.locator(`[data-testid="task-row"][data-task-title="${child}"]`);
+    const parentRow = this.page.locator(
+      `[data-testid="task-row"][data-task-firstline="${parent}"]`,
+    );
+    const childRow = this.page.locator(`[data-testid="task-row"][data-task-firstline="${child}"]`);
     const parentId = await parentRow.getAttribute("data-task-id");
     if (!parentId) throw new Error(`Parent row "${parent}" has no data-task-id`);
     await expect(childRow).toHaveAttribute("data-task-parent-id", parentId);
@@ -359,7 +380,7 @@ Then(
 Then(
   "the task titled {string} should be a root task",
   async function (this: AnywhenWorld, title: string) {
-    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${title}"]`);
     await expect(row).toHaveAttribute("data-task-parent-id", "");
   },
 );
@@ -371,14 +392,14 @@ Then(
 When(
   "I press {string} on the task titled {string}",
   async function (this: AnywhenWorld, key: string, title: string) {
-    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${title}"]`);
     await row.focus();
     await row.press(key);
   },
 );
 
 When("I focus the task titled {string}", async function (this: AnywhenWorld, title: string) {
-  await this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`).focus();
+  await this.page.locator(`[data-testid="task-row"][data-task-firstline="${title}"]`).focus();
 });
 
 // "/" is a global focus-search shortcut, so it shouldn't be dispatched at the
@@ -390,7 +411,7 @@ When("I press {string} globally", async function (this: AnywhenWorld, key: strin
 Then(
   "the task titled {string} should be selected",
   async function (this: AnywhenWorld, title: string) {
-    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${title}"]`);
     await expect(row).toHaveAttribute("aria-selected", "true");
   },
 );
@@ -398,7 +419,7 @@ Then(
 Then(
   "the task titled {string} should be focused",
   async function (this: AnywhenWorld, title: string) {
-    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${title}"]`);
     await expect(row).toBeFocused();
   },
 );
@@ -414,7 +435,7 @@ When("I clear the search box", async function (this: AnywhenWorld) {
 Then(
   "the matched substring {string} in the task titled {string} should be highlighted",
   async function (this: AnywhenWorld, fragment: string, title: string) {
-    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${title}"]`);
     const mark = row.locator("mark", { hasText: fragment });
     await expect(mark).toBeVisible();
   },
@@ -423,7 +444,7 @@ Then(
 Then(
   "the task titled {string} should be dimmed",
   async function (this: AnywhenWorld, title: string) {
-    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${title}"]`);
     await expect(row).toHaveClass(/(?:^|\s)dimmed(?:\s|$)/);
   },
 );
@@ -431,7 +452,73 @@ Then(
 Then(
   "the task titled {string} should not be dimmed",
   async function (this: AnywhenWorld, title: string) {
-    const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
+    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${title}"]`);
     await expect(row).not.toHaveClass(/(?:^|\s)dimmed(?:\s|$)/);
+  },
+);
+
+When(
+  "I add a multi-line task with first line {string} and body {string}",
+  async function (this: AnywhenWorld, firstLine: string, body: string) {
+    const input = this.page.locator('[data-testid="search-input"]');
+    await input.fill(`${firstLine}\n${unescapeNewlines(body)}`);
+    // Enter submits even from a textarea — the App's handler intercepts
+    // plain Enter and reserves Shift+Enter for inserting a newline.
+    await input.press("Enter");
+  },
+);
+
+// The body's <details> renders as a DOM *sibling* of its row so the row's
+// flex layout doesn't have to accommodate a full-width disclosure child.
+// Body sub-elements share `data-task-id` with their row, letting a step
+// address "this task's body" without nesting Playwright locators inside
+// the row (which would only find descendants).
+async function taskIdFor(world: AnywhenWorld, firstLine: string): Promise<string> {
+  const row = world.page.locator(`[data-testid="task-row"][data-task-firstline="${firstLine}"]`);
+  const id = await row.getAttribute("data-task-id");
+  if (!id) throw new Error(`No task row found with first line "${firstLine}"`);
+  return id;
+}
+
+Then(
+  "the task with first line {string} should have a body disclosure",
+  async function (this: AnywhenWorld, firstLine: string) {
+    const id = await taskIdFor(this, firstLine);
+    await expect(this.page.locator(`[data-testid="task-body"][data-task-id="${id}"]`)).toHaveCount(
+      1,
+    );
+  },
+);
+
+Then(
+  "the task with first line {string} should not have a body disclosure",
+  async function (this: AnywhenWorld, firstLine: string) {
+    const id = await taskIdFor(this, firstLine);
+    await expect(this.page.locator(`[data-testid="task-body"][data-task-id="${id}"]`)).toHaveCount(
+      0,
+    );
+  },
+);
+
+When(
+  "I expand the body of the task with first line {string}",
+  async function (this: AnywhenWorld, firstLine: string) {
+    const id = await taskIdFor(this, firstLine);
+    // Force-click the summary: it lives inside <details>, which the
+    // browser will toggle on click regardless of pointer reveal state.
+    await this.page
+      .locator(`[data-testid="task-body-toggle"][data-task-id="${id}"]`)
+      .click({ force: true });
+  },
+);
+
+Then(
+  "the body of the task with first line {string} should contain a(n) {string} element with text {string}",
+  async function (this: AnywhenWorld, firstLine: string, tag: string, text: string) {
+    const id = await taskIdFor(this, firstLine);
+    const el = this.page.locator(`[data-testid="task-body"][data-task-id="${id}"] ${tag}`, {
+      hasText: text,
+    });
+    await expect(el).toBeVisible();
   },
 );

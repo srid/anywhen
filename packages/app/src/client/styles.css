@@ -42,6 +42,23 @@
      staggered-rise page-load animation. One token so the two stay in sync. */
   --ease-spring: cubic-bezier(0.2, 0.8, 0.2, 1);
 
+  /* Row layout shared constants — the multi-line body indents past these so
+     its text aligns under the title column.
+
+     `--row-prefix-w` measures, on a fine-pointer device, from the row's
+     left edge to the title's left edge:
+       row.padding-left (8) + check.width (18) + flex.gap (12) = 38
+
+     `--row-indent-step` is the per-depth advance:
+       indent.width (18) + indent.margin-right (2) + flex.gap (12) = 32
+
+     The coarse-pointer block below overrides `--row-prefix-w` to 78px
+     because the drag-handle becomes visible (28 effective + 12 gap added
+     in front of the check). The step stays 32. Touching row chrome
+     (handle, check, gap) means updating one variable. */
+  --row-prefix-w: 38px;
+  --row-indent-step: 32px;
+
   @media (prefers-color-scheme: dark) {
     --paper: #150b10;
     --paper-deep: #1f1218;
@@ -246,7 +263,7 @@ h1 {
     }
   }
 
-  & input {
+  & .search-input {
     border: 0;
     outline: 0;
     background: transparent;
@@ -257,6 +274,14 @@ h1 {
     font: 400 19px / 1.4 var(--font-serif);
     font-variation-settings: "opsz" 24;
     letter-spacing: 0.002em;
+    /* textarea defaults that fight a single-line layout: a manual resize
+       grip and a fixed row height. `field-sizing: content` (Chrome 123+,
+       Firefox 138+, Safari 17.2+) lets the textarea grow with its
+       content, so single-line tasks read identical to the old <input>
+       and multi-line composition expands the box in place. */
+    resize: none;
+    field-sizing: content;
+    font-family: var(--font-serif);
 
     &::placeholder {
       color: var(--muted);
@@ -536,8 +561,13 @@ h1 {
   }
 }
 
-/* Round-dot checkbox: empty ring (todo, eternity loop) → filled disc
-   (done, the point, the now). Visually quotes the brand mark. */
+/* Round-dot checkbox cycling todo → doing → done.
+     · todo  → empty ring (the eternity loop)
+     · doing → empty ring + inner concentric ring (quotes the brand mark's
+               nested rings; categorically distinct from a half-fill so it
+               doesn't read as "50% done")
+     · done  → filled disc (the point, the now)
+   Each state visually quotes the brand colophon at the top of the page. */
 
 .check {
   width: 18px;
@@ -559,6 +589,23 @@ h1 {
     border-color: var(--accent);
     outline: none;
     box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  /* Inner concentric ring affordance. `inset` keeps the inner circle
+     centered without doing the arithmetic manually — the gap between the
+     outer border and the inner ring stays equal on every side as the
+     element scales (e.g. 18 → 22 on coarse pointers). */
+  &.doing {
+    border-color: var(--accent);
+
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 3px;
+      border: 1.5px solid var(--accent);
+      border-radius: 50%;
+      pointer-events: none;
+    }
   }
 
   &.done {
@@ -589,7 +636,10 @@ h1 {
 
 /* Inline title editor. Sized and aligned to read like the title text it
    replaces — no border, no background, inherits the row's font so the
-   visual jump on entering edit mode is just a caret appearing. */
+   visual jump on entering edit mode is just a caret appearing. The
+   `field-sizing: content` makes the textarea grow with multi-line drafts
+   so Shift+Enter expands the editor in place without a manual resize
+   handle; single-line edits read identically to the old <input>. */
 .title-edit {
   flex: 1;
   min-width: 0;
@@ -603,6 +653,135 @@ h1 {
     "wght" 400;
   padding: 0;
   margin: 0;
+  resize: none;
+  field-sizing: content;
+  overflow: hidden;
+  font-family: inherit;
+}
+
+/* Body disclosure. Renders below the row when the task title spans more
+   than one line — first line is the row label, the rest is markdown.
+   `<details>` gives us native click-to-toggle that works identically on
+   mouse and touch (no hover affordance to design around). The body is
+   indented to align with the row's title column: a row's title sits at
+   `--row-depth * indent + grip + check + gap`, computed from the same
+   pieces the row's left edge uses (`.indent` width 18 + 2 gap, plus the
+   leading drag-handle/check column ≈ 50px). */
+/* Body disclosure: an ellipsis button rendered inline at the end of the
+   title text. Always visible so a multi-line task announces itself at
+   rest (no hover-only chrome to discover). The row stays the same
+   height as a single-line one because the toggle is inline with the
+   title, not a separate flex item. The body itself drops in below the
+   row only when the user opens it — the `hidden` attribute on the wrap
+   takes it out of layout but leaves it in the DOM. */
+.body-toggle {
+  background: transparent;
+  border: 0;
+  padding: 0 4px;
+  font: inherit;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 3px;
+  /* `baseline` would put the glyph on the text baseline but most fonts
+     render `…` below baseline, dropping it visibly below the row text.
+     Sitting it on the bottom-of-cap line keeps it visually paired with
+     the trailing letter. */
+  vertical-align: baseline;
+  letter-spacing: 0.05em;
+  line-height: 1;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--accent);
+    background: var(--accent-soft);
+    outline: none;
+  }
+
+  &.open {
+    color: var(--accent);
+  }
+}
+
+.task-body-wrap {
+  /* Indent reads `--row-prefix-w` + depth × `--row-indent-step` so body
+     text sits under the title. Both vars live at :root so the coarse-
+     pointer media query can shift the prefix without retouching here.
+     Top margin -2 tucks the body close to its row without overlapping. */
+  margin: -2px 0 8px calc(var(--row-depth, 0) * var(--row-indent-step) + var(--row-prefix-w));
+  font: 400 15px / 1.55 var(--font-serif);
+  font-variation-settings: "opsz" 14;
+  color: var(--ink-soft, var(--muted));
+
+  &.dimmed {
+    opacity: 0.42;
+  }
+
+  /* `hidden` collapses the wrap to zero box for layout, but leaves it in
+     the DOM so test selectors (and screen-reader virtual cursors) still
+     find the body content. */
+  &[hidden] {
+    display: none;
+  }
+
+  & .task-body {
+    margin: 4px 0 0;
+    padding: 4px 0 4px 12px;
+    border-left: 1px solid var(--rule-soft);
+    background: transparent;
+
+    & p {
+      margin: 0 0 0.6em;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+
+    & ul,
+    & ol {
+      margin: 0 0 0.6em;
+      padding-left: 1.4em;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+
+    & code {
+      font: 0.92em / 1 var(--font-mono, ui-monospace, "Menlo", monospace);
+      background: var(--mark-bg);
+      padding: 0 4px;
+      border-radius: 2px;
+    }
+
+    & pre {
+      margin: 0 0 0.6em;
+      padding: 8px 10px;
+      background: var(--mark-bg);
+      border-radius: 3px;
+      overflow-x: auto;
+
+      & code {
+        background: transparent;
+        padding: 0;
+      }
+    }
+
+    & a {
+      color: var(--accent);
+      text-decoration: underline;
+      text-decoration-color: var(--rule-soft);
+      text-underline-offset: 2px;
+    }
+
+    & blockquote {
+      margin: 0 0 0.6em;
+      padding-left: 10px;
+      border-left: 2px solid var(--rule-soft);
+      color: var(--muted);
+      font-style: italic;
+    }
+  }
 }
 
 /* Row-trailing action buttons — edit (rename) and delete (cascade). They
@@ -922,6 +1101,17 @@ h1 {
     min-height: 36px;
     margin-left: -4px;
   }
+  /* Drag-handle is visible on coarse pointers, so the title column starts
+     further right. Bumping the body prefix keeps it aligned under the
+     title text on touch. Step width is unchanged — only the prefix moves. */
+  :root {
+    --row-prefix-w: 78px;
+  }
+  /* Pad the inline toggle out to a comfortable touch target on coarse
+     pointers without rewriting its inline layout. */
+  .body-toggle {
+    padding: 6px 8px;
+  }
 }
 
 /* ── Narrow viewports — phones in portrait. ──────────────────────── */
@@ -950,7 +1140,7 @@ h1 {
     /* Prevent iOS auto-zoom on focus; 16px is the documented threshold. */
     font-size: 17px;
   }
-  .search input {
+  .search .search-input {
     font-size: 17px;
   }
   /* Same 16px threshold as the search box — prevents iOS from auto-zooming

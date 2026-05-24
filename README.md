@@ -42,7 +42,10 @@ When in doubt: the app's job is to be a quiet place to keep your
 attention, not to compete for it.
 
 > **Status**: scaffold + add a task (press `↵` in the search box, or tap
-> the Add button) + view the tree + toggle done + edit the title
+> the Add button) + view the tree + cycle status `todo → doing → done`
+> (one click of the row check, or `Space` on the focused row; the middle
+> state shows an inner concentric ring quoting the brand mark, no
+> strikethrough — that stays exclusive to `done`) + edit the title
 > inline (press `e` on a focused row, or tap the pencil button — Enter
 > commits, Escape discards) + delete (with a browser confirm prompt;
 > cascades to descendants) + reorder via pointer drag — works for mouse, pen, and
@@ -51,10 +54,14 @@ attention, not to compete for it.
 > edge = drop after, middle = nest as child + vim-friendly keyboard
 > navigation (`j`/`k` moves selection, `l`/`h` indents/outdents, `⇧J`/`⇧K`
 > reorders siblings, `e` edits the focused row, `x` deletes it, `Space`
-> toggles done, `/` focuses the search box) + live filter (type a
+> advances status through the cycle, `/` focuses the search box) + live filter (type a
 > query — matches highlight in their
 > own row, ancestors stay visible but dimmed so the path to a match is
-> intact) + mobile-friendly layout (responsive media queries, touch-sized
+> intact; structured atoms `done:no`, `done:yes`, `done:fresh`,
+> `done:stale`, and `not <atom>` AND-compose with the free text — a
+> hairline lever beside the search box inserts `not done:stale` as a
+> one-click way to hide tasks finished more than a day ago) +
+> mobile-friendly layout (responsive media queries, touch-sized
 > tap targets, always-visible row actions and grip handles on coarse
 > pointers) + PWA
 > (installable from the browser, with a service worker that caches the
@@ -70,9 +77,16 @@ attention, not to compete for it.
 > glance) + ancestor breadcrumb (selecting a nested row reveals its
 > lineage as a hairline italic sentence above the search box —
 > disappears when nothing is selected or when a root-level row holds
-> focus).
+> focus) + multi-line tasks (the search box and inline editor are
+> textareas — Enter submits, Shift+Enter inserts a newline; the first
+> line is the row label, any subsequent lines are a basic-Markdown body
+> rendered via [markdown-it](https://github.com/markdown-it/markdown-it).
+> A chevron lives inside the row alongside edit / delete — collapsed
+> rows stay the same height as single-line ones, expanding pushes the
+> body inline beneath; mobile-friendly with the chevron always on
+> coarse pointers).
 > Further filter atoms (tag, has:body, root, under:title), tags, due
-> dates, body, blocked-by, and the detail panel land in later PRs.
+> dates, blocked-by, and the detail panel land in later PRs.
 
 ## Stack
 
@@ -83,6 +97,7 @@ attention, not to compete for it.
 | Wire       | [`@kolu/surface`](https://github.com/juspay/kolu/tree/master/packages/surface) over [oRPC](https://orpc.unnoq.com) — tasks are a `Collection` (snapshot+deltas over WebSocket at `/rpc/ws`); imperative verbs (`add`/`toggle`/`move`/`remove`) ride HTTP under `/rpc/*` |
 | Store      | `bun:sqlite` via [Kysely](https://kysely.dev) (typed query builder + auto-migrations) |
 | Schemas    | [Zod 4](https://zod.dev)                                                            |
+| Markdown   | [markdown-it](https://github.com/markdown-it/markdown-it) (`html: false`) renders task bodies |
 | Lint / fmt | [Biome](https://biomejs.dev)                                                        |
 | E2E tests  | [Cucumber 12](https://cucumber.io) + [Playwright](https://playwright.dev) — mirrors `kolu/packages/tests/` |
 | Nix        | Zero flake inputs, `npins`-pinned nixpkgs + kolu — see [kolu's pattern](https://github.com/juspay/kolu/blob/master/flake.nix) |

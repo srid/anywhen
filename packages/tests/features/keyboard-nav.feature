@@ -99,12 +99,12 @@ Feature: Vim-friendly keyboard navigation for the task tree
     Then the task titled "child" should be a root task
     And the task titled "child" should be focused
 
-  Scenario: Space on a focused row keeps the row focused after toggling done
+  Scenario: Space on a focused row keeps the row focused after advancing status
     Given the app is running with a fresh database
     When I add a task titled "stays focused"
     Then the tree should contain a task titled "stays focused"
     When I press " " on the task titled "stays focused"
-    Then the task titled "stays focused" should have status "done"
+    Then the task titled "stays focused" should have status "doing"
     And the task titled "stays focused" should be focused
 
   Scenario: Slash focuses the search box from anywhere
