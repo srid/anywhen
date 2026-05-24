@@ -18,6 +18,11 @@ const minutesSinceMidnight = (d: Date): number => d.getHours() * 60 + d.getMinut
 // behind the wall clock long enough to notice.
 const MINUTE_MS = 60_000;
 
+// Twelve hour-ticks on the rule (every two hours over a 24-hour day) plus
+// the closing tick at x=240. Module-scope: a time-invariant constant has no
+// reactive identity and shouldn't be reallocated each render.
+const TICK_POSITIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
 export function MeridianRule() {
   const [now, setNow] = createSignal(new Date());
   onMount(() => {
@@ -26,12 +31,11 @@ export function MeridianRule() {
   });
   // Rule spans x=0..240 over a 24-hour day; ticks every 2 hours; majors every
   // 6 hours (a quarter-day). The now-tick rides the same 0..240 axis.
-  const tickPositions = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
   const nowX = () => (minutesSinceMidnight(now()) / 1440) * 240;
   return (
     <svg class="meridian" viewBox="0 0 240 12" preserveAspectRatio="none" aria-hidden="true">
       <line x1="0" y1="6" x2="240" y2="6" stroke="currentColor" stroke-width="0.5" opacity="0.5" />
-      <For each={tickPositions}>
+      <For each={TICK_POSITIONS}>
         {(i) => {
           const major = i % 3 === 0;
           return (
