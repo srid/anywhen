@@ -454,14 +454,6 @@ When(
   },
 );
 
-Then(
-  "the tree should contain a task with first line {string}",
-  async function (this: AnywhenWorld, firstLine: string) {
-    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${firstLine}"]`);
-    await expect(row).toBeVisible();
-  },
-);
-
 // The body's <details> renders as a DOM *sibling* of its row so the row's
 // flex layout doesn't have to accommodate a full-width disclosure child.
 // Body sub-elements share `data-task-id` with their row, letting a step

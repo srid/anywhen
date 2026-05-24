@@ -12,7 +12,7 @@ Feature: Multi-line tasks with markdown bodies
   Scenario: create a multi-line task from the search box
     Given the app is running with a fresh database
     When I add a multi-line task with first line "Shopping list" and body "- milk\n- bread\n- **eggs**"
-    Then the tree should contain a task with first line "Shopping list"
+    Then the tree should contain a task titled "Shopping list"
     And the task with first line "Shopping list" should have a body disclosure
 
   Scenario: body renders as markdown when expanded
@@ -34,5 +34,5 @@ Feature: Multi-line tasks with markdown bodies
     And I press "e" on the task titled "groceries"
     And I fill the edit input with "groceries\n\nbuy *organic* veg"
     And I press Enter in the edit input
-    Then the tree should contain a task with first line "groceries"
+    Then the tree should contain a task titled "groceries"
     And the task with first line "groceries" should have a body disclosure
