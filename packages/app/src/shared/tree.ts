@@ -72,13 +72,15 @@ export const resolveKeyMove = (tasks: Task[], id: TaskId, action: KeyMove): Move
 // ── Generic parent-pointer walks ──────────────────────────────────────
 
 // Walk upward from each id in `seeds`, collecting every ancestor reachable
-// via `parentOf`. Skips seeds themselves; stops cleanly on cycles (a node
-// already in the accumulator short-circuits its branch).
+// via `parentOf`. Skips seeds themselves; stops cleanly on cycles. The
+// per-seed guard against `seed` itself is what guarantees the
+// "skips seeds" promise even when a cycle loops back through the seed —
+// without it, a graph like A→B→A would include A in its own ancestor set.
 export const ancestorIds = <Id>(seeds: Iterable<Id>, parentOf: (id: Id) => Id | null): Set<Id> => {
   const out = new Set<Id>();
   for (const seed of seeds) {
     let cursor = parentOf(seed);
-    while (cursor !== null && !out.has(cursor)) {
+    while (cursor !== null && cursor !== seed && !out.has(cursor)) {
       out.add(cursor);
       cursor = parentOf(cursor);
     }
