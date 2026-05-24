@@ -12,6 +12,12 @@ import type { AnywhenWorld } from "../support/world";
 const isDropZone = (value: string): value is DropZone =>
   (DROP_ZONES as readonly string[]).includes(value);
 
+// Feature-file strings can't carry real newlines, so multi-line bodies are
+// written as the two-character `\n` escape and unescaped here. Hoisted to
+// module scope so every step that accepts multi-line content uses the same
+// transform.
+const unescapeNewlines = (s: string): string => s.replace(/\\n/g, "\n");
+
 // Throws with a clear message when the Gherkin step word isn't a known zone.
 // Called at the top of every drag step so bad feature-file text surfaces immediately.
 function assertDropZone(value: string): asserts value is DropZone {
@@ -204,7 +210,7 @@ When("I fill the edit input with {string}", async function (this: AnywhenWorld, 
   // a time — match by data-testid alone so the scenario doesn't need to
   // re-state which row. `\n` in the Gherkin string is unescaped so multi-line
   // bodies can be authored inline.
-  await this.page.locator('[data-testid="task-edit-input"]').fill(text.replace(/\\n/g, "\n"));
+  await this.page.locator('[data-testid="task-edit-input"]').fill(unescapeNewlines(text));
 });
 
 When("I press Enter in the edit input", async function (this: AnywhenWorld) {
@@ -436,10 +442,6 @@ Then(
     await expect(row).not.toHaveClass(/(?:^|\s)dimmed(?:\s|$)/);
   },
 );
-
-// Feature-file strings can't carry real newlines, so multi-line bodies are
-// written as the two-character `\n` escape and unescaped here.
-const unescapeNewlines = (s: string): string => s.replace(/\\n/g, "\n");
 
 When(
   "I add a multi-line task with first line {string} and body {string}",
