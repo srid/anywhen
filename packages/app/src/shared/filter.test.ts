@@ -46,9 +46,8 @@ const mkTask = (id: string, parentId: TaskId | null, position: number, title: st
 
 // root
 // ├── a       (matches "needle" via title)
-// │   └── b   (no match, but its parent matches — so it stays only because…
-// │           well, it doesn't. The kept set is matches + their ancestors.)
-// └── c       (no match, no matched descendant — elides)
+// │   └── b   (no match, not an ancestor of any match — elides)
+// └── c       (no match, not an ancestor of any match — elides)
 const fixture = (): Task[] => [
   mkTask("root", null, 0, "Top container"),
   mkTask("a", "root", 0, "needle in a"),
