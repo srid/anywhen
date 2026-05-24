@@ -26,12 +26,6 @@ export const nextInCycle = (
   status: z.infer<typeof TaskStatusSchema>,
 ): z.infer<typeof TaskStatusSchema> => NEXT_STATUS[status];
 
-// Iteration order of the Record — exposed for tests that want to confirm
-// every TaskStatus value participates in the cycle. Object key order is
-// insertion order for string keys, so this matches the literal order
-// above without a parallel declaration.
-export const STATUS_CYCLE = Object.keys(NEXT_STATUS) as readonly z.infer<typeof TaskStatusSchema>[];
-
 export const TaskSchema = z.object({
   id: TaskIdSchema,
   parentId: TaskIdSchema.nullable(),
