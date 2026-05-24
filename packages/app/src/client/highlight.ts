@@ -4,29 +4,24 @@
 // server-side filter atoms import `matchesQuery` from shared/filter.ts;
 // nothing on the server cares about segment boundaries for rendering.
 //
-// Normalization rules ride the same `normalizeQuery` the matcher uses, so
-// the highlighted ranges always align with what `matchesQuery` returns
-// true for.
+// Match positions come from `matchPositions` in shared/filter.ts — the
+// same primitive `matchesQuery` reduces to a boolean — so the highlighted
+// ranges always align with what the filter pass keeps.
 
-import { normalizeQuery } from "../shared/input";
+import { matchPositions } from "../shared/filter";
 
 export type MatchSegment = { text: string; match: boolean };
 
 export const highlightSegments = (title: string, query: string): MatchSegment[] => {
-  const needle = normalizeQuery(query);
-  if (!needle) return [{ text: title, match: false }];
-  // matchAll with a global regex replaces the while+indexOf cursor loop:
-  // each match carries its index, so we can slice the gaps between matches
-  // without manually tracking a cursor variable.
-  const re = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+  const positions = matchPositions(title, query);
+  if (positions.length === 0) return [{ text: title, match: false }];
   const segments: MatchSegment[] = [];
   let cursor = 0;
-  for (const m of title.matchAll(re)) {
-    const idx = m.index ?? cursor;
-    if (idx > cursor) segments.push({ text: title.slice(cursor, idx), match: false });
-    segments.push({ text: title.slice(idx, idx + m[0].length), match: true });
-    cursor = idx + m[0].length;
+  for (const { start, end } of positions) {
+    if (start > cursor) segments.push({ text: title.slice(cursor, start), match: false });
+    segments.push({ text: title.slice(start, end), match: true });
+    cursor = end;
   }
   if (cursor < title.length) segments.push({ text: title.slice(cursor), match: false });
-  return segments.length ? segments : [{ text: title, match: false }];
+  return segments;
 };
