@@ -774,7 +774,6 @@ export function App() {
                       "drop-inside": rowDropZone() === "inside",
                     }}
                     data-testid="task-row"
-                    data-task-title={row.task.title}
                     data-task-firstline={firstLine()}
                     data-task-status={row.task.status}
                     data-task-id={row.task.id}
