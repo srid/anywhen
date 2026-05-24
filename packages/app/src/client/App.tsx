@@ -132,6 +132,12 @@ type PendingPress = {
 // this threshold the press is treated as a click (select / focus).
 const DRAG_MOVE_THRESHOLD = 5;
 
+// Single receptacle for "are you sure?" before a write that cascades or
+// wipes. The app has no in-app modal yet; native confirm is the simplest
+// accessible blocker. When we eventually grow a modal, only this body
+// changes — every destructive call site already speaks through the name.
+const confirmDestructive = (message: string): boolean => window.confirm(message);
+
 // Backup filename uses the local date — Dropbox-friendly, sorts well,
 // and matches the unit the user thinks in ("today's backup").
 const backupFilename = (): string => {
@@ -273,13 +279,11 @@ export function App() {
   };
 
   const remove = async (id: TaskId) => {
-    // Destructive and cascades to descendants. Same window.confirm rationale
-    // as the Import path below — the codebase has no in-app modal pattern,
-    // and a native confirm is the simplest accessible blocker. Gating here
-    // covers all three call sites (× button, x key, Backspace).
+    // Gating here (rather than at each call site) covers the × button, the
+    // x key, and the Backspace alias in one place.
     const task = taskList().find((t) => t.id === id);
     if (!task) return;
-    if (!window.confirm(`Delete "${task.title}" and any sub-tasks?`)) return;
+    if (!confirmDestructive(`Delete "${task.title}" and any sub-tasks?`)) return;
     await callWrite(() => api.remove(id));
     if (!error() && selected() === id) setSelected(null);
   };
@@ -454,11 +458,7 @@ export function App() {
       return;
     }
     const count = validated.data.tasks.length;
-    // Destructive: confirm before wiping the current store. The current
-    // codebase has no in-app modal pattern; window.confirm is the simplest
-    // accessible blocker for an action the user can't undo from inside
-    // the app.
-    if (!window.confirm(`Replace all current tasks with ${count} from ${file.name}?`)) {
+    if (!confirmDestructive(`Replace all current tasks with ${count} from ${file.name}?`)) {
       return;
     }
     await callWrite(() => api.import(validated.data));
