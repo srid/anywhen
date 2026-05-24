@@ -224,7 +224,14 @@ export function App() {
     }
     const byId = new Map<TaskId, Task>(list.map(({ task: t }) => [t.id, t]));
     const matched = new Set<TaskId>();
-    for (const { task: t } of list) if (matchesQuery(t.title, q)) matched.add(t.id);
+    // Match against the displayed first line — not the raw title — so a
+    // matched row always carries a visible <mark> at the same offsets the
+    // highlighter renders. Searching the body too would catch additional
+    // rows but show no highlight on the row's first line, which reads as
+    // "this row survived the filter for no visible reason."
+    for (const { task: t } of list) {
+      if (matchesQuery(splitTitle(t.title).label, q)) matched.add(t.id);
+    }
     const ancestors = ancestorIds(matched, (id) => byId.get(id)?.parentId ?? null);
     return list
       .filter(({ task: t }) => matched.has(t.id) || ancestors.has(t.id))
