@@ -11,52 +11,33 @@
 // `Map<TaskId, Task>` (server) without converging on a shared collection
 // type that would force the server to materialize an array per call.
 
-// Walk upward from `seed` via parent pointers, invoking `visit` for each
-// ancestor in encounter order. Cycle-guarded by `visited` (mutated): the
-// caller controls whether the visited set is per-call (isolating each walk)
-// or shared across calls (so a multi-seed batch short-circuits when a later
-// seed reaches a node an earlier seed already collected, and the same Set
-// doubles as both the cycle guard and the accumulator).
-//
-// Private to this module — both public functions below compose it; the
-// shape of `visited` ownership is the knob that lets one primitive serve
-// the "set across many seeds" and "ordered path for one seed" consumers
-// without each re-implementing the parent walk.
-const walkAncestors = <Id>(
-  seed: Id,
-  parentOf: (id: Id) => Id | null,
-  visited: Set<Id>,
-  visit: (id: Id) => void,
-): void => {
-  let cursor = parentOf(seed);
-  while (cursor !== null && !visited.has(cursor)) {
-    visited.add(cursor);
-    visit(cursor);
-    cursor = parentOf(cursor);
-  }
-};
-
 // Walk upward from each id in `seeds`, collecting every ancestor reachable
-// via `parentOf`. Skips seeds themselves; stops cleanly on cycles. The
-// shared `out` Set is both the result and the cycle guard, so the second
-// seed's walk short-circuits through any node the first seed collected.
+// via `parentOf`. Skips seeds themselves; stops cleanly on cycles (a node
+// already in the accumulator short-circuits its branch).
 export const ancestorIds = <Id>(seeds: Iterable<Id>, parentOf: (id: Id) => Id | null): Set<Id> => {
   const out = new Set<Id>();
-  // The visit callback is a no-op here: `walkAncestors` has already added
-  // the ancestor to `out` (since `out` IS the visited set), and that
-  // mutation is the accumulation step. No second list to populate.
-  for (const seed of seeds) walkAncestors(seed, parentOf, out, () => {});
+  for (const seed of seeds) {
+    let cursor = parentOf(seed);
+    while (cursor !== null && !out.has(cursor)) {
+      out.add(cursor);
+      cursor = parentOf(cursor);
+    }
+  }
   return out;
 };
 
-// Walk upward from a single seed, returning the ordered root-first path of
-// ancestors (excludes the seed). The ancestor *set* (see ancestorIds) covers
-// "is this id in someone's lineage"; the ancestor *path* covers "what is this
-// id's lineage, in order" — e.g. rendering a breadcrumb. Uses a fresh local
-// visited Set so cycles in a degenerate graph terminate cleanly per-call.
+// Walk upward from a single seed, returning the root-first ordered path of
+// ancestors (excludes the seed itself). Uses a visited set for cycle safety.
+// Use ancestorIds when you only need set membership across multiple seeds.
 export const ancestorPath = <Id>(seed: Id, parentOf: (id: Id) => Id | null): Id[] => {
   const path: Id[] = [];
-  walkAncestors(seed, parentOf, new Set<Id>(), (id) => path.push(id));
+  const visited = new Set<Id>();
+  let cursor = parentOf(seed);
+  while (cursor !== null && !visited.has(cursor)) {
+    visited.add(cursor);
+    path.push(cursor);
+    cursor = parentOf(cursor);
+  }
   return path.reverse();
 };
 
