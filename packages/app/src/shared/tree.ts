@@ -16,15 +16,8 @@ import type { MoveTarget, Task, TaskId } from "./schemas";
 
 export type SortedTask = { task: Task; depth: number };
 
-export const byParentMap = (tasks: Task[]): Map<TaskId | null, Task[]> => {
-  const out = new Map<TaskId | null, Task[]>();
-  for (const t of tasks) {
-    const arr = out.get(t.parentId) ?? [];
-    arr.push(t);
-    out.set(t.parentId, arr);
-  }
-  return out;
-};
+export const byParentMap = (tasks: Task[]): Map<TaskId | null, Task[]> =>
+  Map.groupBy(tasks, (t) => t.parentId);
 
 // Single DFS walk: position-orders siblings, visits parent before children,
 // and records depth inline — one byParentMap, one allocation, one traversal.
