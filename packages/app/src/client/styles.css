@@ -235,6 +235,11 @@ h1 {
       left: 8px;
       right: 8px;
     }
+
+    & .search-mark {
+      color: var(--accent);
+      opacity: 1;
+    }
   }
 
   & input {
@@ -275,11 +280,6 @@ h1 {
     color 0.2s ease,
     opacity 0.2s ease;
   pointer-events: none;
-}
-
-.search:focus-within .search-mark {
-  color: var(--accent);
-  opacity: 1;
 }
 
 .add-btn {
