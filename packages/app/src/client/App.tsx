@@ -101,13 +101,16 @@ const confirmDestructive = (message: string): boolean => window.confirm(message)
 const MD_OPTIONS = { html: false, linkify: true, breaks: false } as const;
 const md = new MarkdownIt(MD_OPTIONS);
 
-// ARIA tri-state checkbox token per lifecycle status. Lives in the
-// presentation layer (here, not shared/schemas.ts) because the values are
-// WAI-ARIA spec constants — a UI-protocol mapping, not domain policy.
+// ARIA `aria-pressed` token per lifecycle status. The check is a toggle
+// button (advances state on click) not a checkbox — `aria-pressed`
+// natively supports tri-state `"true" | "false" | "mixed"` on a <button>
+// without forcing a `role="checkbox"` override that biome's a11y lint
+// (correctly) flags. Lives in the presentation layer because the values
+// are WAI-ARIA spec constants — UI protocol, not domain policy.
 // `Record<TaskStatus, …>` makes a future fourth status a TypeScript error
 // at this declaration site rather than a silent `"false"` fallback if it
 // were a chained ternary on the row's JSX.
-const STATUS_TO_ARIA_CHECKED: Record<TaskStatus, "true" | "false" | "mixed"> = {
+const STATUS_TO_ARIA_PRESSED: Record<TaskStatus, "true" | "false" | "mixed"> = {
   todo: "false",
   doing: "mixed",
   done: "true",
@@ -778,12 +781,14 @@ export function App() {
                         done: row.task.status === "done",
                       }}
                       data-testid="task-check"
-                      // ARIA tri-state checkbox: false → "todo", mixed →
-                      // "doing" (an in-flight state, not yet complete),
-                      // true → "done". Mirrors the visual cycle so screen
-                      // readers announce the same three steps.
-                      aria-checked={STATUS_TO_ARIA_CHECKED[row.task.status]}
-                      role="checkbox"
+                      // ARIA tri-state toggle button: false → "todo",
+                      // mixed → "doing" (an in-flight state, not yet
+                      // complete), true → "done". Mirrors the visual
+                      // cycle so screen readers announce the same three
+                      // steps. `aria-pressed` (not `aria-checked`) is
+                      // correct here — the element is a <button>, not a
+                      // form checkbox, and pressing advances the state.
+                      aria-pressed={STATUS_TO_ARIA_PRESSED[row.task.status]}
                       aria-label={`Advance ${row.task.title} (currently ${row.task.status})`}
                       onClick={(e) => {
                         e.stopPropagation();
