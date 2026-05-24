@@ -901,7 +901,6 @@ export function App() {
                         <span class="chevron" aria-hidden="true">
                           ▸
                         </span>
-                        <span class="task-body-hint">details</span>
                       </summary>
                       <div
                         class="task-body"

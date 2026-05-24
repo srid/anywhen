@@ -42,13 +42,22 @@
      staggered-rise page-load animation. One token so the two stay in sync. */
   --ease-spring: cubic-bezier(0.2, 0.8, 0.2, 1);
 
-  /* Row layout shared constants. `--row-prefix-w` is the horizontal space a
-     row's grip + check + their gaps occupy before the title column begins;
-     the multi-line body indents past it (`.task-body-wrap` margin-left) so
-     body text lines up under the title text. Touching the row prefix means
-     touching one number. */
-  --row-prefix-w: 56px;
-  --row-indent-step: 20px;
+  /* Row layout shared constants — the multi-line body indents past these so
+     its text aligns under the title column.
+
+     `--row-prefix-w` measures, on a fine-pointer device, from the row's
+     left edge to the title's left edge:
+       row.padding-left (8) + check.width (18) + flex.gap (12) = 38
+
+     `--row-indent-step` is the per-depth advance:
+       indent.width (18) + indent.margin-right (2) + flex.gap (12) = 32
+
+     The coarse-pointer block below overrides `--row-prefix-w` to 78px
+     because the drag-handle becomes visible (28 effective + 12 gap added
+     in front of the check). The step stays 32. Touching row chrome
+     (handle, check, gap) means updating one variable. */
+  --row-prefix-w: 38px;
+  --row-indent-step: 32px;
 
   @media (prefers-color-scheme: dark) {
     --paper: #150b10;
@@ -543,12 +552,12 @@ h1 {
    pieces the row's left edge uses (`.indent` width 18 + 2 gap, plus the
    leading drag-handle/check column ≈ 50px). */
 .task-body-wrap {
-  /* Indent calc reads two shared row constants: `--row-indent-step` is
-     each depth step's width (`.indent` 18px + 2px margin-right), and
-     `--row-prefix-w` is the grip+check column the body must clear so
-     its text aligns under the title's. Touching either dimension means
-     touching one variable. */
-  margin: -2px 0 8px calc(var(--row-depth, 0) * var(--row-indent-step) + var(--row-prefix-w));
+  /* Indent reads `--row-prefix-w` + depth × `--row-indent-step` so body
+     text sits under the title. Both vars live at :root so the coarse-
+     pointer media query can shift the prefix without retouching here.
+     Negative top margin (-4) tucks the toggle close to the row above
+     rather than introducing a full gap row of chrome. */
+  margin: -4px 0 6px calc(var(--row-depth, 0) * var(--row-indent-step) + var(--row-prefix-w));
   font: 400 15px / 1.55 var(--font-serif);
   font-variation-settings: "opsz" 14;
   color: var(--ink-soft, var(--muted));
@@ -557,19 +566,24 @@ h1 {
     opacity: 0.42;
   }
 
+  /* Summary is just a chevron — no label text. Muted by default so an
+     un-expanded body is a faint marker, not a row of chrome. The row's
+     hover/focus state (or the disclosure being open) brings it forward.
+     A coarse-pointer override pins it visible so touch users always see
+     the affordance, matching the edit/delete reveal rule. */
   & .task-body-toggle {
     list-style: none;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 6px 2px 0;
-    color: var(--muted);
-    font-size: 12px;
-    letter-spacing: 0.04em;
-    text-transform: lowercase;
+    width: 16px;
+    height: 16px;
+    color: var(--rule);
+    opacity: 0.6;
     user-select: none;
-    min-height: 28px;
+    transition:
+      opacity 0.15s ease,
+      color 0.15s ease;
 
     /* WebKit's native disclosure triangle ships separately from
        list-style — it must be hidden with the vendor pseudo-element. */
@@ -577,15 +591,26 @@ h1 {
       display: none;
     }
 
-    &:hover {
+    &:hover,
+    &:focus-visible {
       color: var(--accent);
+      opacity: 1;
+      outline: none;
     }
+  }
+
+  /* Lift the toggle to full visibility when expanded — the chevron
+     keeps the user oriented while the body is open. */
+  &[open] .task-body-toggle {
+    opacity: 1;
+    color: var(--muted);
   }
 
   & .chevron {
     display: inline-block;
     transition: transform 0.15s ease;
     font-size: 10px;
+    line-height: 1;
     color: currentColor;
   }
 
@@ -595,8 +620,8 @@ h1 {
 
   & .task-body {
     margin: 4px 0 0;
-    padding: 8px 12px;
-    border-left: 2px solid var(--rule-soft);
+    padding: 4px 0 4px 12px;
+    border-left: 1px solid var(--rule-soft);
     background: transparent;
 
     & p {
@@ -652,6 +677,16 @@ h1 {
       font-style: italic;
     }
   }
+}
+
+/* Reveal the disclosure toggle when the row above is hovered/focused —
+   `.task-body-wrap` is the row's adjacent sibling, so `+` forward-reaches
+   only when the row holds a body. Mirrors how `.edit` / `.delete` lift
+   their opacity on row hover, so a multi-line task's affordances all
+   surface together rather than the disclosure trailing behind. */
+.row:is(:hover, :focus-within) + .task-body-wrap .task-body-toggle {
+  opacity: 1;
+  color: var(--muted);
 }
 
 /* Row-trailing action buttons — edit (rename) and delete (cascade). They
@@ -970,6 +1005,18 @@ h1 {
     min-width: 28px;
     min-height: 36px;
     margin-left: -4px;
+  }
+  /* Drag-handle is visible on coarse pointers, so the title column starts
+     further right. Bumping the body prefix keeps it aligned under the
+     title text on touch. Step width is unchanged — only the prefix moves. */
+  :root {
+    --row-prefix-w: 78px;
+  }
+  /* No hover on touch — pin the disclosure toggle so a multi-line body is
+     always discoverable. Mirrors the .edit / .delete always-visible rule
+     above. */
+  .task-body-toggle {
+    opacity: 1;
   }
 }
 
