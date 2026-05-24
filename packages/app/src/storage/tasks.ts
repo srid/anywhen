@@ -258,9 +258,10 @@ export const taskStore = (db: Kysely<Database>) => {
         const now = new Date().toISOString();
         // Whichever transition lands on 'done' stamps completed_at; any
         // transition that leaves 'done' (today: done→todo) clears it.
-        // The CHECK constraint on tasks.completed_at depends on this
+        // The TaskSchema refine in shared/schemas.ts encodes the same
         // contract — without the clear-on-leave, a row could carry a
-        // stale timestamp through todo / doing.
+        // stale timestamp through todo / doing and fail validation on
+        // the next round-trip through the wire boundary.
         const completedAt =
           next === "done" ? now : current.status === "done" ? null : current.completed_at;
         const updated = await trx

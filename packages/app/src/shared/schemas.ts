@@ -25,21 +25,33 @@ const NEXT_STATUS: Record<TaskStatus, TaskStatus> = {
 
 export const nextInCycle = (status: TaskStatus): TaskStatus => NEXT_STATUS[status];
 
-export const TaskSchema = z.object({
-  id: TaskIdSchema,
-  parentId: TaskIdSchema.nullable(),
-  title: z.string(),
-  status: TaskStatusSchema,
-  position: z.number(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  // ISO timestamp of the most recent todo→done flip. Set inside toggle()
-  // when status flips to 'done'; cleared back to null on done→todo. Legacy
-  // rows from before this column existed are nullable and treated by the
-  // staleness predicate as "completion time unknown" — they stay visible
-  // until the user re-toggles them.
-  completedAt: z.string().nullable(),
-});
+// Invariant: a non-null `completedAt` implies `status === 'done'`. The
+// previous SQLite CHECK encoding this same fact forced a table rebuild on
+// every enum widening (see the data-loss postmortem); the Zod refine is
+// the single source of truth now, validating every wire-shaped Task —
+// `api.import` payloads, RPC inputs, the in-memory cache — at the
+// boundary. The store's `cycleStatus` already maintains the invariant by
+// construction, so the refine is defense against malformed external
+// imports rather than a guard the happy path relies on.
+export const TaskSchema = z
+  .object({
+    id: TaskIdSchema,
+    parentId: TaskIdSchema.nullable(),
+    title: z.string(),
+    status: TaskStatusSchema,
+    position: z.number(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    // ISO timestamp of the most recent todo→done flip. Set inside
+    // cycleStatus() when status flips to 'done'; cleared back to null on
+    // done→todo. `null` lets the staleness predicate (atoms.ts) treat the
+    // row as "completion time unknown" rather than fresh or stale.
+    completedAt: z.string().nullable(),
+  })
+  .refine((t) => t.completedAt === null || t.status === "done", {
+    message: "completedAt must be null unless status is 'done'",
+    path: ["completedAt"],
+  });
 
 export const AddTaskInputSchema = z.object({
   title: z.string().min(1),
