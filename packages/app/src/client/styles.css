@@ -264,9 +264,11 @@ h1 {
   }
 }
 
-/* .search-mark is kept top-level (not nested into .search) so the mobile
-   @media override at the bottom keeps matching specificity (0,1,0) and
-   continues to win on small viewports. */
+/* .search-mark stays top-level (not nested into .search). Nesting it as
+   `.search { & .search-mark }` would raise the base specificity to
+   `.search .search-mark` (0,2,0), and the mobile `@media (max-width: 600px)`
+   override at the bottom — still `.search-mark { ... }` (0,1,0) — would lose.
+   See the invariant note above that @media block. */
 .search-mark {
   position: absolute;
   left: 16px;
@@ -824,6 +826,11 @@ h1 {
 
 /* ── Narrow viewports — phones in portrait. ──────────────────────── */
 
+/* Invariant for everything below: any selector overridden here must keep
+   its base specificity flat. Nesting `.search-mark`, `.search input`, or
+   `.title-edit` into a parent block would raise their base specificity
+   above the (0,1,0) / (0,1,1) of the rules in this block, and the mobile
+   overrides would silently stop applying. */
 @media (max-width: 600px) {
   main {
     padding: 32px 18px 56px;
