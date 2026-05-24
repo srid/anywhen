@@ -70,8 +70,15 @@ attention, not to compete for it.
 > glance) + ancestor breadcrumb (selecting a nested row reveals its
 > lineage as a hairline italic sentence above the search box —
 > disappears when nothing is selected or when a root-level row holds
-> focus).
-> Filter atoms, tags, due dates, body, blocked-by, and the detail panel
+> focus) + multi-line tasks (the search box and inline editor are
+> textareas — Enter submits, Shift+Enter inserts a newline; the first
+> line is the row label, any subsequent lines are a basic-Markdown body
+> rendered via [markdown-it](https://github.com/markdown-it/markdown-it).
+> A chevron lives inside the row alongside edit / delete — collapsed
+> rows stay the same height as single-line ones, expanding pushes the
+> body inline beneath; mobile-friendly with the chevron always on
+> coarse pointers).
+> Filter atoms, tags, due dates, blocked-by, and the detail panel
 > land in later PRs.
 
 ## Stack
@@ -83,6 +90,7 @@ attention, not to compete for it.
 | Wire       | [`@kolu/surface`](https://github.com/juspay/kolu/tree/master/packages/surface) over [oRPC](https://orpc.unnoq.com) — tasks are a `Collection` (snapshot+deltas over WebSocket at `/rpc/ws`); imperative verbs (`add`/`toggle`/`move`/`remove`) ride HTTP under `/rpc/*` |
 | Store      | `bun:sqlite` via [Kysely](https://kysely.dev) (typed query builder + auto-migrations) |
 | Schemas    | [Zod 4](https://zod.dev)                                                            |
+| Markdown   | [markdown-it](https://github.com/markdown-it/markdown-it) (`html: false`) renders task bodies |
 | Lint / fmt | [Biome](https://biomejs.dev)                                                        |
 | E2E tests  | [Cucumber 12](https://cucumber.io) + [Playwright](https://playwright.dev) — mirrors `kolu/packages/tests/` |
 | Nix        | Zero flake inputs, `npins`-pinned nixpkgs + kolu — see [kolu's pattern](https://github.com/juspay/kolu/blob/master/flake.nix) |

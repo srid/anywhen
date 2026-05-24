@@ -22,6 +22,7 @@ import {
   onMount,
   Show,
 } from "solid-js";
+import MarkdownIt from "markdown-it";
 import { applyFilter, matchesQuery, type Row } from "../shared/filter";
 import { normalizeQuery } from "../shared/input";
 import {
@@ -34,6 +35,7 @@ import {
   ZONE_AFTER_RATIO,
   ZONE_BEFORE_RATIO,
 } from "../shared/schemas";
+import { splitTitle } from "../shared/title";
 import {
   byParentMap,
   descendantIds,
@@ -86,6 +88,18 @@ const DRAG_MOVE_THRESHOLD = 5;
 // changes — every destructive call site already speaks through the name.
 const confirmDestructive = (message: string): boolean => window.confirm(message);
 
+// markdown-it config lives behind a name so the next contributor sees
+// each switch and what flipping it would change:
+//   - `html: false`  → raw HTML in user content is escaped, not rendered;
+//                      no `<script>` smuggling even though anywhen is
+//                      single-user.
+//   - `linkify: true` → bare URLs like `https://…` autolink without
+//                       requiring GFM angle brackets.
+//   - `breaks: false` → CommonMark default; a single newline is not a
+//                       <br>. Bodies tend to be paragraphs, not poetry.
+const MD_OPTIONS = { html: false, linkify: true, breaks: false } as const;
+const md = new MarkdownIt(MD_OPTIONS);
+
 // Backup filename uses the local date — Dropbox-friendly, sorts well,
 // and matches the unit the user thinks in ("today's backup").
 const backupFilename = (): string => {
@@ -110,6 +124,18 @@ export function App() {
   // handler survives the <For>'s teardown-and-rebuild when the Collection
   // delta arrives — the new row's effect runs on mount and reads the signal.
   const [focusedId, setFocusedId] = createSignal<TaskId | null>(null);
+  // Which multi-line tasks have their body expanded. A Set keeps the
+  // toggle O(1) and lets state persist across Collection deltas (re-
+  // rendering a row preserves its expanded entry by id, not by element).
+  const [expandedBodies, setExpandedBodies] = createSignal<Set<TaskId>>(new Set());
+  const toggleBody = (id: TaskId) => {
+    setExpandedBodies((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
   // Inline title editor. `originalTitle` is captured at beginEdit time so
   // both the unchanged-title guard and the input's aria-label read a stable
   // baseline, not the live row (which can drift between mount and commit if
@@ -132,7 +158,7 @@ export function App() {
     const err = runtimeInfo.error;
     if (err) console.error("[runtime] info fetch failed:", err);
   });
-  let searchInputRef!: HTMLInputElement;
+  let searchInputRef!: HTMLTextAreaElement;
   let importInputRef!: HTMLInputElement;
 
   // Reconstruct the flat task list from the keys + per-key values. Each
@@ -157,7 +183,10 @@ export function App() {
 
   const rows = createMemo<Row[]>(() => {
     const q = activeQuery();
-    return applyFilter(sorted(), q ? (t) => matchesQuery(t.title, q) : null);
+    // Match the displayed first line (not the raw multi-line title) so a
+    // surviving row always carries the matching <mark>; otherwise body-only
+    // matches read as "this row passed the filter for no visible reason."
+    return applyFilter(sorted(), q ? (t) => matchesQuery(splitTitle(t.title).label, q) : null);
   });
 
   // Two variants so the "success clears the error toast" policy applies
@@ -200,9 +229,10 @@ export function App() {
 
   const handleSearchKeyDown = async (e: KeyboardEvent) => {
     if (e.key !== "Enter") return;
-    // Enter commits the current input as a new task — same action as the
-    // visible Add button, just the keyboard path. The live filter already
-    // applied as the user typed, so Enter has no other meaning here.
+    // Shift+Enter inserts a newline so the user can compose a multi-line
+    // task in place — first line as the row label, subsequent lines as the
+    // markdown body. Plain Enter commits.
+    if (e.shiftKey) return;
     e.preventDefault();
     await createFromInput();
   };
@@ -277,7 +307,9 @@ export function App() {
   // belt-and-suspenders). Enter commits; Escape discards.
   const handleEditKeyDown = (ev: KeyboardEvent) => {
     ev.stopPropagation();
-    if (ev.key === "Enter") {
+    if (ev.key === "Enter" && !ev.shiftKey) {
+      // Plain Enter commits; Shift+Enter inserts a newline so the editor
+      // can grow into a multi-line body without leaving the row.
       ev.preventDefault();
       void commitEdit();
     } else if (ev.key === "Escape") {
@@ -466,8 +498,8 @@ export function App() {
     if (e.button !== 0) return;
     // Don't hijack clicks on action buttons or the inline edit input — those
     // are interactive surfaces inside the row that need to receive the
-    // press untransformed (button click, caret placement in the input).
-    if (e.target instanceof Element && e.target.closest("button, input")) return;
+    // press untransformed (button click, caret placement, text selection).
+    if (e.target instanceof Element && e.target.closest("button, input, textarea")) return;
     const sourceEl = e.currentTarget as HTMLElement;
     // Two-layer affordance. CSS (`@media (pointer: coarse)`) reveals the handle
     // span only on touch / coarse-pointer devices, so a mouse user normally
@@ -608,8 +640,9 @@ export function App() {
           </g>
           <circle cx="12" cy="12" r="2.5" fill="currentColor" />
         </svg>
-        <input
+        <textarea
           ref={searchInputRef}
+          class="search-input"
           data-testid="search-input"
           aria-label="Search or add a task"
           placeholder="Search tasks…"
@@ -617,6 +650,7 @@ export function App() {
           onInput={(e) => setQuery(e.currentTarget.value)}
           onKeyDown={handleSearchKeyDown}
           enterkeyhint="search"
+          rows={1}
         />
         <button
           type="button"
@@ -654,8 +688,14 @@ export function App() {
                 return dt?.id === row.task.id ? dt.zone : null;
               });
               let rowEl!: HTMLDivElement;
-              let editInputRef: HTMLInputElement | undefined;
+              let editInputRef: HTMLTextAreaElement | undefined;
               const isEditing = createMemo(() => editing()?.id === row.task.id);
+              // One memo, one split — keeps label and body derived from a
+              // single `splitTitle` call rather than two independent
+              // `indexOf('\n')` walks that could disagree.
+              const split = createMemo(() => splitTitle(row.task.title));
+              const firstLine = createMemo(() => split().label);
+              const body = createMemo(() => split().body);
               // When focusedId matches this row, focus its DOM element. Runs
               // on mount and whenever focusedId changes — so a mutation that
               // tears down and rebuilds this row (Collection delta after
@@ -674,116 +714,158 @@ export function App() {
                 }
               });
               return (
-                <div
-                  ref={rowEl}
-                  class="row"
-                  classList={{
-                    "is-done": row.task.status === "done",
-                    selected: selected() === row.task.id,
-                    dragging: drag()?.id === row.task.id,
-                    dimmed: row.dimmed,
-                    "drop-before": rowDropZone() === "before",
-                    "drop-after": rowDropZone() === "after",
-                    "drop-inside": rowDropZone() === "inside",
-                  }}
-                  data-testid="task-row"
-                  data-task-title={row.task.title}
-                  data-task-status={row.task.status}
-                  data-task-id={row.task.id}
-                  data-task-parent-id={row.task.parentId ?? ""}
-                  role="treeitem"
-                  aria-selected={selected() === row.task.id}
-                  tabIndex={0}
-                  onClick={() => setSelected(row.task.id)}
-                  onFocus={() => setSelected(row.task.id)}
-                  onKeyDown={(e) => handleRowKeyDown(e, row.task.id)}
-                  onPointerDown={(e) => handleRowPointerDown(e, row.task.id)}
-                  onPointerMove={(e) => handleRowPointerMove(e, row.task.id)}
-                  onPointerUp={handleRowPointerUp}
-                  onPointerCancel={handleRowPointerCancel}
-                  onLostPointerCapture={handleRowPointerCancel}
-                >
-                  <For each={Array.from({ length: row.depth })}>
-                    {() => <span class="indent" />}
-                  </For>
-                  <span class="drag-handle" data-testid="task-drag-handle" aria-hidden="true">
-                    <svg viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
-                      <circle cx="2.5" cy="3" r="1.2" />
-                      <circle cx="7.5" cy="3" r="1.2" />
-                      <circle cx="2.5" cy="8" r="1.2" />
-                      <circle cx="7.5" cy="8" r="1.2" />
-                      <circle cx="2.5" cy="13" r="1.2" />
-                      <circle cx="7.5" cy="13" r="1.2" />
-                    </svg>
-                  </span>
-                  <button
-                    type="button"
-                    class="check"
-                    classList={{ done: row.task.status === "done" }}
-                    data-testid="task-check"
-                    aria-pressed={row.task.status === "done"}
-                    aria-label={`Mark ${row.task.title} ${
-                      row.task.status === "done" ? "not done" : "done"
-                    }`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void toggle(row.task.id);
+                <>
+                  <div
+                    ref={rowEl}
+                    class="row"
+                    classList={{
+                      "is-done": row.task.status === "done",
+                      selected: selected() === row.task.id,
+                      dragging: drag()?.id === row.task.id,
+                      dimmed: row.dimmed,
+                      "drop-before": rowDropZone() === "before",
+                      "drop-after": rowDropZone() === "after",
+                      "drop-inside": rowDropZone() === "inside",
                     }}
-                  />
-                  <Show
-                    when={isEditing()}
-                    fallback={
-                      <span class="title">
-                        <For each={highlightSegments(row.task.title, activeQuery() ?? "")}>
-                          {(seg) => (seg.match ? <mark>{seg.text}</mark> : <span>{seg.text}</span>)}
-                        </For>
-                      </span>
-                    }
+                    data-testid="task-row"
+                    data-task-firstline={firstLine()}
+                    data-task-status={row.task.status}
+                    data-task-id={row.task.id}
+                    data-task-parent-id={row.task.parentId ?? ""}
+                    role="treeitem"
+                    aria-selected={selected() === row.task.id}
+                    tabIndex={0}
+                    onClick={() => setSelected(row.task.id)}
+                    onFocus={() => setSelected(row.task.id)}
+                    onKeyDown={(e) => handleRowKeyDown(e, row.task.id)}
+                    onPointerDown={(e) => handleRowPointerDown(e, row.task.id)}
+                    onPointerMove={(e) => handleRowPointerMove(e, row.task.id)}
+                    onPointerUp={handleRowPointerUp}
+                    onPointerCancel={handleRowPointerCancel}
+                    onLostPointerCapture={handleRowPointerCancel}
                   >
-                    <input
-                      ref={editInputRef}
-                      class="title-edit"
-                      data-testid="task-edit-input"
-                      type="text"
-                      aria-label={`Edit title for ${editing()!.originalTitle}`}
-                      value={editing()!.draft}
-                      onInput={(ev) => {
-                        // editing() is always non-null here — the input only
-                        // mounts when isEditing() is true.
-                        const current = editing()!;
-                        setEditing({ ...current, draft: ev.currentTarget.value });
+                    <For each={Array.from({ length: row.depth })}>
+                      {() => <span class="indent" />}
+                    </For>
+                    <span class="drag-handle" data-testid="task-drag-handle" aria-hidden="true">
+                      <svg viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
+                        <circle cx="2.5" cy="3" r="1.2" />
+                        <circle cx="7.5" cy="3" r="1.2" />
+                        <circle cx="2.5" cy="8" r="1.2" />
+                        <circle cx="7.5" cy="8" r="1.2" />
+                        <circle cx="2.5" cy="13" r="1.2" />
+                        <circle cx="7.5" cy="13" r="1.2" />
+                      </svg>
+                    </span>
+                    <button
+                      type="button"
+                      class="check"
+                      classList={{ done: row.task.status === "done" }}
+                      data-testid="task-check"
+                      aria-pressed={row.task.status === "done"}
+                      aria-label={`Mark ${row.task.title} ${
+                        row.task.status === "done" ? "not done" : "done"
+                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void toggle(row.task.id);
                       }}
-                      onKeyDown={handleEditKeyDown}
-                      onBlur={() => void commitEdit()}
                     />
+                    <Show
+                      when={isEditing()}
+                      fallback={
+                        <span class="title">
+                          <For each={highlightSegments(firstLine(), activeQuery() ?? "")}>
+                            {(seg) =>
+                              seg.match ? <mark>{seg.text}</mark> : <span>{seg.text}</span>
+                            }
+                          </For>
+                          <Show when={body()}>
+                            {" "}
+                            <button
+                              type="button"
+                              class="body-toggle"
+                              classList={{ open: expandedBodies().has(row.task.id) }}
+                              data-testid="task-body-toggle"
+                              data-task-id={row.task.id}
+                              aria-label={`${expandedBodies().has(row.task.id) ? "Hide" : "Show"} details for ${firstLine()}`}
+                              aria-expanded={expandedBodies().has(row.task.id)}
+                              title="Toggle details"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleBody(row.task.id);
+                              }}
+                            >
+                              …
+                            </button>
+                          </Show>
+                        </span>
+                      }
+                    >
+                      <textarea
+                        ref={editInputRef}
+                        class="title-edit"
+                        data-testid="task-edit-input"
+                        aria-label={`Edit title for ${editing()!.originalTitle}`}
+                        value={editing()!.draft}
+                        onInput={(ev) => {
+                          // editing() is always non-null here — the input only
+                          // mounts when isEditing() is true.
+                          const current = editing()!;
+                          setEditing({ ...current, draft: ev.currentTarget.value });
+                        }}
+                        onKeyDown={handleEditKeyDown}
+                        onBlur={() => void commitEdit()}
+                        rows={1}
+                      />
+                    </Show>
+                    <button
+                      type="button"
+                      class="edit"
+                      data-testid="task-edit"
+                      aria-label={`Edit ${row.task.title}`}
+                      title="Edit title"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        beginEdit(row.task.id);
+                      }}
+                    >
+                      ✎
+                    </button>
+                    <button
+                      type="button"
+                      class="delete"
+                      data-testid="task-delete"
+                      aria-label={`Delete ${row.task.title}`}
+                      title="Delete (also removes any sub-tasks)"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void remove(row.task.id);
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <Show when={body()}>
+                    <div
+                      class="task-body-wrap"
+                      classList={{ dimmed: row.dimmed }}
+                      style={{ "--row-depth": row.depth }}
+                      data-task-id={row.task.id}
+                      hidden={!expandedBodies().has(row.task.id)}
+                    >
+                      <div
+                        class="task-body"
+                        data-testid="task-body"
+                        data-task-id={row.task.id}
+                        // markdown-it is constructed with html:false so user
+                        // content can't smuggle raw <script> / <iframe> through.
+                        // biome-ignore lint/security/noDangerouslySetInnerHtml: rendered HTML is sanitized by markdown-it (html:false)
+                        innerHTML={md.render(body())}
+                      />
+                    </div>
                   </Show>
-                  <button
-                    type="button"
-                    class="edit"
-                    data-testid="task-edit"
-                    aria-label={`Edit ${row.task.title}`}
-                    title="Edit title"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      beginEdit(row.task.id);
-                    }}
-                  >
-                    ✎
-                  </button>
-                  <button
-                    type="button"
-                    class="delete"
-                    data-testid="task-delete"
-                    aria-label={`Delete ${row.task.title}`}
-                    title="Delete (also removes any sub-tasks)"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void remove(row.task.id);
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
+                </>
               );
             }}
           </For>
@@ -792,7 +874,7 @@ export function App() {
 
       <div class="hint">
         <span>
-          <kbd>↵</kbd> to add the typed task
+          <kbd>↵</kbd> add task · <kbd>⇧↵</kbd> new line in body
         </span>
         <span>
           <kbd>j</kbd>
