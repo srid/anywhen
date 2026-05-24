@@ -140,11 +140,17 @@ const DRAG_MOVE_THRESHOLD = 5;
 // changes — every destructive call site already speaks through the name.
 const confirmDestructive = (message: string): boolean => window.confirm(message);
 
-// markdown-it with `html: false` strips raw HTML in user content — no
-// `<script>` smuggling even though anywhen is single-user; the cost is one
-// constructor argument. `linkify` autolinks bare URLs so `https://…` in a
-// body becomes a real link without GFM-style angle brackets.
-const md = new MarkdownIt({ html: false, linkify: true, breaks: false });
+// markdown-it config lives behind a name so the next contributor sees
+// each switch and what flipping it would change:
+//   - `html: false`  → raw HTML in user content is escaped, not rendered;
+//                      no `<script>` smuggling even though anywhen is
+//                      single-user.
+//   - `linkify: true` → bare URLs like `https://…` autolink without
+//                       requiring GFM angle brackets.
+//   - `breaks: false` → CommonMark default; a single newline is not a
+//                       <br>. Bodies tend to be paragraphs, not poetry.
+const MD_OPTIONS = { html: false, linkify: true, breaks: false } as const;
+const md = new MarkdownIt(MD_OPTIONS);
 const renderBody = (body: string): string => md.render(body);
 
 // Backup filename uses the local date — Dropbox-friendly, sorts well,
