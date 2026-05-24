@@ -6,6 +6,13 @@
 // CHECK, copy every row over verbatim, drop the old table, rename, and
 // recreate the (parent_id, position) index. The schema is otherwise
 // unchanged — only the CHECK clause widens to admit 'doing'.
+//
+// INVARIANT: the CHECK values below MUST match `TaskStatusSchema.options`
+// in src/shared/schemas.ts. The migrations convention forbids importing
+// app code (the values are pinned at migration-author time), so the two
+// declarations live in lockstep by convention rather than derivation.
+// Adding a new status value requires (a) widening the Zod enum AND
+// (b) a fresh widening migration that mirrors this file's shape.
 
 import { type Kysely, sql } from "kysely";
 
