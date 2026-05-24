@@ -37,7 +37,11 @@ const cache = await store.listMap();
 // Rolling on-disk backup. Writes once immediately, then hourly; prunes
 // anything older than seven days. Files share `BackupSchema` with
 // `api.export`, so any one of them is a drop-in for `api.import`.
-startBackupScheduler(store, resolve(stateDir, "backups"));
+// Sourcing from `store.list()` (the durable SQL view) — `api.export` reads
+// the in-memory cache instead, by design (per its inline comment), so the
+// two paths produce same-schema envelopes from slightly different vantage
+// points: the on-disk copy is the persisted truth.
+startBackupScheduler(() => store.list(), resolve(stateDir, "backups"));
 const router = buildRouter(store, cache, { hostname: osHostname(), dbPath });
 const httpHandler = new RPCHandler(router);
 const wsHandler = new WsRPCHandler(router);

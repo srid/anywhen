@@ -12,8 +12,7 @@
 import { mkdirSync, readdirSync, statSync, unlinkSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { makeBackup } from "../shared/schemas";
-import type { TaskStore } from "./tasks";
+import { makeBackup, type Task } from "../shared/schemas";
 
 // Hourly cadence × 7-day retention ≈ 168 files at steady state. Each file
 // is the full task set in JSON (a few KB for a typical tree, well under a
@@ -37,12 +36,11 @@ const filenameFor = (now: Date): string =>
  * Creates the directory if absent. Returns the absolute path written.
  */
 export async function writeBackup(
-  store: TaskStore,
+  tasks: Task[],
   backupDir: string,
   now: Date = new Date(),
 ): Promise<string> {
   mkdirSync(backupDir, { recursive: true });
-  const tasks = await store.list();
   const path = join(backupDir, filenameFor(now));
   await writeFile(path, JSON.stringify(makeBackup(tasks, now), null, 2), "utf8");
   return path;
@@ -89,7 +87,7 @@ export function pruneBackups(
  * fires — a transient disk-full shouldn't kill the loop.
  */
 export function startBackupScheduler(
-  store: TaskStore,
+  snapshot: () => Promise<Task[]>,
   backupDir: string,
   opts: { intervalMs?: number; retentionMs?: number } = {},
 ): () => void {
@@ -100,7 +98,8 @@ export function startBackupScheduler(
     if (inFlight) return;
     inFlight = true;
     try {
-      await writeBackup(store, backupDir);
+      const tasks = await snapshot();
+      await writeBackup(tasks, backupDir);
       pruneBackups(backupDir, retentionMs);
     } catch (err) {
       console.error("[backup] tick failed:", err);

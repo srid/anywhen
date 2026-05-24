@@ -13,16 +13,17 @@ const freshStateDir = () => {
   return d;
 };
 
-test("writeBackup emits a BackupSchema-valid envelope containing every live task", async () => {
+test("writeBackup emits a BackupSchema-valid envelope containing every supplied task", async () => {
   const dir = freshStateDir();
   const { db } = await openDb(dir);
   onTestFinished(() => db.destroy());
   const store = taskStore(db);
   const root = await store.add({ title: "root", parentId: null });
   await store.add({ title: "leaf", parentId: root.id });
+  const tasks = await store.list();
 
   const filepath = await writeBackup(
-    store,
+    tasks,
     join(dir, "backups"),
     new Date("2026-05-24T17:30:00.123Z"),
   );
