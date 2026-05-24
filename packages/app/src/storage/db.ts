@@ -30,7 +30,22 @@ export async function openDb(stateDir: string): Promise<{ db: Kysely<Database>; 
   const dbPath = join(stateDir, DB_FILENAME);
   const sqlite = new BunDatabase(dbPath);
   sqlite.exec("PRAGMA journal_mode = WAL;");
-  sqlite.exec("PRAGMA foreign_keys = ON;");
+
+  // FKs off across the migration window per SQLite's prescribed table-
+  // rebuild procedure (sqlite.org/lang_altertable.html#otheralter, step 1).
+  // The hazard the wrapper closes: a migration that does
+  //   CREATE TABLE tasks_new (... parent_id REFERENCES tasks(id) ON DELETE CASCADE ...);
+  //   DROP TABLE tasks;
+  // with FKs on triggers an implicit DELETE FROM tasks during the drop,
+  // and that delete cascades through the brand-new FK to wipe every child
+  // row in tasks_new. We hit this exact bug once (see the data-loss
+  // postmortem PR); centralizing the toggle here makes every future
+  // table-rebuild migration safe by construction.
+  //
+  // `PRAGMA foreign_keys` cannot toggle inside a transaction, and Kysely
+  // wraps each migration in one, so the toggle has to straddle the
+  // migrator call rather than live inside any migration body.
+  sqlite.exec("PRAGMA foreign_keys = OFF;");
 
   const db = new Kysely<Database>({
     dialect: new BunSqliteDialect({ database: sqlite }),
@@ -45,12 +60,25 @@ export async function openDb(stateDir: string): Promise<{ db: Kysely<Database>; 
     }),
   });
 
-  const { error } = await migrator.migrateToLatest();
-  if (error) {
-    // Migrator returns the error rather than throwing; surface it so a
-    // bad migration on startup fails loudly rather than producing a Kysely
-    // instance pointing at a half-migrated DB.
-    throw error instanceof Error ? error : new Error(String(error));
+  try {
+    const { error } = await migrator.migrateToLatest();
+    if (error) {
+      // Migrator returns the error rather than throwing; surface it so a
+      // bad migration on startup fails loudly rather than producing a Kysely
+      // instance pointing at a half-migrated DB.
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+
+    // After the migration window closes, ask SQLite to enumerate any
+    // dangling references the relaxed FK enforcement let through. An
+    // empty result is the all-clear. A non-empty result is a migration
+    // bug — fail loudly rather than start serving with a corrupt graph.
+    const violations = sqlite.query("PRAGMA foreign_key_check").all();
+    if (violations.length > 0) {
+      throw new Error(`Foreign-key violations after migration: ${JSON.stringify(violations)}`);
+    }
+  } finally {
+    sqlite.exec("PRAGMA foreign_keys = ON;");
   }
 
   return { db, dbPath };

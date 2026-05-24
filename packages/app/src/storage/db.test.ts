@@ -38,6 +38,7 @@ test("openDb is idempotent — re-opening the same DB applies no migrations", as
       position: 100,
       created_at: "2026-05-23T00:00:00.000Z",
       updated_at: "2026-05-23T00:00:00.000Z",
+      completed_at: null,
     })
     .execute();
   await first.destroy();
@@ -64,58 +65,53 @@ test("init migration applied via Kysely's tracking table", async () => {
   );
 });
 
-// Shared fixture for the widen_task_status migration tests: a single
-// in-flight row with a stable id so both tests assert against the same
-// insert shape without duplicating the values.
-const DOING_ROW = {
-  id: "t-doing",
-  parent_id: null,
-  title: "in flight",
-  status: "doing" as const,
-  position: 100,
-  created_at: "2026-05-24T00:00:00.000Z",
-  updated_at: "2026-05-24T00:00:00.000Z",
-} as const;
-
-test("widen_task_status migration accepts a doing row", async () => {
-  // The widen migration rebuilds the table with CHECK (status IN
-  // ('todo', 'doing', 'done')). If a future migration drops the rebuild
-  // or mismatches the literals, this insert fails — the test is the
-  // tripwire on the migration ↔ TaskStatusSchema invariant documented in
-  // migrations/README.md.
+test("openDb leaves PRAGMA foreign_keys = ON for runtime", async () => {
+  // The migrator wrapper toggles FKs off across the migration window per
+  // SQLite's prescribed table-rebuild procedure, then restores them in
+  // the finally block. Runtime tasks.remove() depends on the parent_id
+  // CASCADE firing, so the post-migrate state must leave FKs on. Asking
+  // SQLite for the live setting (not the boot setting) catches a
+  // missing/displaced restore.
   const { db } = await openDb(freshStateDir());
   onTestFinished(() => db.destroy());
-  await db.insertInto("tasks").values(DOING_ROW).execute();
-  const [row] = await db
-    .selectFrom("tasks")
-    .select(["status"])
-    .where("id", "=", DOING_ROW.id)
-    .execute();
-  expect(row?.status).toBe("doing");
+  const result = await sql<{ foreign_keys: number }>`PRAGMA foreign_keys`.execute(db);
+  expect(result.rows[0]?.foreign_keys).toBe(1);
 });
 
-test("widen_task_status down() coerces doing rows back to todo", async () => {
-  // The down migration narrows the CHECK back to ('todo', 'done'). Any
-  // row currently in 'doing' must be coerced before the rebuild or the
-  // INSERT…SELECT into the narrower table fails. Reach in by name so a
-  // future reordering of the migrations directory doesn't drift this test.
+test("parent_id ON DELETE CASCADE wipes children at runtime", async () => {
+  // Tripwire for the FK declaration in the init migration: tasks.remove()
+  // relies on the CASCADE to drop descendants, and the boundary fix in
+  // db.ts only turns FKs off for the migration window. If the CASCADE
+  // clause is lost (e.g. a future migration rebuilds the table without
+  // it) the runtime delete silently leaves orphans.
   const { db } = await openDb(freshStateDir());
   onTestFinished(() => db.destroy());
-  await db.insertInto("tasks").values(DOING_ROW).execute();
-
-  const { down } = await import("./migrations/20260524210804_widen_task_status");
-  // Migration signatures take `Kysely<unknown>` — the body is DDL-only,
-  // not parametric on the row schema. Cast the typed handle for the call.
-  await down(db as unknown as Parameters<typeof down>[0]);
-
-  // Cast through `any` for the post-down read because the Kysely
-  // `Database` interface still types `status` under the widened enum
-  // (TaskStatus), but at this point the column has been narrowed back.
-  // biome-ignore lint/suspicious/noExplicitAny: post-down narrow shape
-  const [row] = await (db as any)
-    .selectFrom("tasks")
-    .select(["status"])
-    .where("id", "=", DOING_ROW.id)
+  await db
+    .insertInto("tasks")
+    .values([
+      {
+        id: "parent",
+        parent_id: null,
+        title: "p",
+        status: "todo",
+        position: 100,
+        created_at: "2026-05-24T00:00:00.000Z",
+        updated_at: "2026-05-24T00:00:00.000Z",
+        completed_at: null,
+      },
+      {
+        id: "child",
+        parent_id: "parent",
+        title: "c",
+        status: "todo",
+        position: 100,
+        created_at: "2026-05-24T00:00:00.000Z",
+        updated_at: "2026-05-24T00:00:00.000Z",
+        completed_at: null,
+      },
+    ])
     .execute();
-  expect(row?.status).toBe("todo");
+  await db.deleteFrom("tasks").where("id", "=", "parent").execute();
+  const remaining = await db.selectFrom("tasks").select("id").execute();
+  expect(remaining).toEqual([]);
 });

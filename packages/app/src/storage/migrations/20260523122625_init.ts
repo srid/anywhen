@@ -1,9 +1,14 @@
-// Initial schema — what was previously hand-applied via schema.sql. Going
-// forward, each schema change is a new migration in this directory; runtime
-// applies pending ones automatically via the Migrator in ../db.ts. See
-// ./README.md for the convention restricting what migration bodies may do.
+// Initial — and currently only — schema. Earlier history (a binary status
+// CHECK widened to ternary, then a separate add-column for completed_at)
+// was collapsed once production was wiped and restored from backup; the
+// rebuild required by the CHECK widening cascade-deleted child rows under
+// `foreign_keys = ON` (see ../db.ts for the matching boundary fix). The
+// invariants those CHECKs encoded now live in the Zod layer
+// (`shared/schemas.ts` — `TaskStatusSchema` enum and the TaskSchema refine
+// for `status='done' ⟹ completedAt !== null`), so future enum widenings
+// are a one-file Zod edit with no migration at all.
 
-import { type Kysely, sql } from "kysely";
+import type { Kysely } from "kysely";
 
 export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema
@@ -11,12 +16,11 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("id", "text", (c) => c.primaryKey())
     .addColumn("parent_id", "text", (c) => c.references("tasks.id").onDelete("cascade"))
     .addColumn("title", "text", (c) => c.notNull())
-    .addColumn("status", "text", (c) => c.notNull().check(sql`status IN ('todo', 'done')`))
-    // REAL position with gap allocation (initial 100, 200, 300…) — sibling
-    // reorder is a one-row update via float midpoint between neighbours.
+    .addColumn("status", "text", (c) => c.notNull())
     .addColumn("position", "real", (c) => c.notNull())
     .addColumn("created_at", "text", (c) => c.notNull())
     .addColumn("updated_at", "text", (c) => c.notNull())
+    .addColumn("completed_at", "text")
     .execute();
 
   await db.schema
