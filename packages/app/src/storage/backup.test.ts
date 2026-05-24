@@ -49,10 +49,10 @@ test("pruneBackups deletes files whose mtime is older than retention; keeps the 
   // backupDir doesn't exist yet — writeFileSync needs it
   require("node:fs").mkdirSync(backupDir, { recursive: true });
   const stale = make("anywhen-backup-2026-05-14T00-00-00-000Z.json", 10 * day);
-  const fresh = make("anywhen-backup-2026-05-21T00-00-00-000Z.json", 3 * day);
-  const recent = make("anywhen-backup-2026-05-24T16-30-00-000Z.json", 60 * 60 * 1000);
+  make("anywhen-backup-2026-05-21T00-00-00-000Z.json", 3 * day);
+  make("anywhen-backup-2026-05-24T16-30-00-000Z.json", 60 * 60 * 1000);
   // An unrelated file in the same directory must not be touched.
-  const stranger = make("operator-note.txt", 10 * day);
+  make("operator-note.txt", 10 * day);
 
   const deleted = pruneBackups(backupDir, 7 * day);
 
@@ -65,10 +65,6 @@ test("pruneBackups deletes files whose mtime is older than retention; keeps the 
       "operator-note.txt",
     ].sort(),
   );
-  // Sanity: paths returned are absolute
-  expect(stranger).toBeTruthy();
-  expect(fresh).toBeTruthy();
-  expect(recent).toBeTruthy();
 });
 
 test("pruneBackups is a no-op when the backup dir doesn't exist yet", () => {
