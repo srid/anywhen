@@ -31,12 +31,10 @@ export const matchPositions = (title: string, query: string): MatchPosition[] =>
   if (!needle) return [];
   const haystack = title.toLowerCase();
   const out: MatchPosition[] = [];
-  let cursor = 0;
-  for (;;) {
-    const idx = haystack.indexOf(needle, cursor);
-    if (idx < 0) break;
+  let idx = haystack.indexOf(needle);
+  while (idx >= 0) {
     out.push({ start: idx, end: idx + needle.length });
-    cursor = idx + needle.length;
+    idx = haystack.indexOf(needle, idx + needle.length);
   }
   return out;
 };
