@@ -202,8 +202,9 @@ Then(
 When("I fill the edit input with {string}", async function (this: AnywhenWorld, text: string) {
   // The inline editor is row-scoped, but only one row may be in edit mode at
   // a time — match by data-testid alone so the scenario doesn't need to
-  // re-state which row.
-  await this.page.locator('[data-testid="task-edit-input"]').fill(text);
+  // re-state which row. `\n` in the Gherkin string is unescaped so multi-line
+  // bodies can be authored inline.
+  await this.page.locator('[data-testid="task-edit-input"]').fill(text.replace(/\\n/g, "\n"));
 });
 
 When("I press Enter in the edit input", async function (this: AnywhenWorld) {
@@ -433,5 +434,63 @@ Then(
   async function (this: AnywhenWorld, title: string) {
     const row = this.page.locator(`[data-testid="task-row"][data-task-title="${title}"]`);
     await expect(row).not.toHaveClass(/(?:^|\s)dimmed(?:\s|$)/);
+  },
+);
+
+// Feature-file strings can't carry real newlines, so multi-line bodies are
+// written as the two-character `\n` escape and unescaped here.
+const unescapeNewlines = (s: string): string => s.replace(/\\n/g, "\n");
+
+When(
+  "I add a multi-line task with first line {string} and body {string}",
+  async function (this: AnywhenWorld, firstLine: string, body: string) {
+    const input = this.page.locator('[data-testid="search-input"]');
+    await input.fill(`${firstLine}\n${unescapeNewlines(body)}`);
+    // Enter submits even from a textarea — the App's handler intercepts
+    // plain Enter and reserves Shift+Enter for inserting a newline.
+    await input.press("Enter");
+  },
+);
+
+Then(
+  "the tree should contain a task with first line {string}",
+  async function (this: AnywhenWorld, firstLine: string) {
+    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${firstLine}"]`);
+    await expect(row).toBeVisible();
+  },
+);
+
+Then(
+  "the task with first line {string} should have a body disclosure",
+  async function (this: AnywhenWorld, firstLine: string) {
+    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${firstLine}"]`);
+    await expect(row.locator('[data-testid="task-body"]')).toHaveCount(1);
+  },
+);
+
+Then(
+  "the task with first line {string} should not have a body disclosure",
+  async function (this: AnywhenWorld, firstLine: string) {
+    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${firstLine}"]`);
+    await expect(row.locator('[data-testid="task-body"]')).toHaveCount(0);
+  },
+);
+
+When(
+  "I expand the body of the task with first line {string}",
+  async function (this: AnywhenWorld, firstLine: string) {
+    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${firstLine}"]`);
+    // Force-click the summary: it lives inside <details>, which the
+    // browser will toggle on click regardless of pointer reveal state.
+    await row.locator('[data-testid="task-body-toggle"]').click({ force: true });
+  },
+);
+
+Then(
+  "the body of the task with first line {string} should contain a(n) {string} element with text {string}",
+  async function (this: AnywhenWorld, firstLine: string, tag: string, text: string) {
+    const row = this.page.locator(`[data-testid="task-row"][data-task-firstline="${firstLine}"]`);
+    const el = row.locator(`[data-testid="task-body"] ${tag}`, { hasText: text });
+    await expect(el).toBeVisible();
   },
 );

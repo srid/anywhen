@@ -26,7 +26,8 @@ export async function seedSampleData(store: TaskStore): Promise<void> {
 
   const reading = await store.add({ title: "Reading", parentId: null });
   const simpleMadeEasy = await store.add({
-    title: "Simple Made Easy — Rich Hickey",
+    title:
+      "Simple Made Easy — Rich Hickey\n\nThe canonical talk on **simplicity** vs ease. A title can spill into a body whenever a single line isn't enough — basic markdown like `code` and [links](https://www.infoq.com/presentations/Simple-Made-Easy/) render here.",
     parentId: reading.id,
   });
   await store.add({ title: "Righting Software — Juval Lowy", parentId: reading.id });
