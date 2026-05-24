@@ -53,9 +53,12 @@ export const applyFilter = (
   matches: ((task: Task) => boolean) | null,
 ): Row[] => {
   if (!matches) return sorted.map(({ task, depth }) => ({ task, depth, dimmed: false }));
-  const byId = new Map<TaskId, Task>(sorted.map(({ task }) => [task.id, task]));
+  const byId = new Map<TaskId, Task>();
   const matched = new Set<TaskId>();
-  for (const { task } of sorted) if (matches(task)) matched.add(task.id);
+  for (const { task } of sorted) {
+    byId.set(task.id, task);
+    if (matches(task)) matched.add(task.id);
+  }
   const ancestors = ancestorIds(matched, (id) => byId.get(id)?.parentId ?? null);
   return sorted
     .filter(({ task }) => matched.has(task.id) || ancestors.has(task.id))
