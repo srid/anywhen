@@ -18,6 +18,12 @@ export const TaskSchema = z.object({
   position: z.number(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  // ISO timestamp of the most recent todo→done flip. Set inside toggle()
+  // when status flips to 'done'; cleared back to null on done→todo. Legacy
+  // rows from before this column existed are nullable and treated by the
+  // staleness predicate as "completion time unknown" — they stay visible
+  // until the user re-toggles them.
+  completedAt: z.string().nullable(),
 });
 
 export const AddTaskInputSchema = z.object({

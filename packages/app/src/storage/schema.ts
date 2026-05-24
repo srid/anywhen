@@ -23,4 +23,6 @@ export interface TasksTable {
   position: number;
   created_at: string;
   updated_at: string;
+  /** ISO timestamp of the most recent todo→done flip; null while status='todo'. */
+  completed_at: string | null;
 }

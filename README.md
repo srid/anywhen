@@ -71,8 +71,8 @@ attention, not to compete for it.
 > lineage as a hairline italic sentence above the search box —
 > disappears when nothing is selected or when a root-level row holds
 > focus).
-> Filter atoms, tags, due dates, body, blocked-by, and the detail panel
-> land in later PRs.
+> Further filter atoms (tag, has:body, root, under:title), tags, due
+> dates, body, blocked-by, and the detail panel land in later PRs.
 
 ## Stack
 
