@@ -9,6 +9,7 @@ import { z } from "zod";
 
 export const TaskIdSchema = z.string().min(1);
 export const TaskStatusSchema = z.enum(["todo", "doing", "done"]);
+export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 
 // Cycle map for the row checkbox + Space key. Colocated with the enum so
 // adding a future state edits one place — adding a key to the enum forces
@@ -16,15 +17,13 @@ export const TaskStatusSchema = z.enum(["todo", "doing", "done"]);
 // is data rather than control flow. The server applies it inside the
 // cycleStatus txn so the cycle direction can never drift between client
 // and store.
-const NEXT_STATUS: Record<z.infer<typeof TaskStatusSchema>, z.infer<typeof TaskStatusSchema>> = {
+const NEXT_STATUS: Record<TaskStatus, TaskStatus> = {
   todo: "doing",
   doing: "done",
   done: "todo",
 };
 
-export const nextInCycle = (
-  status: z.infer<typeof TaskStatusSchema>,
-): z.infer<typeof TaskStatusSchema> => NEXT_STATUS[status];
+export const nextInCycle = (status: TaskStatus): TaskStatus => NEXT_STATUS[status];
 
 export const TaskSchema = z.object({
   id: TaskIdSchema,
@@ -108,7 +107,6 @@ export const makeBackup = (
 });
 
 export type TaskId = z.infer<typeof TaskIdSchema>;
-export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 export type Task = z.infer<typeof TaskSchema>;
 export type AddTaskInput = z.infer<typeof AddTaskInputSchema>;
 export type MoveTarget = z.infer<typeof MoveTargetSchema>;
