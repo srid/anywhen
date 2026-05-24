@@ -50,7 +50,10 @@ export async function writeBackup(
  * Delete backup files whose mtime is older than `retentionMs`. Ignores files
  * that don't match the backup naming convention so unrelated artifacts the
  * operator might drop next to the backups aren't collateral. Returns the
- * absolute paths deleted. A missing `backupDir` is a no-op.
+ * absolute paths deleted. A missing `backupDir` is a no-op; any other FS
+ * error propagates so the scheduler's outer catch logs it (silently
+ * swallowing permission/IO errors would let retention stall and disk
+ * accumulate forever).
  */
 export function pruneBackups(
   backupDir: string,
@@ -60,17 +63,26 @@ export function pruneBackups(
   let entries: string[];
   try {
     entries = readdirSync(backupDir);
-  } catch {
-    return [];
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw err;
   }
   const cutoff = now.getTime() - retentionMs;
   const deleted: string[] = [];
   for (const name of entries) {
     if (!name.startsWith(BACKUP_PREFIX) || !name.endsWith(BACKUP_SUFFIX)) continue;
     const p = join(backupDir, name);
-    if (statSync(p).mtimeMs < cutoff) {
-      unlinkSync(p);
-      deleted.push(p);
+    // Guard stat/unlink against the entry-deleted-mid-iteration race — a
+    // concurrent prune (e.g. an operator running cron alongside the
+    // scheduler) can remove the file between readdir and stat. ENOENT here
+    // is benign; anything else is a real I/O problem and propagates.
+    try {
+      if (statSync(p).mtimeMs < cutoff) {
+        unlinkSync(p);
+        deleted.push(p);
+      }
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
     }
   }
   return deleted;
