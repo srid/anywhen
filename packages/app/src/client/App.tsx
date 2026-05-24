@@ -176,6 +176,18 @@ export function App() {
   // handler survives the <For>'s teardown-and-rebuild when the Collection
   // delta arrives — the new row's effect runs on mount and reads the signal.
   const [focusedId, setFocusedId] = createSignal<TaskId | null>(null);
+  // Which multi-line tasks have their body expanded. A Set keeps the
+  // toggle O(1) and lets state persist across Collection deltas (re-
+  // rendering a row preserves its expanded entry by id, not by element).
+  const [expandedBodies, setExpandedBodies] = createSignal<Set<TaskId>>(new Set());
+  const toggleBody = (id: TaskId) => {
+    setExpandedBodies((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
   // Inline title editor. `originalTitle` is captured at beginEdit time so
   // both the unchanged-title guard and the input's aria-label read a stable
   // baseline, not the live row (which can drift between mount and commit if
@@ -858,6 +870,26 @@ export function App() {
                         rows={1}
                       />
                     </Show>
+                    <Show when={body()}>
+                      <button
+                        type="button"
+                        class="body-toggle"
+                        classList={{ open: expandedBodies().has(row.task.id) }}
+                        data-testid="task-body-toggle"
+                        data-task-id={row.task.id}
+                        aria-label={`${expandedBodies().has(row.task.id) ? "Hide" : "Show"} details for ${firstLine()}`}
+                        aria-expanded={expandedBodies().has(row.task.id)}
+                        title="Toggle details"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleBody(row.task.id);
+                        }}
+                      >
+                        <span class="chevron" aria-hidden="true">
+                          ▸
+                        </span>
+                      </button>
+                    </Show>
                     <button
                       type="button"
                       class="edit"
@@ -886,22 +918,13 @@ export function App() {
                     </button>
                   </div>
                   <Show when={body()}>
-                    <details
+                    <div
                       class="task-body-wrap"
                       classList={{ dimmed: row.dimmed }}
                       style={{ "--row-depth": row.depth }}
                       data-task-id={row.task.id}
+                      hidden={!expandedBodies().has(row.task.id)}
                     >
-                      <summary
-                        class="task-body-toggle"
-                        data-testid="task-body-toggle"
-                        data-task-id={row.task.id}
-                        aria-label={`Show details for ${firstLine()}`}
-                      >
-                        <span class="chevron" aria-hidden="true">
-                          ▸
-                        </span>
-                      </summary>
                       <div
                         class="task-body"
                         data-testid="task-body"
@@ -911,7 +934,7 @@ export function App() {
                         // biome-ignore lint/security/noDangerouslySetInnerHtml: rendered HTML is sanitized by markdown-it (html:false)
                         innerHTML={md.render(body())}
                       />
-                    </details>
+                    </div>
                   </Show>
                 </>
               );
@@ -922,7 +945,7 @@ export function App() {
 
       <div class="hint">
         <span>
-          <kbd>↵</kbd> to add the typed task
+          <kbd>↵</kbd> add task · <kbd>⇧↵</kbd> new line in body
         </span>
         <span>
           <kbd>j</kbd>

@@ -551,13 +551,70 @@ h1 {
    `--row-depth * indent + grip + check + gap`, computed from the same
    pieces the row's left edge uses (`.indent` width 18 + 2 gap, plus the
    leading drag-handle/check column ≈ 50px). */
+/* Body disclosure: a chevron button lives INSIDE the row (alongside edit
+   and delete) so a multi-line row is the same height as a single-line
+   one when collapsed. The body itself drops in below the row only when
+   the user opens it — using the `hidden` HTML attribute so closed bodies
+   take zero layout space but remain in the DOM (test selectors can still
+   count them). When the body opens it pushes only the rows beneath it
+   down; the row holding the body keeps its original height. */
+.body-toggle {
+  background: transparent;
+  border: 0;
+  padding: 0 6px;
+  font: inherit;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 3px;
+  min-width: 22px;
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Match the edit / delete reveal: hidden on fine pointers until the
+     row is hovered or focused. The `&.open` class (set when the body
+     is expanded) and the coarse-pointer block below keep it visible
+     in the two states where the chevron must always be on. */
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--accent);
+    background: var(--accent-soft);
+    outline: none;
+  }
+
+  &.open {
+    opacity: 1;
+    color: var(--muted);
+
+    & .chevron {
+      transform: rotate(90deg);
+    }
+  }
+
+  & .chevron {
+    display: inline-block;
+    font-size: 10px;
+    line-height: 1;
+    transition: transform 0.15s ease;
+  }
+}
+
+.row:is(:hover, :focus-within) .body-toggle {
+  opacity: 1;
+}
+
 .task-body-wrap {
   /* Indent reads `--row-prefix-w` + depth × `--row-indent-step` so body
      text sits under the title. Both vars live at :root so the coarse-
      pointer media query can shift the prefix without retouching here.
-     Negative top margin (-4) tucks the toggle close to the row above
-     rather than introducing a full gap row of chrome. */
-  margin: -4px 0 6px calc(var(--row-depth, 0) * var(--row-indent-step) + var(--row-prefix-w));
+     Top margin -2 tucks the body close to its row without overlapping. */
+  margin: -2px 0 8px calc(var(--row-depth, 0) * var(--row-indent-step) + var(--row-prefix-w));
   font: 400 15px / 1.55 var(--font-serif);
   font-variation-settings: "opsz" 14;
   color: var(--ink-soft, var(--muted));
@@ -566,56 +623,11 @@ h1 {
     opacity: 0.42;
   }
 
-  /* Summary is just a chevron — no label text. Muted by default so an
-     un-expanded body is a faint marker, not a row of chrome. The row's
-     hover/focus state (or the disclosure being open) brings it forward.
-     A coarse-pointer override pins it visible so touch users always see
-     the affordance, matching the edit/delete reveal rule. */
-  & .task-body-toggle {
-    list-style: none;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    width: 16px;
-    height: 16px;
-    color: var(--rule);
-    opacity: 0.6;
-    user-select: none;
-    transition:
-      opacity 0.15s ease,
-      color 0.15s ease;
-
-    /* WebKit's native disclosure triangle ships separately from
-       list-style — it must be hidden with the vendor pseudo-element. */
-    &::-webkit-details-marker {
-      display: none;
-    }
-
-    &:hover,
-    &:focus-visible {
-      color: var(--accent);
-      opacity: 1;
-      outline: none;
-    }
-  }
-
-  /* Lift the toggle to full visibility when expanded — the chevron
-     keeps the user oriented while the body is open. */
-  &[open] .task-body-toggle {
-    opacity: 1;
-    color: var(--muted);
-  }
-
-  & .chevron {
-    display: inline-block;
-    transition: transform 0.15s ease;
-    font-size: 10px;
-    line-height: 1;
-    color: currentColor;
-  }
-
-  &[open] .chevron {
-    transform: rotate(90deg);
+  /* `hidden` collapses the wrap to zero box for layout, but leaves it in
+     the DOM so test selectors (and screen-reader virtual cursors) still
+     find the body content. */
+  &[hidden] {
+    display: none;
   }
 
   & .task-body {
@@ -677,16 +689,6 @@ h1 {
       font-style: italic;
     }
   }
-}
-
-/* Reveal the disclosure toggle when the row above is hovered/focused —
-   `.task-body-wrap` is the row's adjacent sibling, so `+` forward-reaches
-   only when the row holds a body. Mirrors how `.edit` / `.delete` lift
-   their opacity on row hover, so a multi-line task's affordances all
-   surface together rather than the disclosure trailing behind. */
-.row:is(:hover, :focus-within) + .task-body-wrap .task-body-toggle {
-  opacity: 1;
-  color: var(--muted);
 }
 
 /* Row-trailing action buttons — edit (rename) and delete (cascade). They
@@ -1012,11 +1014,13 @@ h1 {
   :root {
     --row-prefix-w: 78px;
   }
-  /* No hover on touch — pin the disclosure toggle so a multi-line body is
-     always discoverable. Mirrors the .edit / .delete always-visible rule
-     above. */
-  .task-body-toggle {
+  /* No hover on touch — pin the body toggle alongside edit / delete so a
+     multi-line task's affordance is always discoverable. */
+  .body-toggle {
     opacity: 1;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 6px 10px;
   }
 }
 
