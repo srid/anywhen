@@ -273,6 +273,13 @@ export function App() {
   };
 
   const remove = async (id: TaskId) => {
+    // Destructive and cascades to descendants. Same window.confirm rationale
+    // as the Import path below — the codebase has no in-app modal pattern,
+    // and a native confirm is the simplest accessible blocker. Gating here
+    // covers all three call sites (× button, x key, Backspace).
+    const task = taskList().find((t) => t.id === id);
+    if (!task) return;
+    if (!window.confirm(`Delete "${task.title}" and any sub-tasks?`)) return;
     await callWrite(() => api.remove(id));
     if (!error() && selected() === id) setSelected(null);
   };

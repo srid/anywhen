@@ -44,8 +44,8 @@ attention, not to compete for it.
 > **Status**: scaffold + add a task (press `↵` in the search box, or tap
 > the Add button) + view the tree + toggle done + edit the title
 > inline (press `e` on a focused row, or tap the pencil button — Enter
-> commits, Escape discards) + delete (with cascade
-> to descendants) + reorder via pointer drag — works for mouse, pen, and
+> commits, Escape discards) + delete (with a browser confirm prompt;
+> cascades to descendants) + reorder via pointer drag — works for mouse, pen, and
 > touch (long-press anywhere on a row, or press the grip handle on the
 > left edge for an instant drag) — top edge = drop before, bottom
 > edge = drop after, middle = nest as child + vim-friendly keyboard
