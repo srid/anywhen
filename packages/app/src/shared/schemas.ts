@@ -77,6 +77,20 @@ export const BackupSchema = z.object({
   tasks: z.array(TaskSchema),
 });
 
+// Constructor for the envelope. The single in-repo site that knows how a
+// `Backup` value is assembled — the on-disk auto-backup and the `api.export`
+// procedure both call this so a future schema widening (adding e.g. a
+// `hostname` annotation) doesn't have to be applied at two construction
+// sites in lockstep.
+export const makeBackup = (
+  tasks: z.infer<typeof TaskSchema>[],
+  now: Date,
+): z.infer<typeof BackupSchema> => ({
+  version: BACKUP_VERSION,
+  exportedAt: now.toISOString(),
+  tasks,
+});
+
 export type TaskId = z.infer<typeof TaskIdSchema>;
 export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 export type Task = z.infer<typeof TaskSchema>;

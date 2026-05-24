@@ -12,7 +12,7 @@
 import { mkdirSync, readdirSync, statSync, unlinkSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { BACKUP_VERSION, type Backup } from "../shared/schemas";
+import { makeBackup } from "../shared/schemas";
 import type { TaskStore } from "./tasks";
 
 // Hourly cadence × 7-day retention ≈ 168 files at steady state. Each file
@@ -43,13 +43,8 @@ export async function writeBackup(
 ): Promise<string> {
   mkdirSync(backupDir, { recursive: true });
   const tasks = await store.list();
-  const backup: Backup = {
-    version: BACKUP_VERSION,
-    exportedAt: now.toISOString(),
-    tasks,
-  };
   const path = join(backupDir, filenameFor(now));
-  await writeFile(path, JSON.stringify(backup, null, 2), "utf8");
+  await writeFile(path, JSON.stringify(makeBackup(tasks, now), null, 2), "utf8");
   return path;
 }
 
