@@ -22,7 +22,7 @@ import {
   onMount,
   Show,
 } from "solid-js";
-import { matchesQuery } from "../shared/filter";
+import { applyFilter, matchesQuery, type Row } from "../shared/filter";
 import { normalizeQuery } from "../shared/input";
 import {
   BackupSchema,
@@ -34,7 +34,14 @@ import {
   ZONE_AFTER_RATIO,
   ZONE_BEFORE_RATIO,
 } from "../shared/schemas";
-import { ancestorIds, descendantIds } from "../shared/tree";
+import {
+  byParentMap,
+  descendantIds,
+  type KeyMove,
+  resolveKeyMove,
+  type SortedTask,
+  sortedWithDepths,
+} from "../shared/tree";
 import { Breadcrumb } from "./Breadcrumb";
 import { highlightSegments } from "./highlight";
 import { MeridianRule } from "./MeridianRule";
@@ -45,35 +52,6 @@ const runtimeApi = app.rpc.surface.runtime;
 
 const REPO_URL = "https://github.com/srid/anywhen";
 
-// ── Tree derivation: flat Task[] → ordered, indented rows ─────────────
-type Row = { task: Task; depth: number; dimmed: boolean };
-
-const byParentMap = (tasks: Task[]): Map<TaskId | null, Task[]> => {
-  const out = new Map<TaskId | null, Task[]>();
-  for (const t of tasks) {
-    const arr = out.get(t.parentId) ?? [];
-    arr.push(t);
-    out.set(t.parentId, arr);
-  }
-  return out;
-};
-
-// Single DFS walk: position-orders siblings, visits parent before children,
-// and records depth inline — one byParentMap, one allocation, one traversal.
-const sortedWithDepths = (tasks: Task[]): { task: Task; depth: number }[] => {
-  const byParent = byParentMap(tasks);
-  for (const arr of byParent.values()) arr.sort((a, b) => a.position - b.position);
-  const out: { task: Task; depth: number }[] = [];
-  const walk = (parentId: TaskId | null, depth: number) => {
-    for (const t of byParent.get(parentId) ?? []) {
-      out.push({ task: t, depth });
-      walk(t.id, depth + 1);
-    }
-  };
-  walk(null, 0);
-  return out;
-};
-
 // Map a pointer's Y inside a row to a drop zone. Top quarter → before, bottom
 // quarter → after, middle half → inside (re-parent). Symmetric so the user
 // can always nudge a task one step up, one step down, or one level deeper.
@@ -83,36 +61,6 @@ const zoneAt = (offsetY: number, height: number): DropZone => {
   if (ratio < ZONE_BEFORE_RATIO) return "before";
   if (ratio > ZONE_AFTER_RATIO) return "after";
   return "inside";
-};
-
-const siblingsOf = (
-  tasks: Task[],
-  id: TaskId,
-): { siblings: Task[]; index: number; task: Task } | null => {
-  const task = tasks.find((t) => t.id === id);
-  if (!task) return null;
-  const siblings = (byParentMap(tasks).get(task.parentId) ?? [])
-    .slice()
-    .sort((a, b) => a.position - b.position);
-  const index = siblings.findIndex((s) => s.id === id);
-  return { siblings, index, task };
-};
-
-type KeyMove = "indent" | "outdent" | "up" | "down";
-
-const resolveKeyMove = (tasks: Task[], id: TaskId, action: KeyMove): MoveTarget | null => {
-  const sib = siblingsOf(tasks, id);
-  if (!sib) return null;
-  if (action === "outdent") {
-    return sib.task.parentId ? { kind: "after", refId: sib.task.parentId } : null;
-  }
-  if (action === "indent") {
-    const prev = sib.siblings[sib.index - 1];
-    return prev ? { kind: "inside", refId: prev.id } : null;
-  }
-  const offset = action === "up" ? -1 : 1;
-  const ref = sib.siblings[sib.index + offset];
-  return ref ? { kind: action === "up" ? "before" : "after", refId: ref.id } : null;
 };
 
 type DragSnapshot = { id: TaskId; descendants: Set<TaskId> };
@@ -205,25 +153,11 @@ export function App() {
   // same gate.
   const activeQuery = createMemo<string | null>(() => normalizeQuery(query()) || null);
 
-  const sorted = createMemo<{ task: Task; depth: number }[]>(() => sortedWithDepths(taskList()));
+  const sorted = createMemo<SortedTask[]>(() => sortedWithDepths(taskList()));
 
   const rows = createMemo<Row[]>(() => {
-    const list = sorted();
     const q = activeQuery();
-    if (!q) {
-      return list.map(({ task, depth }) => ({ task, depth, dimmed: false }));
-    }
-    const byId = new Map<TaskId, Task>(list.map(({ task: t }) => [t.id, t]));
-    const matched = new Set<TaskId>();
-    for (const { task: t } of list) if (matchesQuery(t.title, q)) matched.add(t.id);
-    const ancestors = ancestorIds(matched, (id) => byId.get(id)?.parentId ?? null);
-    return list
-      .filter(({ task: t }) => matched.has(t.id) || ancestors.has(t.id))
-      .map(({ task, depth }) => ({
-        task,
-        depth,
-        dimmed: !matched.has(task.id),
-      }));
+    return applyFilter(sorted(), q ? (t) => matchesQuery(t.title, q) : null);
   });
 
   // Two variants so the "success clears the error toast" policy applies
