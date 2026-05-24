@@ -13,5 +13,9 @@
     "support/**/*.ts",
     "cucumber.js",
     "../app/src/shared/**/*.ts"
-  ]
+  ],
+  // App unit tests (`*.test.ts`) import bun:test, which this package's
+  // types ["node"] doesn't carry — they belong to `bun test` under
+  // packages/app, not to the cucumber harness's typecheck.
+  "exclude": ["../app/src/shared/**/*.test.ts"]
 }

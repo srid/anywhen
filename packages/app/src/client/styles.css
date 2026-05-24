@@ -164,6 +164,34 @@ h1 .dot {
   padding-bottom: 1px;
 }
 
+/* ── Breadcrumb: ancestor sentence above search ─────────────────────── */
+
+/* Visible only when a non-root row is selected — its job is to name the
+   lineage that holds the user's attention, not to be a nav control. The
+   trailing space before the search lets the breadcrumb sit close to the
+   sentence it qualifies without crowding the input. */
+.breadcrumb {
+  margin: 0 0 10px 2px;
+  color: var(--muted);
+  font: italic 400 13.5px / 1.4 var(--font-serif);
+  font-variation-settings: "opsz" 14;
+  letter-spacing: 0.01em;
+}
+
+.breadcrumb-crumb {
+  color: var(--ink-soft);
+  font-variation-settings:
+    "opsz" 14,
+    "wght" 500;
+}
+
+/* Separator rendered in CSS so the JSX stays flat — just a For of crumb spans. */
+.breadcrumb-crumb + .breadcrumb-crumb::before {
+  content: "/";
+  color: var(--rule);
+  margin: 0 6px;
+}
+
 /* ── Search: paper-card input with concentric brand-mark marker ─────── */
 
 .search {
@@ -532,6 +560,16 @@ h1 .dot {
   letter-spacing: 0.005em;
 }
 
+/* A second, dimmer line under the empty-state prompt. The first line tells
+   the user what to do; this one tells them what the app is for. Stays in
+   the empty container so its lifecycle matches the prompt above it. */
+.empty-quote {
+  display: block;
+  margin-top: 10px;
+  font-size: 14px;
+  opacity: 0.66;
+}
+
 .err {
   background: rgba(154, 61, 51, 0.08);
   border: 1px solid rgba(154, 61, 51, 0.3);
@@ -695,12 +733,17 @@ h1 .dot {
 .meridian,
 .tagline,
 .err,
+.breadcrumb,
 .search,
 .tree,
 .hint,
 .backup,
 .runtime {
   animation: rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.breadcrumb {
+  animation-delay: 0.2s;
 }
 
 .brand {
@@ -736,6 +779,7 @@ h1 .dot {
   .meridian,
   .tagline,
   .err,
+  .breadcrumb,
   .search,
   .tree,
   .hint,
