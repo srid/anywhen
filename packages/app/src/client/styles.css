@@ -551,35 +551,28 @@ h1 {
    `--row-depth * indent + grip + check + gap`, computed from the same
    pieces the row's left edge uses (`.indent` width 18 + 2 gap, plus the
    leading drag-handle/check column ≈ 50px). */
-/* Body disclosure: a chevron button lives INSIDE the row (alongside edit
-   and delete) so a multi-line row is the same height as a single-line
-   one when collapsed. The body itself drops in below the row only when
-   the user opens it — using the `hidden` HTML attribute so closed bodies
-   take zero layout space but remain in the DOM (test selectors can still
-   count them). When the body opens it pushes only the rows beneath it
-   down; the row holding the body keeps its original height. */
+/* Body disclosure: an ellipsis button rendered inline at the end of the
+   title text. Always visible so a multi-line task announces itself at
+   rest (no hover-only chrome to discover). The row stays the same
+   height as a single-line one because the toggle is inline with the
+   title, not a separate flex item. The body itself drops in below the
+   row only when the user opens it — the `hidden` attribute on the wrap
+   takes it out of layout but leaves it in the DOM. */
 .body-toggle {
   background: transparent;
   border: 0;
-  padding: 0 6px;
+  padding: 0 4px;
   font: inherit;
   color: var(--muted);
   cursor: pointer;
   border-radius: 3px;
-  min-width: 22px;
-  min-height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  /* Match the edit / delete reveal: hidden on fine pointers until the
-     row is hovered or focused. The `&.open` class (set when the body
-     is expanded) and the coarse-pointer block below keep it visible
-     in the two states where the chevron must always be on. */
-  opacity: 0;
-  transition:
-    opacity 0.15s ease,
-    color 0.15s ease,
-    transform 0.15s ease;
+  /* `baseline` would put the glyph on the text baseline but most fonts
+     render `…` below baseline, dropping it visibly below the row text.
+     Sitting it on the bottom-of-cap line keeps it visually paired with
+     the trailing letter. */
+  vertical-align: baseline;
+  letter-spacing: 0.05em;
+  line-height: 1;
 
   &:hover,
   &:focus-visible {
@@ -589,24 +582,8 @@ h1 {
   }
 
   &.open {
-    opacity: 1;
-    color: var(--muted);
-
-    & .chevron {
-      transform: rotate(90deg);
-    }
+    color: var(--accent);
   }
-
-  & .chevron {
-    display: inline-block;
-    font-size: 10px;
-    line-height: 1;
-    transition: transform 0.15s ease;
-  }
-}
-
-.row:is(:hover, :focus-within) .body-toggle {
-  opacity: 1;
 }
 
 .task-body-wrap {
@@ -1014,13 +991,10 @@ h1 {
   :root {
     --row-prefix-w: 78px;
   }
-  /* No hover on touch — pin the body toggle alongside edit / delete so a
-     multi-line task's affordance is always discoverable. */
+  /* Pad the inline toggle out to a comfortable touch target on coarse
+     pointers without rewriting its inline layout. */
   .body-toggle {
-    opacity: 1;
-    min-width: 36px;
-    min-height: 36px;
-    padding: 6px 10px;
+    padding: 6px 8px;
   }
 }
 

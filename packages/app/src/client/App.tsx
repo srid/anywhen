@@ -780,6 +780,25 @@ export function App() {
                               seg.match ? <mark>{seg.text}</mark> : <span>{seg.text}</span>
                             }
                           </For>
+                          <Show when={body()}>
+                            {" "}
+                            <button
+                              type="button"
+                              class="body-toggle"
+                              classList={{ open: expandedBodies().has(row.task.id) }}
+                              data-testid="task-body-toggle"
+                              data-task-id={row.task.id}
+                              aria-label={`${expandedBodies().has(row.task.id) ? "Hide" : "Show"} details for ${firstLine()}`}
+                              aria-expanded={expandedBodies().has(row.task.id)}
+                              title="Toggle details"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleBody(row.task.id);
+                              }}
+                            >
+                              …
+                            </button>
+                          </Show>
                         </span>
                       }
                     >
@@ -799,26 +818,6 @@ export function App() {
                         onBlur={() => void commitEdit()}
                         rows={1}
                       />
-                    </Show>
-                    <Show when={body()}>
-                      <button
-                        type="button"
-                        class="body-toggle"
-                        classList={{ open: expandedBodies().has(row.task.id) }}
-                        data-testid="task-body-toggle"
-                        data-task-id={row.task.id}
-                        aria-label={`${expandedBodies().has(row.task.id) ? "Hide" : "Show"} details for ${firstLine()}`}
-                        aria-expanded={expandedBodies().has(row.task.id)}
-                        title="Toggle details"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleBody(row.task.id);
-                        }}
-                      >
-                        <span class="chevron" aria-hidden="true">
-                          ▸
-                        </span>
-                      </button>
                     </Show>
                     <button
                       type="button"
