@@ -194,8 +194,8 @@ export function App() {
   const rows = createMemo<Row[]>(() => {
     const atoms = atomList();
     if (atoms.length === 0) return applyFilter(sorted(), null);
-    const t = now();
-    return applyFilter(sorted(), (task) => evalAtoms(atoms, task, t));
+    const nowMs = now();
+    return applyFilter(sorted(), (task) => evalAtoms(atoms, task, nowMs));
   });
 
   // The lever is a typing shortcut: activating inserts HIDE_STALE_DONE
