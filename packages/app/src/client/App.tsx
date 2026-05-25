@@ -278,7 +278,7 @@ export function App() {
     if (first) setSelected(first);
   });
 
-  // A lever is a typing shortcut: activating prepends its atom to the
+  // A lever is a typing shortcut: activating appends its atom to the
   // query; deactivating filters it out. State derives from parsing
   // `query()` — no parallel signal, so a deep-link or paste that happens
   // to contain the atom reflects in the lever's pressed state without
