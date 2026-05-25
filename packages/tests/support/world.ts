@@ -1,5 +1,13 @@
-import { setWorldConstructor, World } from "@cucumber/cucumber";
+import { setDefaultTimeout, setWorldConstructor, World } from "@cucumber/cucumber";
 import type { Browser, BrowserContext, Page } from "playwright";
+
+// Cucumber's default step timeout is 5_000 ms — tight enough that CI
+// runners under load occasionally trip a step that locally finishes in
+// well under a second. Bump to 15_000 ms so async work the step is
+// waiting on (page.goto, playwright auto-wait inside expect()) has
+// breathing room without masking real hangs (a 15s wait is still a
+// failure signal worth diagnosing).
+setDefaultTimeout(15_000);
 
 export class AnywhenWorld extends World {
   browser!: Browser;
