@@ -41,11 +41,14 @@ import type { TaskStore } from "../storage/tasks";
 // unit. Removes the per-handler "do store.X then ctx.collections.tasks.upsert"
 // convention — adding a new single-row mutation procedure routes through this
 // helper, so the cache fan-out invariant lives in one place and a forgotten
-// upsert is no longer a silent wire desync. Multi-row mutations (remove with
+// upsert is no longer a silent wire desync. The name says exactly what the
+// body does (SQL write + cache upsert); "publish" would overstate the
+// surface — the publish-to-subscribers side effect lives one layer down,
+// inside `ctx.collections.tasks.upsert`. Multi-row mutations (remove with
 // cascade, import wipe-and-replace, __test__reset) still own their own
 // fan-out because their post-state isn't "one new task value".
 type TasksCtx = { collections: { tasks: { upsert: (key: TaskId, value: Task) => void } } };
-const writeAndPublish = async (ctx: TasksCtx, op: () => Promise<Task>): Promise<Task> => {
+const writeAndUpsert = async (ctx: TasksCtx, op: () => Promise<Task>): Promise<Task> => {
   const task = await op();
   ctx.collections.tasks.upsert(task.id, task);
   return task;
@@ -73,15 +76,15 @@ export function buildRouter(store: TaskStore, cache: Map<TaskId, Task>, runtimeI
     },
     procedures: {
       tasks: {
-        // Single-row mutations route through `writeAndPublish` so the SQL
+        // Single-row mutations route through `writeAndUpsert` so the SQL
         // write and the Collection upsert land as one structural unit — see
         // the helper's comment above for why this is no longer a per-handler
         // checklist.
-        add: ({ input, ctx }) => writeAndPublish(ctx, () => store.add(input)),
-        cycleStatus: ({ input, ctx }) => writeAndPublish(ctx, () => store.cycleStatus(input)),
-        edit: ({ input, ctx }) => writeAndPublish(ctx, () => store.edit(input.id, input.title)),
+        add: ({ input, ctx }) => writeAndUpsert(ctx, () => store.add(input)),
+        cycleStatus: ({ input, ctx }) => writeAndUpsert(ctx, () => store.cycleStatus(input)),
+        edit: ({ input, ctx }) => writeAndUpsert(ctx, () => store.edit(input.id, input.title)),
         move: async ({ input, ctx }) => {
-          await writeAndPublish(ctx, () => store.move(input));
+          await writeAndUpsert(ctx, () => store.move(input));
         },
         // FK cascade removes descendants in SQL; mirror the same fan-out
         // through the Collection so each descendant's key drops off the
