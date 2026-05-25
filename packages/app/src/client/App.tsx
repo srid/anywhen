@@ -304,7 +304,7 @@ export function App() {
     // Wipe-and-replace import: every prior task id is gone, so any
     // expanded-body entries belong to deleted rows. Reset the Set rather
     // than diff the import against the previous keys.
-    setExpandedBodies(new Set());
+    setExpandedBodies(new Set<TaskId>());
   };
 
   const handleImportChange = async (e: Event) => {
