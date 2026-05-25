@@ -484,27 +484,24 @@ export function App() {
     "Alt+ArrowUp": (id) => void moveByKey(id, "up"),
   };
 
-  // Encode a KeyboardEvent into the lookup string for ROW_KEY_ACTIONS, or
-  // null for "cede to the browser." Returning null on an Alt chord that
-  // isn't in the table keeps `Alt+J` from falling through to the bare `J`
-  // entry — modifiers explicitly opt in via the composite key.
-  const compositeKey = (e: KeyboardEvent): string | null => {
-    if (e.altKey) {
-      const k = `Alt+${e.key}`;
-      return k in ROW_KEY_ACTIONS ? k : null;
-    }
-    if (e.shiftKey && e.key === "Tab") return "Shift+Tab";
-    return e.key;
-  };
-
   // Single dispatch site for every vim binding — consumed by the per-row
   // onKeyDown (the ARIA roving-tabindex path) and the window-level fallback
   // (the "keys work everywhere" path). Owns the ctrl/meta cede and the
   // edit-mode guard so neither caller restates the policy.
+  //
+  // Key encoding: Alt chords become "Alt+<key>" and only match if the
+  // composite is in the table (prevents Alt+J falling through to bare J);
+  // Shift+Tab is encoded explicitly; everything else is e.key verbatim.
   const applyVimKey = (e: KeyboardEvent, id: TaskId): boolean => {
     if (e.ctrlKey || e.metaKey) return false;
     if (editing() !== null) return false;
-    const key = compositeKey(e);
+    let key: string | null;
+    if (e.altKey) {
+      const k = `Alt+${e.key}`;
+      key = k in ROW_KEY_ACTIONS ? k : null;
+    } else {
+      key = e.shiftKey && e.key === "Tab" ? "Shift+Tab" : e.key;
+    }
     if (key === null) return false;
     const action = ROW_KEY_ACTIONS[key];
     if (!action) return false;
