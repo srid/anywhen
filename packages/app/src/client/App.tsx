@@ -285,7 +285,7 @@ export function App() {
   // extra wiring. Each call site (hide-stale, only-doing) is just a
   // different atom; the toggle shape is identical.
   const createLever = (atom: Atom) => {
-    const on = createMemo<boolean>(() => atomList().some((a) => atomEquals(a, atom)));
+    const on = createMemo(() => atomList().some((a) => atomEquals(a, atom)));
     const toggle = () => {
       const current = atomList();
       const next = on() ? current.filter((a) => !atomEquals(a, atom)) : [...current, atom];
