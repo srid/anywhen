@@ -181,7 +181,16 @@ export function App() {
     if (!task) return;
     if (!confirmDestructive(`Delete "${task.title}" and any sub-tasks?`)) return;
     await callWrite(() => api.remove(id));
-    if (!error() && selected() === id) setSelected(null);
+    if (error()) return;
+    // Prune the deleted id from `expandedBodies` so the Set doesn't
+    // accumulate orphan entries across a long session of edits.
+    setExpandedBodies((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    if (selected() === id) setSelected(null);
   };
 
   const moveByKey = async (id: TaskId, action: KeyMove) => {
@@ -291,6 +300,11 @@ export function App() {
       return;
     }
     await callWrite(() => api.import(validated.data));
+    if (error()) return;
+    // Wipe-and-replace import: every prior task id is gone, so any
+    // expanded-body entries belong to deleted rows. Reset the Set rather
+    // than diff the import against the previous keys.
+    setExpandedBodies(new Set());
   };
 
   const handleImportChange = async (e: Event) => {
