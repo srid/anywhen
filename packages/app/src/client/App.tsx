@@ -13,11 +13,13 @@
 // backup flow) that span more than one axis.
 
 import {
+  type Accessor,
   createEffect,
   createMemo,
   createResource,
   createSignal,
   For,
+  type JSX,
   onCleanup,
   onMount,
   Show,
@@ -65,6 +67,34 @@ const backupFilename = (): string => {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `anywhen-backup-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.json`;
 };
+
+// Hairline two-state toggle button. Both levers share this structure —
+// only the testid, labels, and slot content differ.
+function Lever(props: {
+  testid: string;
+  on: Accessor<boolean>;
+  toggle: () => void;
+  ariaLabelOff: string;
+  ariaLabelOn: string;
+  fallback: JSX.Element;
+  children: JSX.Element;
+}) {
+  return (
+    <button
+      type="button"
+      class="lever"
+      classList={{ on: props.on() }}
+      data-testid={props.testid}
+      aria-pressed={props.on()}
+      aria-label={props.on() ? props.ariaLabelOn : props.ariaLabelOff}
+      onClick={props.toggle}
+    >
+      <Show when={props.on()} fallback={props.fallback}>
+        {props.children}
+      </Show>
+    </button>
+  );
+}
 
 export function App() {
   // Live subscription to the tasks Collection. `notes.keys()` is a reactive
@@ -430,50 +460,34 @@ export function App() {
           </p>
         </Show>
         <div class="lever-group">
-          <button
-            type="button"
-            class="lever"
-            classList={{ on: onlyDoingLever.on() }}
-            data-testid="focus-lever"
-            aria-pressed={onlyDoingLever.on()}
-            aria-label={
-              onlyDoingLever.on() ? "Show tasks in any state" : "Show only tasks I'm doing"
+          <Lever
+            testid="focus-lever"
+            on={onlyDoingLever.on}
+            toggle={onlyDoingLever.toggle}
+            ariaLabelOff="Show only tasks I'm doing"
+            ariaLabelOn="Show tasks in any state"
+            fallback={
+              <>
+                all tasks · <span class="lever-pivot">only what I&rsquo;m doing</span>
+              </>
             }
-            onClick={onlyDoingLever.toggle}
           >
-            <Show
-              when={onlyDoingLever.on()}
-              fallback={
-                <>
-                  all tasks · <span class="lever-pivot">only what I&rsquo;m doing</span>
-                </>
-              }
-            >
-              only doing · <span class="lever-pivot">show all</span>
-            </Show>
-          </button>
-          <button
-            type="button"
-            class="lever"
-            classList={{ on: hideStaleLever.on() }}
-            data-testid="visibility-lever"
-            aria-pressed={hideStaleLever.on()}
-            aria-label={
-              hideStaleLever.on() ? "Show all tasks" : "Hide tasks done over 24 hours ago"
+            only doing · <span class="lever-pivot">show all</span>
+          </Lever>
+          <Lever
+            testid="visibility-lever"
+            on={hideStaleLever.on}
+            toggle={hideStaleLever.toggle}
+            ariaLabelOff="Hide tasks done over 24 hours ago"
+            ariaLabelOn="Show all tasks"
+            fallback={
+              <>
+                showing all · <span class="lever-pivot">hide done &gt;24h</span>
+              </>
             }
-            onClick={hideStaleLever.toggle}
           >
-            <Show
-              when={hideStaleLever.on()}
-              fallback={
-                <>
-                  showing all · <span class="lever-pivot">hide done &gt;24h</span>
-                </>
-              }
-            >
-              showing recent · <span class="lever-pivot">show all</span>
-            </Show>
-          </button>
+            showing recent · <span class="lever-pivot">show all</span>
+          </Lever>
         </div>
       </div>
 
