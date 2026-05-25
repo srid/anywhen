@@ -1,13 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
-  type Atom,
   atomEquals,
   evalAtoms,
   HIDE_STALE_DONE,
   parseAtoms,
   serializeAtoms,
   STALE_THRESHOLD_MS,
-} from "./atoms";
+} from "./query";
 import type { Task, TaskId } from "./schemas";
 
 // ── parseAtoms ────────────────────────────────────────────────────────
