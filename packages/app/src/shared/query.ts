@@ -23,19 +23,19 @@
 
 import { matchesQuery } from "./filter";
 import { normalizeQuery } from "./input";
-import type { Task } from "./schemas";
+import { TaskStatusSchema, type Task, type TaskStatus } from "./schemas";
 import { splitTitle } from "./title";
 
 const DONE_VALUES = ["no", "yes", "fresh", "stale"] as const;
 type DoneValue = (typeof DONE_VALUES)[number];
 
-const STATUS_VALUES = ["todo", "doing", "done"] as const;
-type StatusValue = (typeof STATUS_VALUES)[number];
+// Derived from TaskStatusSchema so any enum widening stays in sync automatically.
+const STATUS_VALUES = TaskStatusSchema.options;
 
 export type Atom =
   | { kind: "text"; needle: string }
   | { kind: "done"; value: DoneValue }
-  | { kind: "status"; value: StatusValue }
+  | { kind: "status"; value: TaskStatus }
   | { kind: "not"; inner: Atom };
 
 export const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
