@@ -284,7 +284,7 @@ export function App() {
   // to contain the atom reflects in the lever's pressed state without
   // extra wiring. Each call site (hide-stale, only-doing) is just a
   // different atom; the toggle shape is identical.
-  const makeLever = (atom: Atom) => {
+  const createLever = (atom: Atom) => {
     const on = createMemo<boolean>(() => atomList().some((a) => atomEquals(a, atom)));
     const toggle = () => {
       const current = atomList();
@@ -294,8 +294,8 @@ export function App() {
     return { on, toggle };
   };
 
-  const hideStaleLever = makeLever(HIDE_STALE_DONE);
-  const onlyDoingLever = makeLever(ONLY_DOING);
+  const hideStaleLever = createLever(HIDE_STALE_DONE);
+  const onlyDoingLever = createLever(ONLY_DOING);
 
   // Add is disabled whenever the parsed atoms include any structured
   // (non-text) atom — the user is filtering, not naming a task.
