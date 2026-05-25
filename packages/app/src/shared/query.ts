@@ -1,9 +1,14 @@
-// Filter-atom grammar. The search box accepts a sequence of atoms (today:
+// Filter-query grammar. The search box accepts a sequence of atoms (today:
 // free text, `done:X`, `not <structured>`) — AND-composed — that
 // `applyFilter` evaluates against each task. The shape is a closed
 // discriminated union so adding a new atom kind is one variant + one
 // parser branch + one evaluator branch; nothing in App.tsx or the rows()
 // memo changes.
+//
+// Filename note: this lives at `shared/query.ts` (not `shared/atoms.ts`)
+// to keep the import path away from Solid/Jotai's "atom" connotation —
+// `Atom` here is a filter-grammar primitive, not a state-management one.
+// The internal type names stay; only the file is renamed.
 //
 // Round-trip is a load-bearing property for the visibility lever: it
 // inserts `not done:stale` into the user's typed query and, on
@@ -189,8 +194,8 @@ const evalDone = (value: DoneValue, task: Task, now: number): boolean => {
       // fresh / stale); `status:` owns raw lifecycle equality. If the
       // definition of "done" ever widens (e.g. a future "archived"
       // state that also counts as done), both this branch and the
-      // status:done branch below must move in lockstep — the round-trip
-      // test in atoms.test.ts pins the equivalence.
+      // status:done branch below must move in lockstep — the equivalence
+      // test in query.test.ts pins the property across every fixture task.
       return task.status === "done";
     case "fresh":
       return isFreshDone(task, now);
