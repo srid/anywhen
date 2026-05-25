@@ -10,7 +10,7 @@
 // kind ripples through the parser/evaluator in `shared/query.ts` and
 // touches nothing here.
 
-import { type Accessor, createMemo, createSignal, onCleanup, onMount, type Setter } from "solid-js";
+import { type Accessor, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { applyFilter, type Row } from "../shared/filter";
 import { normalizeQuery } from "../shared/input";
 import {
@@ -26,7 +26,7 @@ import { type SortedTask, sortedWithDepths } from "../shared/tree";
 
 export const useFilter = (
   query: Accessor<string>,
-  setQuery: Setter<string>,
+  setQuery: (value: string) => void,
   tasks: Accessor<Task[]>,
 ) => {
   // Per-minute reactive clock for the staleness evaluator. Without this,
@@ -108,5 +108,3 @@ export const useFilter = (
     canCreate,
   };
 };
-
-export type UseFilterReturn = ReturnType<typeof useFilter>;

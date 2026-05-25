@@ -207,19 +207,13 @@ export const useDrag = (api: MoveApi, taskList: Accessor<Task[]>, callWrite: Cal
     void callWrite(() => api.move({ id: s.src, target }));
   };
 
-  const handleRowPointerCancel = () => {
-    goIdle();
-  };
-
   return {
-    dragState,
     isDragging,
     dropZoneOn,
-    canDropOn,
     handleRowPointerDown,
     handleRowPointerMove,
     handleRowPointerUp,
-    handleRowPointerCancel,
+    handleRowPointerCancel: goIdle,
   };
 };
 

@@ -471,7 +471,7 @@ export function App() {
               <TaskRow
                 row={row}
                 selected={selected}
-                setSelected={setSelected}
+                onSelect={setSelected}
                 focusedId={focusedId}
                 highlightQuery={highlightQuery}
                 expandedBodies={expandedBodies}

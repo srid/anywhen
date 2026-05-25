@@ -7,7 +7,7 @@
 // purely a consumer: it doesn't own any signals, only reads them and
 // invokes the callbacks the parent provides.
 
-import { type Accessor, createEffect, createMemo, For, Show, type Setter } from "solid-js";
+import { type Accessor, createEffect, createMemo, For, Show } from "solid-js";
 import MarkdownIt from "markdown-it";
 import type { Row } from "../shared/filter";
 import type { TaskId, TaskStatus } from "../shared/schemas";
@@ -44,7 +44,7 @@ const STATUS_TO_ARIA_PRESSED: Record<TaskStatus, "true" | "false" | "mixed"> = {
 export type TaskRowProps = {
   row: Row;
   selected: Accessor<TaskId | null>;
-  setSelected: Setter<TaskId | null>;
+  onSelect: (id: TaskId) => void;
   focusedId: Accessor<TaskId | null>;
   highlightQuery: Accessor<string>;
   expandedBodies: Accessor<Set<TaskId>>;
@@ -109,8 +109,8 @@ export function TaskRow(props: TaskRowProps) {
         role="treeitem"
         aria-selected={props.selected() === props.row.task.id}
         tabIndex={0}
-        onClick={() => props.setSelected(props.row.task.id)}
-        onFocus={() => props.setSelected(props.row.task.id)}
+        onClick={() => props.onSelect(props.row.task.id)}
+        onFocus={() => props.onSelect(props.row.task.id)}
         onKeyDown={(e) => props.onRowKeyDown(e, props.row.task.id)}
         onPointerDown={(e) => props.drag.handleRowPointerDown(e, props.row.task.id)}
         onPointerMove={(e) => props.drag.handleRowPointerMove(e, props.row.task.id)}
@@ -232,7 +232,6 @@ export function TaskRow(props: TaskRowProps) {
             data-task-id={props.row.task.id}
             // markdown-it is constructed with html:false so user content
             // can't smuggle raw <script> / <iframe> through.
-            // biome-ignore lint/security/noDangerouslySetInnerHtml: rendered HTML is sanitized by markdown-it (html:false)
             innerHTML={md.render(body())}
           />
         </div>
