@@ -54,7 +54,10 @@ attention, not to compete for it.
 > edge = drop after, middle = nest as child + vim-friendly keyboard
 > navigation (`j`/`k` moves selection, `l`/`h` indents/outdents, `⇧J`/`⇧K`
 > reorders siblings, `e` edits the focused row, `x` deletes it, `Space`
-> advances status through the cycle, `/` focuses the search box) + live filter (type a
+> advances status through the cycle, `/` focuses the search box — keys
+> work globally, anywhere on the page, with the search and edit inputs
+> the only typing exception; `Escape` blurs the search box so vim mode
+> takes over without reaching for the mouse) + live filter (type a
 > query — matches highlight in their
 > own row, ancestors stay visible but dimmed so the path to a match is
 > intact; structured atoms `done:no`, `done:yes`, `done:fresh`,

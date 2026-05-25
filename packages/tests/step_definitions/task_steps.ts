@@ -134,6 +134,10 @@ When("I press Enter in the search box", async function (this: AnywhenWorld) {
   await this.page.locator('[data-testid="search-input"]').press("Enter");
 });
 
+When("I press Escape in the search box", async function (this: AnywhenWorld) {
+  await this.page.locator('[data-testid="search-input"]').press("Escape");
+});
+
 When("I dismiss the next confirmation dialog", async function (this: AnywhenWorld) {
   this.dismissNextConfirm();
 });
@@ -387,8 +391,9 @@ Then(
 
 // Keyboard nav: Playwright's locator.press() accepts the same key syntax as
 // page.keyboard.press(), so vim chords like "Shift+J" and plain "h"/"l"
-// flow through unchanged. Focus first so the row's onKeyDown receives the
-// event (the tree has no global keydown for these keys — they're per-row).
+// flow through unchanged. Focusing the row first exercises the per-row
+// onKeyDown (the ARIA roving-tabindex path); the window-level fallback is
+// exercised by the "press X globally" scenarios.
 When(
   "I press {string} on the task titled {string}",
   async function (this: AnywhenWorld, key: string, title: string) {
@@ -426,6 +431,10 @@ Then(
 
 Then("the search box should be focused", async function (this: AnywhenWorld) {
   await expect(this.page.locator('[data-testid="search-input"]')).toBeFocused();
+});
+
+Then("the search box should not be focused", async function (this: AnywhenWorld) {
+  await expect(this.page.locator('[data-testid="search-input"]')).not.toBeFocused();
 });
 
 When("I clear the search box", async function (this: AnywhenWorld) {
