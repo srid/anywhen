@@ -48,21 +48,23 @@ export const HIDE_STALE_DONE: Atom = {
 // user could also type by hand.
 export const ONLY_DOING: Atom = { kind: "status", value: "doing" };
 
-// Recognises one structured atom in a single token (today: done:X).
+// Recognises one structured atom in a single token (today: done:X, status:X).
 // Returns null for tokens that should fall through to free text. Future
 // atom kinds extend this without touching the surrounding tokenizer.
 const parseStructured = (token: string): Atom | null => {
-  if (token.startsWith("done:")) {
-    const value = token.slice("done:".length);
-    if ((DONE_VALUES as readonly string[]).includes(value)) {
-      return { kind: "done", value: value as DoneValue };
-    }
+  // Value following a prefix, or null when the prefix isn't present.
+  const after = (prefix: string) => (token.startsWith(prefix) ? token.slice(prefix.length) : null);
+  // Type-safe membership: narrows `s` to `T` when it's in the const array.
+  const oneOf = <T extends string>(s: string, arr: readonly T[]): s is T =>
+    (arr as readonly string[]).includes(s);
+
+  const doneVal = after("done:");
+  if (doneVal !== null && oneOf(doneVal, DONE_VALUES)) {
+    return { kind: "done", value: doneVal };
   }
-  if (token.startsWith("status:")) {
-    const value = token.slice("status:".length);
-    if ((STATUS_VALUES as readonly string[]).includes(value)) {
-      return { kind: "status", value: value as StatusValue };
-    }
+  const statusVal = after("status:");
+  if (statusVal !== null && oneOf(statusVal, STATUS_VALUES)) {
+    return { kind: "status", value: statusVal };
   }
   return null;
 };
