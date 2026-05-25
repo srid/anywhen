@@ -114,3 +114,48 @@ Feature: Vim-friendly keyboard navigation for the task tree
     When I focus the task titled "note"
     And I press "/" globally
     Then the search box should be focused
+
+  Scenario: j moves selection globally when focus is outside the tree
+    Given the app is running with a fresh database
+    When I add a task titled "alpha"
+    Then the tree should contain a task titled "alpha"
+    When I add a task titled "beta"
+    Then the tree should contain a task titled "beta"
+    When I focus the task titled "alpha"
+    And I press "/" globally
+    Then the search box should be focused
+    When I press Escape in the search box
+    And I press "j" globally
+    Then the task titled "beta" should be selected
+
+  Scenario: k moves selection globally when focus is outside the tree
+    Given the app is running with a fresh database
+    When I add a task titled "alpha"
+    Then the tree should contain a task titled "alpha"
+    When I add a task titled "beta"
+    Then the tree should contain a task titled "beta"
+    When I focus the task titled "beta"
+    And I press "/" globally
+    Then the search box should be focused
+    When I press Escape in the search box
+    And I press "k" globally
+    Then the task titled "alpha" should be selected
+
+  Scenario: Escape blurs the search box so global vim keys take over
+    Given the app is running with a fresh database
+    When I add a task titled "lone"
+    Then the tree should contain a task titled "lone"
+    When I press "/" globally
+    Then the search box should be focused
+    When I press Escape in the search box
+    Then the search box should not be focused
+
+  Scenario: Deleting the selected row re-seeds selection to the next visible row
+    Given the app is running with a fresh database
+    When I add a task titled "first"
+    Then the tree should contain a task titled "first"
+    When I add a task titled "second"
+    Then the tree should contain a task titled "second"
+    When I press "x" on the task titled "second"
+    Then the tree should not contain a task titled "second"
+    And the task titled "first" should be selected

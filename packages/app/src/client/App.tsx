@@ -134,6 +134,15 @@ const STATUS_TO_ARIA_PRESSED: Record<TaskStatus, "true" | "false" | "mixed"> = {
   done: "true",
 };
 
+// "Is this event target a place the user is typing?" — the canonical
+// guard for any window-level shortcut that would otherwise eat a
+// keystroke meant for an input. Lifted to module scope so the "/"
+// listener and the vim-key fallback share one predicate.
+const isTypingTarget = (t: EventTarget | null): boolean =>
+  t instanceof HTMLInputElement ||
+  t instanceof HTMLTextAreaElement ||
+  (t instanceof HTMLElement && t.isContentEditable);
+
 // Backup filename uses the local date — Dropbox-friendly, sorts well,
 // and matches the unit the user thinks in ("today's backup").
 const backupFilename = (): string => {
@@ -257,6 +266,16 @@ export function App() {
     return applyFilter(sorted(), (task) => evalAtoms(atoms, task, nowMs));
   });
 
+  // Seed `selected` to the first visible row whenever it clears — at boot
+  // (so global vim keys have a target before the user clicks anything) and
+  // after a deletion empties it. The createEffect short-circuits once
+  // selected is set, so this isn't a continuous-correction loop.
+  createEffect(() => {
+    if (selected() !== null) return;
+    const first = rows()[0]?.task.id;
+    if (first) setSelected(first);
+  });
+
   // The lever is a typing shortcut: activating inserts HIDE_STALE_DONE
   // into the query; deactivating filters it out. State derives from
   // parsing `query()` — no parallel signal, so a deep-link or paste that
@@ -321,6 +340,14 @@ export function App() {
   };
 
   const handleSearchKeyDown = async (e: KeyboardEvent) => {
+    // Escape releases focus from the search box. With focus off the input,
+    // the window-level vim handler regains control — the canonical "tab
+    // away to vim mode" gesture, just on a more familiar key.
+    if (e.key === "Escape") {
+      e.preventDefault();
+      searchInputRef.blur();
+      return;
+    }
     if (e.key !== "Enter") return;
     // Shift+Enter inserts a newline so the user can compose a multi-line
     // task in place — first line as the row label, subsequent lines as the
@@ -533,19 +560,51 @@ export function App() {
   };
 
   onMount(() => {
+    // One window-level keydown handler with two roles. Top half: "/" still
+    // focuses search from anywhere. Bottom half: vim keys (j/k/h/l/x/e/
+    // Space/Tab/Shift+Tab + Alt+Arrow aliases) fire when focus is outside
+    // the tree — the user's mental model is "keys work everywhere except
+    // while I'm typing." Inside a row, the per-row onKeyDown still owns
+    // the path (preserves the ARIA roving-tabindex pattern for trees).
     const onGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "/") return;
-      const t = e.target;
-      if (
-        t instanceof HTMLInputElement ||
-        t instanceof HTMLTextAreaElement ||
-        (t instanceof HTMLElement && t.isContentEditable)
-      ) {
+      if (isTypingTarget(e.target)) return;
+
+      if (e.key === "/") {
+        e.preventDefault();
+        searchInputRef.focus();
+        searchInputRef.select();
         return;
       }
+
+      // Vim-key fallback below. Ctrl/Meta chords belong to the browser
+      // (undo, copy, find), so cede early. If focus is already on a row,
+      // the row's handler will run — don't double-fire.
+      if (e.ctrlKey || e.metaKey) return;
+      if (e.target instanceof HTMLElement && e.target.closest('[role="treeitem"]')) return;
+      if (editing() !== null) return;
+
+      const id = selected() ?? rows()[0]?.task.id;
+      if (!id) return;
+
+      if (e.altKey) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          void moveByKey(id, "down");
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault();
+          void moveByKey(id, "up");
+        }
+        return;
+      }
+
+      const key = e.shiftKey && e.key === "Tab" ? "Shift+Tab" : e.key;
+      const action = ROW_KEY_ACTIONS[key];
+      if (!action) return;
       e.preventDefault();
-      searchInputRef.focus();
-      searchInputRef.select();
+      // Seed focus into the row so the next key flows through the per-row
+      // handler — the bootstrap was a one-key handoff into the ARIA path.
+      setFocusedId(id);
+      action(id);
     };
     window.addEventListener("keydown", onGlobalKeyDown);
     onCleanup(() => window.removeEventListener("keydown", onGlobalKeyDown));
