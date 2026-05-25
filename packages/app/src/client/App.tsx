@@ -558,30 +558,32 @@ export function App() {
     await handleImportFile(file);
   };
 
+  // Two independent global-keystroke roles: "/" focuses search from
+  // anywhere; vim keys fire when focus is outside the tree. They share
+  // only the typing-target guard, so the dispatch is two sub-handlers
+  // called in turn — each returning true when it consumed the event.
+  const handleGlobalSearch = (e: KeyboardEvent): boolean => {
+    if (e.key !== "/") return false;
+    e.preventDefault();
+    searchInputRef.focus();
+    searchInputRef.select();
+    return true;
+  };
+
+  const handleGlobalVim = (e: KeyboardEvent): boolean => {
+    // If focus is already on a row, the per-row handler will run — don't
+    // double-fire here.
+    if (e.target instanceof HTMLElement && e.target.closest('[role="treeitem"]')) return false;
+    const id = selected() ?? rows()[0]?.task.id;
+    if (!id) return false;
+    return applyVimKey(e, id);
+  };
+
   onMount(() => {
-    // One window-level keydown handler with two roles. Top half: "/" still
-    // focuses search from anywhere. Bottom half: vim keys fire when focus
-    // is outside the tree — the user's mental model is "keys work
-    // everywhere except while I'm typing." Inside a row, the per-row
-    // onKeyDown still owns the path (preserves the ARIA roving-tabindex
-    // pattern for trees).
     const onGlobalKeyDown = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target)) return;
-
-      if (e.key === "/") {
-        e.preventDefault();
-        searchInputRef.focus();
-        searchInputRef.select();
-        return;
-      }
-
-      // If focus is already on a row, the per-row handler will run — don't
-      // double-fire.
-      if (e.target instanceof HTMLElement && e.target.closest('[role="treeitem"]')) return;
-
-      const id = selected() ?? rows()[0]?.task.id;
-      if (!id) return;
-      applyVimKey(e, id);
+      if (handleGlobalSearch(e)) return;
+      handleGlobalVim(e);
     };
     window.addEventListener("keydown", onGlobalKeyDown);
     onCleanup(() => window.removeEventListener("keydown", onGlobalKeyDown));
