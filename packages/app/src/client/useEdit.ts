@@ -6,7 +6,7 @@
 // Collection delta arrives). `draft` evolves with the user's input;
 // `setDraft` is the narrow setter the inline textarea binds to.
 
-import { type Accessor, createSignal, type Setter } from "solid-js";
+import { type Accessor, createSignal } from "solid-js";
 import type { Task, TaskId } from "../shared/schemas";
 import type { CallWrite } from "./rpc";
 
@@ -14,10 +14,16 @@ export type EditingState = { id: TaskId; originalTitle: string; draft: string } 
 
 type EditApi = { edit: (input: { id: TaskId; title: string }) => Promise<Task> };
 
+// `onEditClosed` is the post-close focus-delivery callback the parent
+// wires up: the row that just left edit mode usually regains keyboard
+// focus so vim navigation continues. The module takes a plain
+// `(id) => void` rather than a SolidJS `Setter<TaskId | null>` so the
+// edit-management axis doesn't leak the parent's reactivity primitive
+// into its public surface.
 export const useEdit = (
   api: EditApi,
   taskList: Accessor<Task[]>,
-  setFocusedId: Setter<TaskId | null>,
+  onEditClosed: (id: TaskId) => void,
   callWrite: CallWrite,
 ) => {
   const [editing, setEditing] = createSignal<EditingState>(null);
@@ -34,11 +40,11 @@ export const useEdit = (
     setEditing({ id, originalTitle: task.title, draft: task.title });
   };
 
-  // Tear down the edit session and restore keyboard focus to the row so vim
-  // navigation continues from where the user left off.
+  // Tear down the edit session and notify the parent so it can deliver
+  // keyboard focus back to the row (vim navigation continues from there).
   const closeEdit = (id: TaskId) => {
     setEditing(null);
-    setFocusedId(id);
+    onEditClosed(id);
   };
 
   const cancelEdit = () => {
