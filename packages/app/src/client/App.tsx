@@ -48,6 +48,15 @@ const ATOM_CLASS: Record<Atom["kind"], string> = {
   not: "atom-not",
 };
 
+// "Is this event target a place the user is typing?" — the canonical
+// guard for any window-level shortcut that would otherwise eat a
+// keystroke meant for an input. Lifted to module scope so the "/"
+// listener and the vim-key fallback share one predicate.
+const isTypingTarget = (t: EventTarget | null): boolean =>
+  t instanceof HTMLInputElement ||
+  t instanceof HTMLTextAreaElement ||
+  (t instanceof HTMLElement && t.isContentEditable);
+
 // Backup filename uses the local date — Dropbox-friendly, sorts well,
 // and matches the unit the user thinks in ("today's backup").
 const backupFilename = (): string => {
@@ -118,6 +127,16 @@ export function App() {
   const { activeQuery, atomList, highlightQuery, rows, leverOn, toggleLever, canCreate } =
     useFilter(query, setQuery, taskList);
 
+  // Seed `selected` to the first visible row whenever it clears — at boot
+  // (so global vim keys have a target before the user clicks anything) and
+  // after a deletion empties it. The createEffect short-circuits once
+  // selected is set, so this isn't a continuous-correction loop.
+  createEffect(() => {
+    if (selected() !== null) return;
+    const first = rows()[0]?.task.id;
+    if (first) setSelected(first);
+  });
+
   // ── Mutation handlers (small enough to stay inline) ───────────────────
   const createFromInput = async () => {
     // Refuse when the query has any structured atom — the user is
@@ -133,6 +152,14 @@ export function App() {
   };
 
   const handleSearchKeyDown = async (e: KeyboardEvent) => {
+    // Escape releases focus from the search box. With focus off the input,
+    // the window-level vim handler regains control — the canonical "tab
+    // away to vim mode" gesture, just on a more familiar key.
+    if (e.key === "Escape") {
+      e.preventDefault();
+      searchInputRef.blur();
+      return;
+    }
     if (e.key !== "Enter") return;
     // Shift+Enter inserts a newline so the user can compose a multi-line
     // task in place — first line as the row label, subsequent lines as
@@ -180,13 +207,9 @@ export function App() {
   // the rows are a contract screen-reader users navigate by), and
   // Alt+ArrowUp/Down stay as the legacy reorder aliases.
   //
-  // Ctrl/Meta chords cede to the browser. Alt is consumed only by the
-  // ArrowUp/Down reorder aliases, so plain Alt+x or Alt+j fall through
-  // to the browser unchanged.
-  //
-  // Composite key "Shift+Tab" is encoded as the lookup key so the Tab
-  // and Shift+Tab cases don't need a nested conditional inside the
-  // handler.
+  // Composite keys ("Shift+Tab", "Alt+ArrowDown", "Alt+ArrowUp") are
+  // encoded as lookup strings so every chord rides the same dispatch path
+  // as a bare key — no parallel if/else ladder for modifiers.
   const ROW_KEY_ACTIONS: Record<string, (id: TaskId) => void> = {
     " ": (id) => void cycleStatus(id),
     // vim primary  │  ARIA alias
@@ -203,34 +226,34 @@ export function App() {
     Tab: (id) => void moveByKey(id, "indent"),
     h: (id) => void moveByKey(id, "outdent"),
     "Shift+Tab": (id) => void moveByKey(id, "outdent"),
+    "Alt+ArrowDown": (id) => void moveByKey(id, "down"),
+    "Alt+ArrowUp": (id) => void moveByKey(id, "up"),
   };
 
-  const handleRowKeyDown = (e: KeyboardEvent, id: TaskId) => {
-    if (e.ctrlKey || e.metaKey) return;
-    // While this row is in edit mode, hand keyboard control to the
-    // inline input — its own onKeyDown handles Enter / Escape and lets
-    // every other key fall through to typing.
-    if (edit.editing()?.id === id) return;
-
-    // Alt is consumed only by the legacy ArrowUp/Down reorder aliases;
-    // any other alt-chord falls through to the browser unchanged.
+  // Single dispatch site for every vim binding — consumed by the per-row
+  // onKeyDown (the ARIA roving-tabindex path) and the window-level fallback
+  // (the "keys work everywhere" path). Owns the ctrl/meta cede and the
+  // edit-mode guard so neither caller restates the policy.
+  //
+  // Key encoding: Alt chords become "Alt+<key>" and only match if the
+  // composite is in the table (prevents Alt+J falling through to bare J);
+  // Shift+Tab is encoded explicitly; everything else is e.key verbatim.
+  const applyVimKey = (e: KeyboardEvent, id: TaskId): boolean => {
+    if (e.ctrlKey || e.metaKey) return false;
+    if (edit.editing() !== null) return false;
+    let key: string | null;
     if (e.altKey) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        void moveByKey(id, "down");
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        void moveByKey(id, "up");
-      }
-      return;
+      const k = `Alt+${e.key}`;
+      key = k in ROW_KEY_ACTIONS ? k : null;
+    } else {
+      key = e.shiftKey && e.key === "Tab" ? "Shift+Tab" : e.key;
     }
-
-    const key = e.shiftKey && e.key === "Tab" ? "Shift+Tab" : e.key;
+    if (key === null) return false;
     const action = ROW_KEY_ACTIONS[key];
-    if (action) {
-      e.preventDefault();
-      action(id);
-    }
+    if (!action) return false;
+    e.preventDefault();
+    action(id);
+    return true;
   };
 
   // ── Backup (thin call-throughs; deferred extraction per the rule) ─────
@@ -279,21 +302,32 @@ export function App() {
     await handleImportFile(file);
   };
 
-  // ── Global "/" focuses the search box ─────────────────────────────────
+  // Two independent global-keystroke roles: "/" focuses search from
+  // anywhere; vim keys fire when focus is outside the tree. They share
+  // only the typing-target guard, so the dispatch is two sub-handlers
+  // called in turn — each returning true when it consumed the event.
+  const handleGlobalSearch = (e: KeyboardEvent): boolean => {
+    if (e.key !== "/") return false;
+    e.preventDefault();
+    searchInputRef.focus();
+    searchInputRef.select();
+    return true;
+  };
+
+  const handleGlobalVim = (e: KeyboardEvent): boolean => {
+    // If focus is already on a row, the per-row handler will run — don't
+    // double-fire here.
+    if (e.target instanceof HTMLElement && e.target.closest('[role="treeitem"]')) return false;
+    const id = selected() ?? rows()[0]?.task.id;
+    if (!id) return false;
+    return applyVimKey(e, id);
+  };
+
   onMount(() => {
     const onGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "/") return;
-      const t = e.target;
-      if (
-        t instanceof HTMLInputElement ||
-        t instanceof HTMLTextAreaElement ||
-        (t instanceof HTMLElement && t.isContentEditable)
-      ) {
-        return;
-      }
-      e.preventDefault();
-      searchInputRef.focus();
-      searchInputRef.select();
+      if (isTypingTarget(e.target)) return;
+      if (handleGlobalSearch(e)) return;
+      handleGlobalVim(e);
     };
     window.addEventListener("keydown", onGlobalKeyDown);
     onCleanup(() => window.removeEventListener("keydown", onGlobalKeyDown));
@@ -430,7 +464,7 @@ export function App() {
                 toggleBody={toggleBody}
                 drag={drag}
                 edit={edit}
-                onRowKeyDown={handleRowKeyDown}
+                onRowKeyDown={applyVimKey}
                 onCycleStatus={(id) => void cycleStatus(id)}
                 onRemove={(id) => void remove(id)}
               />
