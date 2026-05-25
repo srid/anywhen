@@ -423,7 +423,7 @@ export function App() {
   // Editor key handling kept adjacent to the other edit lifecycle functions
   // so "what keys edit mode responds to" is one cohesive unit. Every key
   // stops propagation so the row's vim handler can't fire on typing keys
-  // (the row guard at handleRowKeyDown is the primary defense; this is
+  // (applyVimKey's editing() guard is the primary defense; this is
   // belt-and-suspenders). Enter commits; Escape discards.
   const handleEditKeyDown = (ev: KeyboardEvent) => {
     ev.stopPropagation();
@@ -461,12 +461,9 @@ export function App() {
   // a contract screen-reader users navigate by), and Alt+ArrowUp/Down stay
   // as the legacy reorder aliases.
   //
-  // Ctrl/Meta chords cede to the browser. Alt is consumed only by the
-  // ArrowUp/Down reorder aliases, so plain Alt+x or Alt+j fall through to
-  // the browser unchanged.
-  //
-  // Composite key "Shift+Tab" is encoded as the lookup key so the Tab and
-  // Shift+Tab cases don't need a nested conditional inside the handler.
+  // Composite keys ("Shift+Tab", "Alt+ArrowDown", "Alt+ArrowUp") are
+  // encoded as lookup strings so every chord rides the same dispatch path
+  // as a bare key — no parallel if/else ladder for modifiers.
   const ROW_KEY_ACTIONS: Record<string, (id: TaskId) => void> = {
     " ": (id) => void cycleStatus(id),
     // vim primary  │  ARIA alias
@@ -483,35 +480,37 @@ export function App() {
     Tab: (id) => void moveByKey(id, "indent"),
     h: (id) => void moveByKey(id, "outdent"),
     "Shift+Tab": (id) => void moveByKey(id, "outdent"),
+    "Alt+ArrowDown": (id) => void moveByKey(id, "down"),
+    "Alt+ArrowUp": (id) => void moveByKey(id, "up"),
   };
 
-  const handleRowKeyDown = (e: KeyboardEvent, id: TaskId) => {
-    if (e.ctrlKey || e.metaKey) return;
-    // While this row is in edit mode, hand keyboard control to the inline
-    // input — its own onKeyDown handles Enter / Escape and lets every other
-    // key fall through to typing. Without this guard, pressing 'x' inside
-    // the editor would also delete the row.
-    if (editing()?.id === id) return;
-
-    // Alt is consumed only by the legacy ArrowUp/Down reorder aliases; any
-    // other alt-chord falls through to the browser unchanged.
+  // Encode a KeyboardEvent into the lookup string for ROW_KEY_ACTIONS, or
+  // null for "cede to the browser." Returning null on an Alt chord that
+  // isn't in the table keeps `Alt+J` from falling through to the bare `J`
+  // entry — modifiers explicitly opt in via the composite key.
+  const compositeKey = (e: KeyboardEvent): string | null => {
     if (e.altKey) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        void moveByKey(id, "down");
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        void moveByKey(id, "up");
-      }
-      return;
+      const k = `Alt+${e.key}`;
+      return k in ROW_KEY_ACTIONS ? k : null;
     }
+    if (e.shiftKey && e.key === "Tab") return "Shift+Tab";
+    return e.key;
+  };
 
-    const key = e.shiftKey && e.key === "Tab" ? "Shift+Tab" : e.key;
+  // Single dispatch site for every vim binding — consumed by the per-row
+  // onKeyDown (the ARIA roving-tabindex path) and the window-level fallback
+  // (the "keys work everywhere" path). Owns the ctrl/meta cede and the
+  // edit-mode guard so neither caller restates the policy.
+  const applyVimKey = (e: KeyboardEvent, id: TaskId): boolean => {
+    if (e.ctrlKey || e.metaKey) return false;
+    if (editing() !== null) return false;
+    const key = compositeKey(e);
+    if (key === null) return false;
     const action = ROW_KEY_ACTIONS[key];
-    if (action) {
-      e.preventDefault();
-      action(id);
-    }
+    if (!action) return false;
+    e.preventDefault();
+    action(id);
+    return true;
   };
 
   const exportTasks = async () => {
@@ -561,11 +560,11 @@ export function App() {
 
   onMount(() => {
     // One window-level keydown handler with two roles. Top half: "/" still
-    // focuses search from anywhere. Bottom half: vim keys (j/k/h/l/x/e/
-    // Space/Tab/Shift+Tab + Alt+Arrow aliases) fire when focus is outside
-    // the tree — the user's mental model is "keys work everywhere except
-    // while I'm typing." Inside a row, the per-row onKeyDown still owns
-    // the path (preserves the ARIA roving-tabindex pattern for trees).
+    // focuses search from anywhere. Bottom half: vim keys fire when focus
+    // is outside the tree — the user's mental model is "keys work
+    // everywhere except while I'm typing." Inside a row, the per-row
+    // onKeyDown still owns the path (preserves the ARIA roving-tabindex
+    // pattern for trees).
     const onGlobalKeyDown = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target)) return;
 
@@ -576,35 +575,13 @@ export function App() {
         return;
       }
 
-      // Vim-key fallback below. Ctrl/Meta chords belong to the browser
-      // (undo, copy, find), so cede early. If focus is already on a row,
-      // the row's handler will run — don't double-fire.
-      if (e.ctrlKey || e.metaKey) return;
+      // If focus is already on a row, the per-row handler will run — don't
+      // double-fire.
       if (e.target instanceof HTMLElement && e.target.closest('[role="treeitem"]')) return;
-      if (editing() !== null) return;
 
       const id = selected() ?? rows()[0]?.task.id;
       if (!id) return;
-
-      if (e.altKey) {
-        if (e.key === "ArrowDown") {
-          e.preventDefault();
-          void moveByKey(id, "down");
-        } else if (e.key === "ArrowUp") {
-          e.preventDefault();
-          void moveByKey(id, "up");
-        }
-        return;
-      }
-
-      const key = e.shiftKey && e.key === "Tab" ? "Shift+Tab" : e.key;
-      const action = ROW_KEY_ACTIONS[key];
-      if (!action) return;
-      e.preventDefault();
-      // Seed focus into the row so the next key flows through the per-row
-      // handler — the bootstrap was a one-key handoff into the ARIA path.
-      setFocusedId(id);
-      action(id);
+      applyVimKey(e, id);
     };
     window.addEventListener("keydown", onGlobalKeyDown);
     onCleanup(() => window.removeEventListener("keydown", onGlobalKeyDown));
@@ -927,7 +904,7 @@ export function App() {
                     tabIndex={0}
                     onClick={() => setSelected(row.task.id)}
                     onFocus={() => setSelected(row.task.id)}
-                    onKeyDown={(e) => handleRowKeyDown(e, row.task.id)}
+                    onKeyDown={(e) => applyVimKey(e, row.task.id)}
                     onPointerDown={(e) => handleRowPointerDown(e, row.task.id)}
                     onPointerMove={(e) => handleRowPointerMove(e, row.task.id)}
                     onPointerUp={handleRowPointerUp}
