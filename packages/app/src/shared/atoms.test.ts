@@ -4,6 +4,7 @@ import {
   atomEquals,
   evalAtoms,
   HIDE_STALE_DONE,
+  ONLY_DOING,
   parseAtoms,
   serializeAtoms,
   STALE_THRESHOLD_MS,
@@ -34,6 +35,16 @@ describe("parseAtoms", () => {
 
   test("unknown done:X value falls back to free text", () => {
     expect(parseAtoms("done:maybe")).toEqual([{ kind: "text", needle: "done:maybe" }]);
+  });
+
+  test("status:X tokens become status atoms", () => {
+    expect(parseAtoms("status:todo")).toEqual([{ kind: "status", value: "todo" }]);
+    expect(parseAtoms("status:doing")).toEqual([{ kind: "status", value: "doing" }]);
+    expect(parseAtoms("status:done")).toEqual([{ kind: "status", value: "done" }]);
+  });
+
+  test("unknown status:X value falls back to free text", () => {
+    expect(parseAtoms("status:blocked")).toEqual([{ kind: "text", needle: "status:blocked" }]);
   });
 
   test("not <structured> becomes a negation atom", () => {
@@ -90,6 +101,11 @@ describe("serializeAtoms", () => {
     expect(serializeAtoms([{ kind: "done", value: "stale" }])).toBe("done:stale");
   });
 
+  test("status atom serializes as status:X", () => {
+    expect(serializeAtoms([ONLY_DOING])).toBe("status:doing");
+    expect(serializeAtoms([{ kind: "status", value: "todo" }])).toBe("status:todo");
+  });
+
   test("not atom prefixes its inner", () => {
     expect(serializeAtoms([HIDE_STALE_DONE])).toBe("not done:stale");
   });
@@ -118,6 +134,10 @@ describe("parse/serialize round-trip", () => {
     "not done:stale groc list",
     "foo done:no bar",
     "done:yes done:no", // redundant but parseable; AND-composes to empty
+    "status:doing",
+    "status:doing groc",
+    "status:doing not done:stale",
+    "not status:done",
   ];
   for (const q of sample) {
     test(`serialize(parse("${q}")) re-parses to the same atom list`, () => {
@@ -156,6 +176,13 @@ describe("atomEquals", () => {
         inner: { kind: "done", value: "fresh" },
       }),
     ).toBe(false);
+  });
+
+  test("status atoms agree on kind and value", () => {
+    expect(atomEquals(ONLY_DOING, ONLY_DOING)).toBe(true);
+    expect(atomEquals(ONLY_DOING, { kind: "status", value: "todo" })).toBe(false);
+    // status and done are different kinds even when values are spelled the same
+    expect(atomEquals(ONLY_DOING, { kind: "done", value: "yes" } as Atom)).toBe(false);
   });
 
   test("different kinds are never equal", () => {
@@ -264,6 +291,22 @@ describe("evalAtoms", () => {
     expect(evalAtoms(atoms, doneFresh, NOW)).toBe(true);
     expect(evalAtoms(atoms, doneStale, NOW)).toBe(false);
     expect(evalAtoms(atoms, doneLegacy, NOW)).toBe(true);
+  });
+
+  test("status:doing keeps only doing tasks", () => {
+    const atoms = parseAtoms("status:doing");
+    expect(evalAtoms(atoms, todo, NOW)).toBe(false);
+    expect(evalAtoms(atoms, doing, NOW)).toBe(true);
+    expect(evalAtoms(atoms, doneFresh, NOW)).toBe(false);
+    expect(evalAtoms(atoms, doneStale, NOW)).toBe(false);
+  });
+
+  test("status:todo and status:done match their lifecycle state", () => {
+    expect(evalAtoms(parseAtoms("status:todo"), todo, NOW)).toBe(true);
+    expect(evalAtoms(parseAtoms("status:todo"), doing, NOW)).toBe(false);
+    expect(evalAtoms(parseAtoms("status:done"), doneFresh, NOW)).toBe(true);
+    expect(evalAtoms(parseAtoms("status:done"), doneLegacy, NOW)).toBe(true);
+    expect(evalAtoms(parseAtoms("status:done"), todo, NOW)).toBe(false);
   });
 
   test("AND-composition: free text + structured atom", () => {

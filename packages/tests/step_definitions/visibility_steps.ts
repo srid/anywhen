@@ -6,16 +6,32 @@ import type { AnywhenWorld } from "../support/world";
 // can be passed to toHaveValue() as a literal substring match.
 const escapeForRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-When("I click the visibility lever", async function (this: AnywhenWorld) {
-  await this.page.getByTestId("visibility-lever").click();
+// Maps the Gherkin lever name (in `When I click the <name> lever`) to the
+// rendered data-testid. Adding a new lever is one entry here plus the
+// matching `data-testid` in App.tsx — the scenarios use the same step
+// vocabulary across all levers.
+const LEVER_TESTIDS: Record<string, string> = {
+  visibility: "visibility-lever",
+  focus: "focus-lever",
+};
+
+const leverLocator = (page: AnywhenWorld["page"], name: string) => {
+  const testId = LEVER_TESTIDS[name];
+  if (!testId)
+    throw new Error(`unknown lever name: "${name}" (expected one of: visibility, focus)`);
+  return page.getByTestId(testId);
+};
+
+When("I click the {word} lever", async function (this: AnywhenWorld, name: string) {
+  await leverLocator(this.page, name).click();
 });
 
-Then("the visibility lever should be on", async function (this: AnywhenWorld) {
-  await expect(this.page.getByTestId("visibility-lever")).toHaveAttribute("aria-pressed", "true");
+Then("the {word} lever should be on", async function (this: AnywhenWorld, name: string) {
+  await expect(leverLocator(this.page, name)).toHaveAttribute("aria-pressed", "true");
 });
 
-Then("the visibility lever should be off", async function (this: AnywhenWorld) {
-  await expect(this.page.getByTestId("visibility-lever")).toHaveAttribute("aria-pressed", "false");
+Then("the {word} lever should be off", async function (this: AnywhenWorld, name: string) {
+  await expect(leverLocator(this.page, name)).toHaveAttribute("aria-pressed", "false");
 });
 
 Then(

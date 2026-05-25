@@ -24,9 +24,13 @@ import { splitTitle } from "./title";
 const DONE_VALUES = ["no", "yes", "fresh", "stale"] as const;
 type DoneValue = (typeof DONE_VALUES)[number];
 
+const STATUS_VALUES = ["todo", "doing", "done"] as const;
+type StatusValue = (typeof STATUS_VALUES)[number];
+
 export type Atom =
   | { kind: "text"; needle: string }
   | { kind: "done"; value: DoneValue }
+  | { kind: "status"; value: StatusValue }
   | { kind: "not"; inner: Atom };
 
 export const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
@@ -39,6 +43,11 @@ export const HIDE_STALE_DONE: Atom = {
   inner: { kind: "done", value: "stale" },
 };
 
+// The atom the focus lever inserts. "Only what I'm doing" reads as the
+// lever's intent; the underlying atom is the literal status:doing the
+// user could also type by hand.
+export const ONLY_DOING: Atom = { kind: "status", value: "doing" };
+
 // Recognises one structured atom in a single token (today: done:X).
 // Returns null for tokens that should fall through to free text. Future
 // atom kinds extend this without touching the surrounding tokenizer.
@@ -47,6 +56,12 @@ const parseStructured = (token: string): Atom | null => {
     const value = token.slice("done:".length);
     if ((DONE_VALUES as readonly string[]).includes(value)) {
       return { kind: "done", value: value as DoneValue };
+    }
+  }
+  if (token.startsWith("status:")) {
+    const value = token.slice("status:".length);
+    if ((STATUS_VALUES as readonly string[]).includes(value)) {
+      return { kind: "status", value: value as StatusValue };
     }
   }
   return null;
@@ -96,6 +111,8 @@ const serializeAtom = (atom: Atom): string => {
       return atom.needle;
     case "done":
       return `done:${atom.value}`;
+    case "status":
+      return `status:${atom.value}`;
     case "not":
       return `not ${serializeAtom(atom.inner)}`;
   }
@@ -115,6 +132,8 @@ export const atomToDisplayString = (atom: Atom): string => {
       return `"${atom.needle}"`;
     case "done":
       return `done:${atom.value}`;
+    case "status":
+      return `status:${atom.value}`;
     case "not":
       return `not ${atomToDisplayString(atom.inner)}`;
   }
@@ -129,6 +148,8 @@ export const atomEquals = (a: Atom, b: Atom): boolean => {
       return b.kind === "text" && a.needle === b.needle;
     case "done":
       return b.kind === "done" && a.value === b.value;
+    case "status":
+      return b.kind === "status" && a.value === b.value;
     case "not":
       return b.kind === "not" && atomEquals(a.inner, b.inner);
   }
@@ -178,6 +199,8 @@ const evalAtom = (atom: Atom, task: Task, now: number): boolean => {
       return matchesQuery(splitTitle(task.title).label, atom.needle);
     case "done":
       return evalDone(atom.value, task, now);
+    case "status":
+      return task.status === atom.value;
     case "not":
       return !evalAtom(atom.inner, task, now);
   }

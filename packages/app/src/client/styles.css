@@ -404,6 +404,21 @@ h1 {
   }
 }
 
+/* Right-aligned group holding one or more levers. margin-left: auto pins
+   the whole group to the right edge of .filter-meta regardless of
+   whether the atoms-sentence sibling is rendered. Without the pin,
+   justify-content: space-between collapses to flex-start when the group
+   is the only child (no structured atoms typed), and the levers would
+   slide between left and right as the user types. */
+.lever-group {
+  margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 /* Hairline two-state toggle. The pivot word is the click affordance —
    its sibling is dimmed muted text. On = the active pivot turns accent;
    off = the inactive side is muted. No background, no border, no chrome —
@@ -420,14 +435,6 @@ h1 {
   letter-spacing: 0.005em;
   white-space: nowrap;
   flex-shrink: 0;
-
-  /* margin-left: auto pins the lever to the right edge of .filter-meta
-     regardless of whether the atoms-sentence sibling is rendered.
-     Without it, justify-content: space-between collapses to flex-start
-     when the lever is the only child (off state, no structured atoms),
-     which makes the lever slide between left and right as the user
-     types structured atoms. The pin keeps the right edge stable. */
-  margin-left: auto;
 
   /* Pivot = the action word (the click target). Always the action,
      always accent — consistent across both states. Lever-engaged signal

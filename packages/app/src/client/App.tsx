@@ -29,6 +29,7 @@ import {
   atomToDisplayString,
   evalAtoms,
   HIDE_STALE_DONE,
+  ONLY_DOING,
   parseAtoms,
   serializeAtoms,
 } from "../shared/atoms";
@@ -70,6 +71,7 @@ const REPO_URL = "https://github.com/srid/anywhen";
 const ATOM_CLASS: Record<Atom["kind"], string> = {
   text: "atom-text",
   done: "atom-structured",
+  status: "atom-structured",
   not: "atom-not",
 };
 
@@ -276,20 +278,24 @@ export function App() {
     if (first) setSelected(first);
   });
 
-  // The lever is a typing shortcut: activating inserts HIDE_STALE_DONE
-  // into the query; deactivating filters it out. State derives from
-  // parsing `query()` — no parallel signal, so a deep-link or paste that
-  // happens to contain `not done:stale` reflects in the lever's pressed
-  // state without extra wiring.
-  const leverOn = createMemo<boolean>(() => atomList().some((a) => atomEquals(a, HIDE_STALE_DONE)));
-
-  const toggleLever = () => {
-    const current = atomList();
-    const next = leverOn()
-      ? current.filter((a) => !atomEquals(a, HIDE_STALE_DONE))
-      : [...current, HIDE_STALE_DONE];
-    setQuery(serializeAtoms(next));
+  // A lever is a typing shortcut: activating prepends its atom to the
+  // query; deactivating filters it out. State derives from parsing
+  // `query()` — no parallel signal, so a deep-link or paste that happens
+  // to contain the atom reflects in the lever's pressed state without
+  // extra wiring. Each call site (hide-stale, only-doing) is just a
+  // different atom; the toggle shape is identical.
+  const makeLever = (atom: Atom) => {
+    const on = createMemo<boolean>(() => atomList().some((a) => atomEquals(a, atom)));
+    const toggle = () => {
+      const current = atomList();
+      const next = on() ? current.filter((a) => !atomEquals(a, atom)) : [...current, atom];
+      setQuery(serializeAtoms(next));
+    };
+    return { on, toggle };
   };
+
+  const hideStaleLever = makeLever(HIDE_STALE_DONE);
+  const onlyDoingLever = makeLever(ONLY_DOING);
 
   // Add is disabled whenever the parsed atoms include any structured
   // (non-text) atom — the user is filtering, not naming a task.
@@ -809,26 +815,52 @@ export function App() {
             </For>
           </p>
         </Show>
-        <button
-          type="button"
-          class="lever"
-          classList={{ on: leverOn() }}
-          data-testid="visibility-lever"
-          aria-pressed={leverOn()}
-          aria-label={leverOn() ? "Show all tasks" : "Hide tasks done over 24 hours ago"}
-          onClick={toggleLever}
-        >
-          <Show
-            when={leverOn()}
-            fallback={
-              <>
-                showing all · <span class="lever-pivot">hide done &gt;24h</span>
-              </>
+        <div class="lever-group">
+          <button
+            type="button"
+            class="lever"
+            classList={{ on: onlyDoingLever.on() }}
+            data-testid="focus-lever"
+            aria-pressed={onlyDoingLever.on()}
+            aria-label={
+              onlyDoingLever.on() ? "Show tasks in any state" : "Show only tasks I'm doing"
             }
+            onClick={onlyDoingLever.toggle}
           >
-            showing recent · <span class="lever-pivot">show all</span>
-          </Show>
-        </button>
+            <Show
+              when={onlyDoingLever.on()}
+              fallback={
+                <>
+                  all tasks · <span class="lever-pivot">only what I&rsquo;m doing</span>
+                </>
+              }
+            >
+              only doing · <span class="lever-pivot">show all</span>
+            </Show>
+          </button>
+          <button
+            type="button"
+            class="lever"
+            classList={{ on: hideStaleLever.on() }}
+            data-testid="visibility-lever"
+            aria-pressed={hideStaleLever.on()}
+            aria-label={
+              hideStaleLever.on() ? "Show all tasks" : "Hide tasks done over 24 hours ago"
+            }
+            onClick={hideStaleLever.toggle}
+          >
+            <Show
+              when={hideStaleLever.on()}
+              fallback={
+                <>
+                  showing all · <span class="lever-pivot">hide done &gt;24h</span>
+                </>
+              }
+            >
+              showing recent · <span class="lever-pivot">show all</span>
+            </Show>
+          </button>
+        </div>
       </div>
 
       <div class="tree" data-testid="task-tree" role="tree" aria-label="Tasks">
