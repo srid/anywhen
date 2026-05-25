@@ -68,6 +68,7 @@ export function TaskRow(props: TaskRowProps) {
   const body = createMemo(() => split().body);
   const rowDropZone = createMemo(() => props.drag.dropZoneOn(props.row.task.id));
   const isDragging = createMemo(() => props.drag.isDragging(props.row.task.id));
+  const isBodyExpanded = createMemo(() => props.expandedBodies().has(props.row.task.id));
 
   // When focusedId matches this row, focus its DOM element. Runs on mount
   // and whenever focusedId changes — so a mutation that tears down and
@@ -159,13 +160,11 @@ export function TaskRow(props: TaskRowProps) {
                 <button
                   type="button"
                   class="body-toggle"
-                  classList={{ open: props.expandedBodies().has(props.row.task.id) }}
+                  classList={{ open: isBodyExpanded() }}
                   data-testid="task-body-toggle"
                   data-task-id={props.row.task.id}
-                  aria-label={`${
-                    props.expandedBodies().has(props.row.task.id) ? "Hide" : "Show"
-                  } details for ${firstLine()}`}
-                  aria-expanded={props.expandedBodies().has(props.row.task.id)}
+                  aria-label={`${isBodyExpanded() ? "Hide" : "Show"} details for ${firstLine()}`}
+                  aria-expanded={isBodyExpanded()}
                   title="Toggle details"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -225,7 +224,7 @@ export function TaskRow(props: TaskRowProps) {
           classList={{ dimmed: props.row.dimmed }}
           style={{ "--row-depth": props.row.depth }}
           data-task-id={props.row.task.id}
-          hidden={!props.expandedBodies().has(props.row.task.id)}
+          hidden={!isBodyExpanded()}
         >
           <div
             class="task-body"
