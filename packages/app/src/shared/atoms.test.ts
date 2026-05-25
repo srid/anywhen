@@ -309,6 +309,20 @@ describe("evalAtoms", () => {
     expect(evalAtoms(parseAtoms("status:done"), todo, NOW)).toBe(false);
   });
 
+  test("done:yes and status:done evaluate identically — pins the documented overlap", () => {
+    // The two atoms are equivalent by construction (both reduce to
+    // task.status === "done"). The atoms.ts comment at evalDone's "yes"
+    // case warns that any future widening of the "done" lifecycle must
+    // touch both branches; this test fails immediately if one is updated
+    // without the other.
+    const tasks = [todo, doing, doneFresh, doneStale, doneLegacy];
+    const doneYes = parseAtoms("done:yes");
+    const statusDone = parseAtoms("status:done");
+    for (const task of tasks) {
+      expect(evalAtoms(doneYes, task, NOW)).toBe(evalAtoms(statusDone, task, NOW));
+    }
+  });
+
   test("AND-composition: free text + structured atom", () => {
     const atoms = parseAtoms("done:no draft");
     expect(evalAtoms(atoms, todo, NOW)).toBe(true);

@@ -182,6 +182,13 @@ const evalDone = (value: DoneValue, task: Task, now: number): boolean => {
       // doing. A future status like "blocked" would also fall here.
       return task.status !== "done";
     case "yes":
+      // Equivalent to `status:done` by construction — same predicate, two
+      // grammars. `done:` owns temporal completion semantics (yes / no /
+      // fresh / stale); `status:` owns raw lifecycle equality. If the
+      // definition of "done" ever widens (e.g. a future "archived"
+      // state that also counts as done), both this branch and the
+      // status:done branch below must move in lockstep — the round-trip
+      // test in atoms.test.ts pins the equivalence.
       return task.status === "done";
     case "fresh":
       return isFreshDone(task, now);
