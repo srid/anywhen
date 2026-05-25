@@ -6,20 +6,19 @@ import type { AnywhenWorld } from "../support/world";
 // can be passed to toHaveValue() as a literal substring match.
 const escapeForRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// Maps the Gherkin lever name (in `When I click the <name> lever`) to the
-// rendered data-testid. Adding a new lever is one entry here plus the
-// matching `data-testid` in App.tsx — the scenarios use the same step
-// vocabulary across all levers.
-const LEVER_TESTIDS: Record<string, string> = {
-  visibility: "visibility-lever",
-  focus: "focus-lever",
-};
+// The Gherkin lever name (in `When I click the <name> lever`) maps to a
+// `${name}-lever` data-testid by convention — every lever in App.tsx
+// follows this naming. The Set is a runtime guard so a Gherkin typo
+// fails loud rather than silently looking for a non-existent element.
+const KNOWN_LEVERS = new Set(["visibility", "focus"]);
 
 const leverLocator = (page: AnywhenWorld["page"], name: string) => {
-  const testId = LEVER_TESTIDS[name];
-  if (!testId)
-    throw new Error(`unknown lever name: "${name}" (expected one of: visibility, focus)`);
-  return page.getByTestId(testId);
+  if (!KNOWN_LEVERS.has(name)) {
+    throw new Error(
+      `unknown lever name: "${name}" (expected one of: ${[...KNOWN_LEVERS].join(", ")})`,
+    );
+  }
+  return page.getByTestId(`${name}-lever`);
 };
 
 When("I click the {word} lever", async function (this: AnywhenWorld, name: string) {
