@@ -1,5 +1,5 @@
 lockfile_version: '1'
-generated_at: '2026-05-23T22:34:30.268276+00:00'
+generated_at: '2026-05-25T20:16:23.582143+00:00'
 apm_version: 0.14.2
 dependencies:
 - repo_url: anthropics/claude-code
@@ -81,3 +81,7 @@ mcp_configs:
     transport: stdio
     registry: false
     command: .agents/skills/nix-chrome-devtools-mcp/bin/serve
+local_deployed_files:
+- .claude/rules/philosophy.md
+local_deployed_file_hashes:
+  .claude/rules/philosophy.md: sha256:7f8a9fac0fccca90faef8f3f6b4da084fdc9634d6abb4e955e0f3043a6400ab8

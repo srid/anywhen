@@ -7,7 +7,7 @@ import {
   parseAtoms,
   serializeAtoms,
   STALE_THRESHOLD_MS,
-} from "./atoms";
+} from "./query";
 import type { Task, TaskId } from "./schemas";
 
 // ── parseAtoms ────────────────────────────────────────────────────────

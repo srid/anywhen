@@ -44,7 +44,7 @@ export const TaskSchema = z
     updatedAt: z.string(),
     // ISO timestamp of the most recent todo→done flip. Set inside
     // cycleStatus() when status flips to 'done'; cleared back to null on
-    // done→todo. `null` lets the staleness predicate (atoms.ts) treat the
+    // done→todo. `null` lets the staleness predicate (query.ts) treat the
     // row as "completion time unknown" rather than fresh or stale.
     completedAt: z.string().nullable(),
   })

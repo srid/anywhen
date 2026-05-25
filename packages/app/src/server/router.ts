@@ -37,6 +37,20 @@ import type { TaskStore } from "../storage/tasks";
 // avoids this because it always spreads the surface fragment alongside
 // hand-written namespaces; a surface-only host needs the explicit rewrap.
 
+// Single-row write helper: SQL write + Collection upsert as one structural
+// unit. Removes the per-handler "do store.X then ctx.collections.tasks.upsert"
+// convention — adding a new single-row mutation procedure routes through this
+// helper, so the cache fan-out invariant lives in one place and a forgotten
+// upsert is no longer a silent wire desync. Multi-row mutations (remove with
+// cascade, import wipe-and-replace, __test__reset) still own their own
+// fan-out because their post-state isn't "one new task value".
+type TasksCtx = { collections: { tasks: { upsert: (key: TaskId, value: Task) => void } } };
+const writeAndPublish = async (ctx: TasksCtx, op: () => Promise<Task>): Promise<Task> => {
+  const task = await op();
+  ctx.collections.tasks.upsert(task.id, task);
+  return task;
+};
+
 export function buildRouter(store: TaskStore, cache: Map<TaskId, Task>, runtimeInfo: RuntimeInfo) {
   // MemoryPublisher's generic insists on `Record<string, object>`; we publish
   // `Task` objects and `string[]` key snapshots, both of which satisfy
@@ -59,32 +73,15 @@ export function buildRouter(store: TaskStore, cache: Map<TaskId, Task>, runtimeI
     },
     procedures: {
       tasks: {
-        // `add` allocates the id server-side and publishes via the
-        // wrapped upsert (which also broadcasts the new keys list).
-        add: async ({ input, ctx }) => {
-          const task = await store.add(input);
-          ctx.collections.tasks.upsert(task.id, task);
-          return task;
-        },
-        // `cycleStatus` produces a new task value; route it through
-        // `upsert` so the per-key value bus fires for the advanced row.
-        cycleStatus: async ({ input, ctx }) => {
-          const task = await store.cycleStatus(input);
-          ctx.collections.tasks.upsert(task.id, task);
-          return task;
-        },
-        // `edit` rewrites only the title; same upsert fan-out as
-        // cycleStatus so every subscriber sees the renamed row in one delta.
-        edit: async ({ input, ctx }) => {
-          const task = await store.edit(input.id, input.title);
-          ctx.collections.tasks.upsert(task.id, task);
-          return task;
-        },
-        // `move` rewrites parent_id / position. `store.move` returns the
-        // updated row, so we publish directly without a second snapshot.
+        // Single-row mutations route through `writeAndPublish` so the SQL
+        // write and the Collection upsert land as one structural unit — see
+        // the helper's comment above for why this is no longer a per-handler
+        // checklist.
+        add: ({ input, ctx }) => writeAndPublish(ctx, () => store.add(input)),
+        cycleStatus: ({ input, ctx }) => writeAndPublish(ctx, () => store.cycleStatus(input)),
+        edit: ({ input, ctx }) => writeAndPublish(ctx, () => store.edit(input.id, input.title)),
         move: async ({ input, ctx }) => {
-          const next = await store.move(input);
-          ctx.collections.tasks.upsert(input.id, next);
+          await writeAndPublish(ctx, () => store.move(input));
         },
         // FK cascade removes descendants in SQL; mirror the same fan-out
         // through the Collection so each descendant's key drops off the
