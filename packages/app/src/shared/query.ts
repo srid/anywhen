@@ -23,15 +23,19 @@
 
 import { matchesQuery } from "./filter";
 import { normalizeQuery } from "./input";
-import type { Task } from "./schemas";
+import { TaskStatusSchema, type Task, type TaskStatus } from "./schemas";
 import { splitTitle } from "./title";
 
 const DONE_VALUES = ["no", "yes", "fresh", "stale"] as const;
 type DoneValue = (typeof DONE_VALUES)[number];
 
+// Derived from TaskStatusSchema so any enum widening stays in sync automatically.
+const STATUS_VALUES = TaskStatusSchema.options;
+
 export type Atom =
   | { kind: "text"; needle: string }
   | { kind: "done"; value: DoneValue }
+  | { kind: "status"; value: TaskStatus }
   | { kind: "not"; inner: Atom };
 
 export const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
@@ -44,15 +48,28 @@ export const HIDE_STALE_DONE: Atom = {
   inner: { kind: "done", value: "stale" },
 };
 
-// Recognises one structured atom in a single token (today: done:X).
+// The atom the focus lever inserts. "Only what I'm doing" reads as the
+// lever's intent; the underlying atom is the literal status:doing the
+// user could also type by hand.
+export const ONLY_DOING: Atom = { kind: "status", value: "doing" };
+
+// Recognises one structured atom in a single token (today: done:X, status:X).
 // Returns null for tokens that should fall through to free text. Future
 // atom kinds extend this without touching the surrounding tokenizer.
 const parseStructured = (token: string): Atom | null => {
-  if (token.startsWith("done:")) {
-    const value = token.slice("done:".length);
-    if ((DONE_VALUES as readonly string[]).includes(value)) {
-      return { kind: "done", value: value as DoneValue };
-    }
+  // Value following a prefix, or null when the prefix isn't present.
+  const after = (prefix: string) => (token.startsWith(prefix) ? token.slice(prefix.length) : null);
+  // Type-safe membership: narrows `s` to `T` when it's in the const array.
+  const oneOf = <T extends string>(s: string, arr: readonly T[]): s is T =>
+    (arr as readonly string[]).includes(s);
+
+  const doneVal = after("done:");
+  if (doneVal !== null && oneOf(doneVal, DONE_VALUES)) {
+    return { kind: "done", value: doneVal };
+  }
+  const statusVal = after("status:");
+  if (statusVal !== null && oneOf(statusVal, STATUS_VALUES)) {
+    return { kind: "status", value: statusVal };
   }
   return null;
 };
@@ -101,6 +118,8 @@ const serializeAtom = (atom: Atom): string => {
       return atom.needle;
     case "done":
       return `done:${atom.value}`;
+    case "status":
+      return `status:${atom.value}`;
     case "not":
       return `not ${serializeAtom(atom.inner)}`;
   }
@@ -120,6 +139,8 @@ export const atomToDisplayString = (atom: Atom): string => {
       return `"${atom.needle}"`;
     case "done":
       return `done:${atom.value}`;
+    case "status":
+      return `status:${atom.value}`;
     case "not":
       return `not ${atomToDisplayString(atom.inner)}`;
   }
@@ -134,6 +155,8 @@ export const atomEquals = (a: Atom, b: Atom): boolean => {
       return b.kind === "text" && a.needle === b.needle;
     case "done":
       return b.kind === "done" && a.value === b.value;
+    case "status":
+      return b.kind === "status" && a.value === b.value;
     case "not":
       return b.kind === "not" && atomEquals(a.inner, b.inner);
   }
@@ -166,6 +189,13 @@ const evalDone = (value: DoneValue, task: Task, now: number): boolean => {
       // doing. A future status like "blocked" would also fall here.
       return task.status !== "done";
     case "yes":
+      // Equivalent to `status:done` by construction — same predicate, two
+      // grammars. `done:` owns temporal completion semantics (yes / no /
+      // fresh / stale); `status:` owns raw lifecycle equality. If the
+      // definition of "done" ever widens (e.g. a future "archived"
+      // state that also counts as done), both this branch and the
+      // status:done branch below must move in lockstep — the equivalence
+      // test in query.test.ts pins the property across every fixture task.
       return task.status === "done";
     case "fresh":
       return isFreshDone(task, now);
@@ -183,6 +213,8 @@ const evalAtom = (atom: Atom, task: Task, now: number): boolean => {
       return matchesQuery(splitTitle(task.title).label, atom.needle);
     case "done":
       return evalDone(atom.value, task, now);
+    case "status":
+      return task.status === atom.value;
     case "not":
       return !evalAtom(atom.inner, task, now);
   }

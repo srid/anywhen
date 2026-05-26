@@ -61,9 +61,12 @@ attention, not to compete for it.
 > query — matches highlight in their
 > own row, ancestors stay visible but dimmed so the path to a match is
 > intact; structured atoms `done:no`, `done:yes`, `done:fresh`,
-> `done:stale`, and `not <atom>` AND-compose with the free text — a
-> hairline lever beside the search box inserts `not done:stale` as a
-> one-click way to hide tasks finished more than a day ago) +
+> `done:stale`, `status:todo`, `status:doing`, `status:done`, and
+> `not <atom>` AND-compose with the free text — two hairline levers
+> beside the search box compose atoms as one-click typing shortcuts:
+> "only what I'm doing" injects `status:doing` to focus on in-flight
+> tasks, and "hide done >24h" injects `not done:stale` to hide tasks
+> finished more than a day ago) +
 > mobile-friendly layout (responsive media queries, touch-sized
 > tap targets, always-visible row actions and grip handles on coarse
 > pointers) + PWA

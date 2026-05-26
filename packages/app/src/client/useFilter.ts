@@ -18,6 +18,7 @@ import {
   atomEquals,
   evalAtoms,
   HIDE_STALE_DONE,
+  ONLY_DOING,
   parseAtoms,
   serializeAtoms,
 } from "../shared/query";
@@ -76,20 +77,24 @@ export const useFilter = (
     return applyFilter(sorted(), (task) => evalAtoms(atoms, task, nowMs));
   });
 
-  // The lever is a typing shortcut: activating inserts HIDE_STALE_DONE
-  // into the query; deactivating filters it out. State derives from
-  // parsing `query()` — no parallel signal, so a deep-link or paste that
-  // happens to contain `not done:stale` reflects in the lever's pressed
-  // state without extra wiring.
-  const leverOn = createMemo<boolean>(() => atomList().some((a) => atomEquals(a, HIDE_STALE_DONE)));
-
-  const toggleLever = () => {
-    const current = atomList();
-    const next = leverOn()
-      ? current.filter((a) => !atomEquals(a, HIDE_STALE_DONE))
-      : [...current, HIDE_STALE_DONE];
-    setQuery(serializeAtoms(next));
+  // A lever is a typing shortcut: activating appends its atom to the
+  // query; deactivating filters it out. State derives from parsing
+  // `query()` — no parallel signal, so a deep-link or paste that happens
+  // to contain the atom reflects in the lever's pressed state without
+  // extra wiring. Each call site (hide-stale, only-doing) is just a
+  // different atom; the toggle shape is identical.
+  const createLever = (atom: Atom) => {
+    const on = createMemo(() => atomList().some((a) => atomEquals(a, atom)));
+    const toggle = () => {
+      const current = atomList();
+      const next = on() ? current.filter((a) => !atomEquals(a, atom)) : [...current, atom];
+      setQuery(serializeAtoms(next));
+    };
+    return { on, toggle };
   };
+
+  const hideStaleLever = createLever(HIDE_STALE_DONE);
+  const onlyDoingLever = createLever(ONLY_DOING);
 
   // Add is disabled whenever the parsed atoms include any structured
   // (non-text) atom — the user is filtering, not naming a task.
@@ -103,8 +108,8 @@ export const useFilter = (
     atomList,
     highlightQuery,
     rows,
-    leverOn,
-    toggleLever,
+    hideStaleLever,
+    onlyDoingLever,
     canCreate,
   };
 };
